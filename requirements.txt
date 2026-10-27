@@ -24,7 +24,7 @@ pyyaml>=6.0  # investor_profile.yaml / tax_facts.yaml parsing (setup_agent)
 # below keeps the pinned numpy 1.26.4 intact (verified 2026-10-13).
 matplotlib>=3.9.0,<3.10
 contourpy>=1.2,<1.3
-tzdata>=2022.0,<2027  # Windows-safe zoneinfo database (Europe/Bratislava); no-op on most Linux/macOS
+tzdata>=2026.5,<2027  # Windows-safe zoneinfo database (Europe/Bratislava); no-op on most Linux/macOS
 
 # --- Browser (Playwright): installed, browser binary via install script ---
 # Pip package is required for the TradingView sweep + earnings layer 2 +
