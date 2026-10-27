@@ -114,6 +114,34 @@ TRADING212_API_SECRET=your_secret
 TRADING212_ENABLED=true
 ```
 
+### `investment_policy.json` and policy profiles
+
+`investment_policy.json` holds caps, cash floor, earnings blackout, sizing and
+averaging rules. `policy_profile` selects an optional preset that overrides the
+matching fields; `custom` (the default) keeps the raw file values.
+
+| Profile | Horizon | Adds to | Exits | Max position | Cash floor | Risk/trade |
+|---|---|---|---|---|---|---|
+| `passive` | 10+ years | core, long-term | manual only | 25% | 5% | 1.0% |
+| `long_term` | 3-10 years | core, long-term | trims on core/long-term/thematic | 20% | 5% | 1.5% |
+| `medium_term` | 1-3 years | + thematic | trims, all sleeves | 15% | 3% | 2.0% |
+| `short_term` | days-months | thematic, tactical | full, never the core | 8% | 2% | 1.0% |
+| `aggressive` | any | all sleeves | full, all sleeves | 30% | 0% | 3.0% |
+
+```json
+{ "policy_version": "v1", "policy_profile": "long_term", "...": "..." }
+```
+
+Rules that hold for every profile:
+
+- A profile can **block or resize** a candidate; it can never create a trade.
+  No committee decision means no plan, whatever the profile.
+- Reconciliation `FAIL` and the earnings blackout still block BUY/ADD.
+- Every override is listed in the report (`applied_overrides`), so a preset
+  never silently changes a number.
+- A preset only touches fields it defines; everything else stays as written.
+- An unknown profile name marks the policy `INVALID` instead of guessing.
+
 ## Project Structure
 
 ```

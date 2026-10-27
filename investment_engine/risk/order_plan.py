@@ -53,8 +53,9 @@ def trim_sizing_eur(*, weight_pct: float, cap_pct: float, total_equity: float,
                 "binding_constraint": "trim-to-cap",
                 "inputs": {"position_value_eur": round(position_value, 2),
                            "cap_value_eur": round(cap_value, 2)}}
+    _frac_raw = (policy.get("trims", {}) or {}).get("trim_fraction_pct", 50.0)
     try:
-        frac = float((policy.get("trims", {}) or {}).get("trim_fraction_pct", 50.0) or 50.0)
+        frac = 50.0 if _frac_raw is None else float(_frac_raw)
     except (TypeError, ValueError):
         frac = 50.0
     return {"notional_eur": round(position_value * frac / 100.0, 2),
@@ -83,6 +84,12 @@ def build_plans(*, committee_decisions: list[dict[str, Any]],
     from investment_engine.risk.policy import REQUIRES_USER_VALUE, is_deferred
 
     sleeves = sleeves or {}
+    profile_block = (policy.get("profile")
+                     if isinstance(policy.get("profile"), dict) else {})
+    profile_name = str(profile_block.get("name") or "custom")
+    profile_buy_sleeves = {str(s) for s in (profile_block.get("allowed_buy_sleeves") or [])}
+    profile_sell_sleeves = {str(s) for s in (profile_block.get("allowed_sell_sleeves") or [])}
+    profile_allow_sells = bool(profile_block.get("allow_sells", True))
     risk_pct = float(policy.get("risk_per_trade_pct", 2.0) or 2.0)
     adverse = float(policy.get("adverse_move_assumption", 0.25) or 0.25)
     eb = policy.get("earnings_blackout", {}) or {}
@@ -137,6 +144,22 @@ def build_plans(*, committee_decisions: list[dict[str, Any]],
         # Deferred: unknown sleeve → research only (no sizing guesses).
         if sleeve == "unknown":
             return None, {"ticker": ticker, "reason": "sleeve unknown — research only, no sizing"}
+        # Profile overlay: select the sleeves this strategy may touch. A
+        # profile can block a candidate, never create one.
+        if direction == "TRIM":
+            if not profile_allow_sells:
+                return None, {"ticker": ticker, "source": "profile",
+                              "direction": direction,
+                              "reason": f"profile '{profile_name}': exits are manual only"}
+            if profile_sell_sleeves and sleeve not in profile_sell_sleeves:
+                return None, {"ticker": ticker, "source": "profile",
+                              "direction": direction,
+                              "reason": f"profile '{profile_name}' does not sell sleeve={sleeve}"}
+        elif profile_buy_sleeves and sleeve not in profile_buy_sleeves:
+            return None, {"ticker": ticker, "source": "profile",
+                          "direction": direction,
+                          "reason": (f"profile '{profile_name}' adds only to: "
+                                     f"{', '.join(sorted(profile_buy_sleeves))}")}
         try:
             weight = float(row.get("weight", 0) or 0)
         except (TypeError, ValueError):
@@ -299,6 +322,13 @@ def build_plans(*, committee_decisions: list[dict[str, Any]],
             evaluation_status = "ALL_BLOCKED"
         else:
             evaluation_status = "NO_ACTIONABLE_SIGNAL"
+    profile_blocked = [b for b in blocked if b.get("source") == "profile"]
+    profile_effects = {
+        "buy_candidates_blocked": sum(1 for b in profile_blocked
+                                      if b.get("direction") == "BUY"),
+        "sell_candidates_blocked": sum(1 for b in profile_blocked
+                                       if b.get("direction") == "TRIM"),
+    }
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "advisory_guard": ADVISORY_GUARD,
@@ -306,6 +336,8 @@ def build_plans(*, committee_decisions: list[dict[str, Any]],
         "blocked": blocked,
         "evaluation_status": evaluation_status,
         "decisions_received": len(decisions_in),
+        "policy_profile": profile_block,
+        "profile_effects": profile_effects,
         "funding": {
             "trim_funding_enabled": allow_trim_funding,
             "free_cash_eur": round(float(free_cash or 0.0), 2),
@@ -319,7 +351,12 @@ def build_plans(*, committee_decisions: list[dict[str, Any]],
 
 def render(bundle: dict[str, Any]) -> str:
     """Markdown section for the AI context file (never the human brief)."""
+    from investment_engine.risk.profiles import describe_line
+
     lines = ["## Advisory Order Plans (not executed)", ADVISORY_GUARD, ""]
+    profile = bundle.get("policy_profile") or {}
+    if isinstance(profile, dict) and profile:
+        lines += [describe_line(profile), ""]
     for plan in bundle.get("plans", []) or []:
         lines.append(
             f"- **{plan.get('ticker')}** {plan.get('direction')} "

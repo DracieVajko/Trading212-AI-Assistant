@@ -1889,9 +1889,10 @@ DECISIONS:
                 policy=policy_state.get("policy", {}) or {},
                 sleeves=_sleeves,
                 hold_thesis=settings_dict.get("hold_thesis", {}))
-            logger.info("Order plans: %d advisory, %d blocked (policy %s)",
+            logger.info("Order plans: %d advisory, %d blocked (policy %s, profile %s)",
                         len(order_plans.get("plans", [])), len(order_plans.get("blocked", [])),
-                        policy_state.get("version", ""))
+                        policy_state.get("version", ""),
+                        (policy_state.get("profile") or {}).get("name", "custom"))
         else:
             logger.info("Order plans disabled: investment policy %s", policy_state.get("status"))
     except Exception as exc:
@@ -2567,7 +2568,8 @@ DECISIONS:
         "order_plans": order_plans,
         "investment_policy": {"status": policy_state.get("status", "NOT SET"),
                               "version": policy_state.get("version", ""),
-                              "problems": policy_state.get("problems", [])},
+                              "problems": policy_state.get("problems", []),
+                              "profile": policy_state.get("profile", {})},
         "universe": {
             "enabled": True,
             "counts": dict(universe_info or {}),

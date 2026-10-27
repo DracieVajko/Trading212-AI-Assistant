@@ -1,6 +1,8 @@
 {
   "_comment": "TEMPLATE ONLY — copy to investment_policy.json (gitignored) and edit. Real file must never be committed. Deferred values stay REQUIRES_USER_VALUE and block the dependent plan type instead of guessing.",
   "policy_version": "v1-preliminary",
+  "policy_profile": "custom",
+  "_policy_profile_comment": "Choose: custom | passive | long_term | medium_term | short_term | aggressive. A preset overrides the matching fields below (per-trade risk, position cap, cash floor, trim fraction, averaging sleeves, stops, core trims) and reports every override. Presets never invent signals: they only block or resize a real candidate.",
   "concentration": {
     "default_max_position_pct": 20.0,
     "by_sleeve": "REQUIRES_USER_VALUE"

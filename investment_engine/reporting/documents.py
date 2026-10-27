@@ -773,6 +773,14 @@ def build_intelligence_brief(result: dict) -> str:
         _reasons = list({str(b.get("reason", "")) for b in blocked if b.get("reason")})
         if _reasons:
             lines.append(f"  - Primary reasons: {'; '.join(_reasons[:3])}")
+    # Active policy profile: which sleeves may be added to / sold at all.
+    try:
+        from investment_engine.risk.profiles import describe_line as _profile_line
+        _profile = policy_info.get("profile") if isinstance(policy_info, dict) else None
+        if isinstance(_profile, dict) and _profile.get("name"):
+            lines.append(f"- {_profile_line(_profile)}")
+    except Exception:
+        pass
     # Concentration snapshot: effective holdings, top weights, small positions,
     # FX exposure by native quote currency. Pure arithmetic over broker rows.
     try:
@@ -944,6 +952,14 @@ def render_brief(
         f"- Cash/deployment: {cash_line}",
         f"- Key safety constraint: {constraint}",
     ]
+    # Active strategy profile: what the engine may propose under it.
+    try:
+        from investment_engine.risk.profiles import describe_line as _profile_line
+        _profile = (order_plans or {}).get("policy_profile") if isinstance(order_plans, dict) else None
+        if isinstance(_profile, dict) and _profile.get("name"):
+            lines.append(f"- {_profile_line(_profile)}")
+    except Exception:
+        pass
     if status == "FAIL":
         lines += ["", f"> {FAIL_PERFORMANCE_NOTE}"]
     if summary:
@@ -1443,6 +1459,13 @@ def build_deep_dive(
         lines.append("No new ideas met the current evidence and validation threshold.")
     lines += ["", "## 9. Portfolio Advisory & Rebalancing Recommendations", ""]
     _plans = (order_plans or {}).get("plans", []) or [] if isinstance(order_plans, dict) else []
+    try:
+        from investment_engine.risk.profiles import describe_line as _profile_line
+        _profile = (order_plans or {}).get("policy_profile") if isinstance(order_plans, dict) else None
+        if isinstance(_profile, dict) and _profile.get("name"):
+            lines += [_profile_line(_profile), ""]
+    except Exception:
+        pass
     if _plans and status != "FAIL":
         lines.append("> Advisory only — not executed. Confirm manually outside this program.")
         lines.append("")
