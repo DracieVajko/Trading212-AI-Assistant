@@ -1,0 +1,130 @@
+# Runtime logs
+logs/
+*.log
+*.logs
+
+# Generated reports and artifacts
+reports/
+!reports/.gitkeep
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment and secrets
+.env
+*.env
+*.env.local
+.env.*
+!*.env.example
+
+# Local investment policy (user values, never commit; see investment_policy.example.json)
+investment_policy.json
+
+# Machine-specific config variants (local endpoints/paths; never commit)
+portfolio_config.json
+portfolio_config.local.json
+portfolio_config.mistral_run.json
+
+# Real Trading 212 pie exports contain owned quantities/values; keep them
+# local. The generic strategy configs in PIEs/config/ stay tracked.
+PIEs/*.csv
+
+# Generated evaluation reports contain local paths; never publish.
+tests/eval/REPORT.md
+
+# Dependencies
+venv/
+.venv/
+node_modules/
+
+# Test output
+test-output/
+coverage/
+
+# Debug and temp
+debug/
+temp/
+tmp/
+*.tmp
+*.temp
+*.bak
+
+# AI model caches and weights
+*.safetensors
+*.gguf
+*.bin
+*.onnx
+
+# Cache directories
+.cache/
+data/cache/
+
+# Generated JSON/CSV from runs
+reports/*.json
+reports/*.csv
+reports/*_diagnostic*
+reports/raw_endpoint_dump*
+reports/failed_tickers*
+reports/reconciliation_diagnostic*
+reports/ai_context/
+reports/debug/
+reports/archive/
+reports/summary/
+reports/t212_test*
+reports/portfolio_analysis*
+reports/run_manifest*
+
+# Old project versions and backups (do not commit).
+# NOTE: trading212/, scripts/, experimental/ are LIVE content. PIEs/config/
+# holds generic strategy examples; real PIEs/*.csv exports are local-only.
+AsistantV5/
+portfolio-invest-assistant-clean/
+Zalohy/
+runtime/
+/accounting/
+
+# Auto-backup snapshots (*_V2415_*) - never commit; canonical files live beside them
+*_V2415_*
+
+# Agent operating data (personal; examples tracked, real files local).
+# See agent_data/README.md. Real profile/tax/base-rate files, the decision
+# log and working files must never be committed.
+agent_data/investor_profile.yaml
+agent_data/tax_facts.yaml
+agent_data/base_rates.md
+agent_data/decision_log/*
+!agent_data/decision_log/.gitkeep
+agent_data/scratch/*
+!agent_data/scratch/.gitkeep
+agent_data/charts/*
+!agent_data/charts/.gitkeep
+tests/eval/runs/
+
+# Temporary files (install entry points ARE tracked:
+# install.bat + install.sh; cleanup/purge wrappers are tracked tools).
+data/
+*.md.bak
+
+# Root-level docs and plans
+EXI2_MARKET_REGIME_PLAN.md
+ROBUST_EXI2_REGIME_SPEC.md
+
+# Trading 212 transaction exports are private; keep them local only.
+from_*_to_*_*.csv
+PIEs/from_*_to_*.csv

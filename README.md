@@ -1,0 +1,264 @@
+# Portfolio AI Assistant
+
+Reliable Investment Monitoring System with local AI models (Ollama/LM Studio).
+
+## Features
+
+- **T212 Integration** - Read-only portfolio sync via Trading 212 API
+- **Technical Analysis** - RSI, MA crossovers, momentum, trend detection
+- **Signal Generation** - BUY/SELL/HOLD with probabilities
+- **Per-Asset News** - 48h filtered news with sentiment analysis
+- **Local AI** - Works with Ollama or LM Studio (Fin-R1, Gemma, GPT-OSS)
+- **Ticker self-healing** - Unresolvable holdings get Yahoo search-API suggestions
+  (`failed_tickers.md` + console block with copy-paste `symbol_aliases` fix)
+- **Deterministic Reports** - Markdown + JSON output
+
+## Quick Start
+
+### 1. Install Dependencies (Python 3.12 required — use `py -3.12`)
+```cmd
+install.bat
+```
+This installs `requirements.txt` (pinned stack) **plus** the Playwright Chromium
+browser (needed for the TradingView sweep, earnings layer 2 and the technicals
+fallback). Equivalent manual steps:
+```bash
+py -3.12 -m pip install -r requirements.txt
+py -3.12 -m playwright install chromium
+```
+
+### 2. Configure
+```bash
+cp api.env.example api.env
+# Edit api.env with your T212 API credentials
+```
+
+### 3. Configure Portfolio
+
+```bash
+cp portfolio_config.example.json portfolio_config.json
+cp investment_policy.example.json investment_policy.json
+```
+
+Then edit `portfolio_config.json` with your assets and `investment_policy.json`
+with your limits. Both files are gitignored; only the `*.example.json`
+templates are published. On Windows, use `copy` instead of `cp`.
+
+`portfolio_config.json` is local by design: it may contain your watchlist,
+broker symbols and model preferences. `PIEs/*.csv` exports are also gitignored
+because they contain owned quantities and values; `PIEs/config/*.json` are
+generic strategy examples.
+
+### 4. Run (Python 3.12 required — use `py -3.12`)
+
+**Full report (requires LM Studio unless all providers fall back to deterministic output):**
+```bash
+py -3.12 portfolio_ai_assistant.py
+```
+
+**Custom config:**
+```bash
+py -3.12 portfolio_ai_assistant.py --config portfolio_config.json
+```
+
+Supported flags today: `--config <path>`, `--investment-engine`, `--generate-full-report`
+(compatibility only; reports are always written), `--execution-mode {auto,public,locals}`,
+`--api-only`, `--preflight`, and `--t212-csv <path>`.
+Planned / not implemented: `--no-ai`, `--asset`, `--scheduled`, `--validate-only`, `--dry-run`.
+
+### Trading 212 statement reconciliation (optional)
+
+Export the Activity CSV from Trading 212 and either:
+
+1. Put it in `data/t212_exports/` (the newest `from_*.csv` is picked up automatically), or
+2. Pass `--t212-csv "C:\\path\\to\\statement.csv"` for one run.
+
+The decision brief, snapshot and intelligence brief gain a **Broker Statement Reconciliation**
+section. It shows the raw statement deposits/withdrawals, the bridge to API net deposits
+(cashback/card credits and deposit-fee gross-up), and the P&L bridge (realised P&L +
+dividends + interest − explicit costs + unrealised P&L). Full data is in
+`portfolio_analysis.json` under `t212_statement_reconciliation`.
+
+The CSV is read-only, local and ignored by Git (`data/`). It never replaces broker/API
+truth; it is an independent check. API `fees_eur` covers the deposit fee only; FX conversion,
+stamp duty and FTT are embedded in trade totals and are shown separately by the statement.
+
+Slovak-language news feeds are disabled by default for the English report. Set
+`enable_slovak_news: true` in the config to ingest them.
+
+**Environment verification (offline, no secrets printed):**
+```bash
+py -3.12 scripts/verify_environment.py
+py -3.12 scripts/verify_environment.py --smoke
+```
+
+### Batch Files (Windows)
+```cmd
+run_automated.bat      # Daily automated run
+run_full_report.bat    # Full report with AI
+run_t212_analysis.bat  # T212 analysis only
+```
+
+## Configuration
+
+### `portfolio_config.json`
+- `assets` - Your portfolio assets with symbols, groups, aliases
+- `settings` - Thresholds, AI backends, news settings
+- `symbol_aliases` - T212 internal ticker → Yahoo Finance mappings
+- `ai_backends` - LM Studio / Ollama model configuration
+
+### `api.env`
+```env
+TRADING212_API_KEY=your_key
+TRADING212_API_SECRET=your_secret
+TRADING212_ENABLED=true
+```
+
+## Project Structure
+
+```
+portfolio_ai_assistant/
+├── portfolio_ai_assistant.py   # Main entry point
+├── portfolio_config.json       # Configuration
+├── requirements.txt
+├── api.env                     # Secrets (gitignored)
+├── .gitignore
+├── agent_data/                 # Investor operating data (examples tracked, real files local)
+│   ├── investor_profile.example.yaml
+│   ├── decision_log/           # Append-only decision records (gitignored)
+│   ├── scratch/                # Working files, snapshots (gitignored)
+│   └── charts/                 # Rendered chart pack (gitignored)
+├── scripts/                    # verify_environment, ta_snapshot, fundamentals, decision_log
+├── trading212/                 # T212 modules
+│   ├── auth.py                 # Authentication
+│   ├── portfolio.py            # Portfolio analysis
+│   └── integration.py          # High-level integration
+├── reports/                    # Generated reports (gitignored)
+├── logs/                       # Runtime logs (gitignored)
+├── data/                       # Cache/data
+└── run_*.bat                   # Windows batch helpers
+```
+
+## Agent tooling (TA snapshots, charts, fundamentals, decision log)
+
+```cmd
+py -3.12 scripts/ta_snapshot.py --symbol AAPL --exchange NASDAQ --currency USD --benchmark SPY
+py -3.12 scripts/ta_snapshot.py --symbol AAPL --charts agent_data/charts
+py -3.12 scripts/fundamentals.py --symbol AAPL
+py -3.12 scripts/decision_log.py new --ticker AAPL --mode M1 --verdict HOLD --confidence medium
+py -3.12 scripts/verify_environment.py   :: preflight incl. matplotlib + pip-check gate
+```
+
+- `ta_snapshot.py` writes an Appendix-B7 JSON (`agent_data/scratch/`, gitignored):
+  exact Wilder/SMA/EMA/Bollinger math, B3 regimes, zones, drawdowns, percentiles.
+- `--charts` renders C1–C5 PNGs (12×7", 150 dpi, colorblind-safe) into `agent_data/charts/`.
+- `fundamentals.py` builds the §5.2 pack (TTM, margins, FCF, ROIC, growth) from
+  yfinance statements; gaps are null with notes, never invented.
+- Copy `agent_data/*.example.*` to the real names and fill them in; without a
+  profile, suitability conclusions are provisional.
+
+## Security model
+
+- **Read-only broker.** The Trading212 client refuses every non-GET call at
+  code level (`trading212/auth.py`); use a read-only API key (the server
+  answers 403 otherwise). No order endpoints are called anywhere.
+- **Outbound traffic is GET-only market data** (yfinance, RSS, TradingView
+  pages) plus the configured local/cloud LLM endpoints. Queries carry public
+  identifiers only (ticker, company, topic) — never positions, values,
+  account ids or keys.
+- **Secrets live in `api.env`** (gitignored) and `agent_data/*.yaml`
+  (gitignored). Tracked are only `*.example.*` placeholders and `.gitkeep`.
+- **Scraped news is sanitized** before use: prompt-injection shapes are
+  quarantined (hash retained, text dropped), query strings stripped.
+- **Agent (opencode) allowlist:** read/write confined to this repository;
+  approve external access only for a dedicated temp folder such as
+  `%TEMP%\opencode` (Windows) or `$TMPDIR/opencode` (macOS/Linux).
+  Scripts default to writing under `agent_data/{scratch,charts,decision_log}/`;
+  reports/logs go to the gitignored `reports/` and `logs/`.
+
+## AI Models (LM Studio, per-stage routing)
+
+| Stage | Model (`portfolio_config.json` key) |
+|-------|--------------------------------------|
+| `summary` | `writer_model` (`google/gemma-4-26b-a4b-qat`, writing; alt: `prism-ml/bonsai-27b`, `mistralai/ministral-3-3b`) |
+| `discovery` | `thinking_model` (`openai/gpt-oss-20b`, 32k ctx) |
+| `decision`, `ai_recommendations` | `finance_model` (`openai/gpt-oss-20b`, reasoning + math) |
+| everything else | `decision_model` (chain default) |
+
+Chain: LM Studio → llama.cpp (Pi) → Ollama (Pi) → Gemini → OpenRouter `:free` →
+Mistral → deterministic fallback. The real winner per stage is recorded in
+`run_manifest.json` (`providers_per_stage`).
+
+Configure in `ai_backends` section of config.
+
+## Scheduled operation
+
+Windows Task Scheduler (or double-click `run_full_report.bat`, which pins Python 3.12):
+
+```cmd
+py -3.12 portfolio_ai_assistant.py --config portfolio_config.json --investment-engine --generate-full-report
+```
+
+> Note: `--scheduled` is planned / not implemented. The batch files above pass only
+> the actually supported flags. A `runtime/run.lock` single-run lock plus exit codes
+> `3` (already running) / `4` (partial) / `5` (broker sync failed) are likewise
+> planned / not implemented.
+
+Current outputs per run (see `portfolio_ai_assistant.write_reports`):
+
+```text
+reports/current/portfolio_intelligence_brief.md  # short human brief (≤60 lines, read this)
+reports/current/portfolio_decision_brief.md      # curated deterministic brief
+reports/current/t212_portfolio_snapshot.md       # full broker inventory
+reports/current/portfolio_analysis.json          # canonical machine-readable result
+reports/current/failed_tickers.md                # only when tickers are unresolvable
+reports/current/run_manifest.json                # run_id, sha256, counts, recon, providers, indicator engine
+reports/ai_context/ai_context_<run_id>.md        # full machine archive
+reports/debug/<run_id>/                          # raw dump, recon diagnostics, run log
+reports/archive/<run_id>/                        # full copy of current/ for this run
+```
+
+Provider policy: local-first chain, **LM Studio is the default primary**
+(LM Studio → llama.cpp on Pi → Ollama on Pi → Gemini → OpenRouter `:free`
+→ Mistral → deterministic fallback). Disable locals with
+`--execution-mode public` / `API_ONLY=1`, or LM Studio alone with
+`LMSTUDIO_ENABLED=0`. Every run records the actual winning provider/model
+per stage in `run_manifest.json` (`providers_per_stage`); `provider` is the
+winners summary, `stance` the human portfolio stance.
+
+Exit codes today: `0` success · `1` report/LLM-stage failure · `2` config error
+(unknown flags also exit `2` via argparse).
+
+Pre-flight checks (offline, no secrets printed):
+
+```cmd
+py -3.12 scripts/verify_environment.py          :: interpreter, deps, gitignore, syntax
+py -3.12 scripts/verify_environment.py --smoke  :: plus one fast offline test module
+py -3.12 -m pytest tests/ -q                    :: full offline unit suite
+py -3.12 -m pytest experimental/tests/ -q       :: isolated backtest suite
+```
+
+## Technical indicators (optional dependencies)
+
+`pandas-ta` is optional and NOT required. When installed, `TechnicalAnalyzer` uses the
+`pandas-ta` engine; otherwise it falls back to deterministic manual indicators
+(SMA/EMA/MACD/RSI/Bollinger/ATR/simplified ADX and Supertrend, OBV, rolling VWAP, …).
+Both paths are covered by tests, but numerics differ — see the local
+(gitignored) `docs/audit/PROJECT_AUDIT.md` (Technical Indicator Audit) and run
+`scripts/verify_environment.py` to see which engine would activate on your PC. `tzdata` is a core requirement so `ZoneInfo` works on Windows.
+Pinned stack (reproducible installs): `pandas==2.2.3`, `numpy==1.26.4`,
+`scipy==1.13.1` — pandas 3.x is not supported (breaks frozen manual-v1 numerics).
+
+Secrets: `api.env` holds real keys — never commit it, never paste logs containing
+`Authorization`/`Bearer`/`key=` values (the tool redacts them automatically).
+
+## Output (legacy layout note)
+
+- `reports/portfolio_analysis.md` - Human-readable Markdown (compat copy of the main report)
+- `reports/portfolio_analysis.json` - Machine-readable JSON (compat copy)
+- `reports/archive/` - Timestamped history (new layout: `YYYY-MM-DD/<run_id>/`)
+- `reports/latest/` - Always the newest complete run (published atomically)
+
+## License
+
+MIT

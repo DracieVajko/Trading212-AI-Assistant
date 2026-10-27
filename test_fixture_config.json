@@ -1,0 +1,46 @@
+{
+  "settings": {
+    "api_only": true,
+    "execution_mode": "public",
+    "log_folder": "logs",
+    "output_folder": "reports",
+    "archive_folder": "reports/archive",
+    "language": "English",
+    "use_trading212_api": false,
+    "market_regime": {
+      "enabled": true,
+      "symbol": "EXI2.DE",
+      "cache_ttl_seconds": 3600
+    }
+  },
+  "assets": [
+    {
+      "name": "AAPL",
+      "broker_symbol": "AAPL_US_EQ",
+      "yahoo_symbol": "AAPL",
+      "group": "TECH_PIE",
+      "enabled": true
+    },
+    {
+      "name": "MSFT",
+      "broker_symbol": "MSFT_US_EQ",
+      "yahoo_symbol": "MSFT",
+      "group": "TECH_PIE",
+      "enabled": true
+    },
+    {
+      "name": "NEE",
+      "broker_symbol": "NEE_US_EQ",
+      "yahoo_symbol": "NEE",
+      "group": "RENEWABLE_PIE",
+      "enabled": true
+    },
+    {
+      "name": "BTC-USD",
+      "broker_symbol": "BTC-USD",
+      "yahoo_symbol": "BTC-USD",
+      "group": "CRYPTO",
+      "enabled": true
+    }
+  ]
+}
