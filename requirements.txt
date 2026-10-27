@@ -6,7 +6,7 @@
 #
 # --- Core (required; verify_environment.py fails without these) ---
 requests>=2.31.0,<3
-yfinance>=1.6.0,<1.8
+yfinance>=1.7.0,<1.8
 pandas==2.2.3
 numpy==1.26.4
 scipy==1.13.1
