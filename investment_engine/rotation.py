@@ -12,6 +12,10 @@ Design rules (see docs/specs/2026-10-29-rotation-csv-toggle.md):
   cash-apy, PPL >= 0 for short-rotation).
 - Degrades gracefully when portfolio_rows are missing quantity columns
   (binary presence: trims/recommends full reduction for eligible tickers).
+- Handles positions held both inside and outside a PIE: when a ticker appears
+  in a PIE CSV with quantity Q_pie but the main portfolio has quantity Q_total,
+  the difference (Q_total - Q_pie) represents a standalone holding outside
+  the PIE.  The rotation plan accounts for both portions separately.
 """
 from __future__ import annotations
 
@@ -24,7 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class RotationPlanItem:
     ticker: str
-    action: str  # "reduce" / "hold" / "reinvest"
+    action: str  # "reduce" / "hold" / "reinvest" / "trim-standalone"
     quantity_change: float  # negative = reduce; positive = buy more (simulated)
     reason: str
     simulated_pnl: float
@@ -89,8 +93,6 @@ class PlanBuilder:
     def _normalize_ticker(ticker_str: str) -> str:
         """Strip .DE, .L, .CO suffixes for comparison only; keep original for output."""
         raw = str(ticker_str or "").strip()
-        # For comparison: compare base ticker (before first non-alphanumeric separator)
-        # This is advisory; exact matching is best-effort, not a trading engine.
         return raw.upper()
 
     @staticmethod
@@ -134,15 +136,14 @@ class PlanBuilder:
                 cycle=cycle,
             ))
             cycle += 1
-        # Use first eligible ticker's name for advisory note (same ticker reinvest)
-        first_ticker = str(portfolio_data[0].get("ticker") or portfolio_data[0].get("display") or "") if portfolio_data else ""
-        exit_reached = any(i.action == "reinvest" for i in items) or len(items) == 0
+        exit_reached = len(items) == 0 or all(i.action == "hold" for i in items)
         # Advisory note: reinvest into same ticker at lower simulated entry
+        first_ticker = str(portfolio_data[0].get("ticker") or portfolio_data[0].get("display") or "") if portfolio_data else ""
         return RotationResult(
             plan="average-down",
             items=items,
             trim_pct=trim_pct,
-            target_ticker=first_ticker,  # same ticker for average-down
+            target_ticker=first_ticker,
             apy_rate=apy_rate,
             cycles_completed=max((i.cycle for i in items), default=0),
             exit_reached=exit_reached,
