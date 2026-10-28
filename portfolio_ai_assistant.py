@@ -26,6 +26,7 @@ from investment_engine.reporting.finalize import (
     publish_status_report, recover_aborted_runs,
     atomic_write_text as _atomic_write_text,
 )
+from investment_engine.notifications import notify_urgent, notify_summary, notify_debug
 
 
 ROOT = Path(__file__).resolve().parent
@@ -428,6 +429,18 @@ def main() -> int:
 
         # Extract data needed for human brief (already computed in run_engine)
         portfolio_rows = result.get("portfolio_rows", [])
+        # PIE exposure: detect standalone holdings outside PIEs
+        try:
+            from investment_engine.portfolio.pie_exposure import detect_standalone_holdings, standalone_summary
+            _pie_exposure = detect_standalone_holdings(portfolio_rows, pies_dir=ROOT / "PIEs")
+            _standalone_summary = standalone_summary(_pie_exposure)
+            logger.info("PIE exposure: %s", _standalone_summary.replace(chr(10), " | "))
+            result["pie_exposure"] = {k: {"pie_qty": v.pie_qty, "total_qty": v.total_qty, "standalone_qty": v.standalone_qty} for k, v in _pie_exposure.items()}
+            result["standalone_summary"] = _standalone_summary
+        except Exception as _pie_exc:
+            logger.debug("PIE exposure detection skipped: %s", type(_pie_exc).__name__)
+            result["pie_exposure"] = {}
+            result["standalone_summary"] = ""
         # Toggle: include_quantities controls whether quantity columns stay in
         # portfolio_rows (True = full data; False = tickers only, for binary presence).
         include_quantities = raw_settings.get("include_quantities", False)
@@ -565,7 +578,8 @@ def main() -> int:
                                         "rotation_target": raw_settings.get("rotation_target", "AAPL"),
                                         "apy_rate": raw_settings.get("apy_rate", 3.0),
                                         "include_quantities": raw_settings.get("include_quantities", False),
-                                    }),
+                                    },
+                                    standalone_summary=result.get("standalone_summary", "")),
                         encoding="utf-8", newline=""  # newline="" preserves LF determinism
                     )
                     logger.info("Rotation plan (advisory) saved: %s", rotation_path)
@@ -573,6 +587,28 @@ def main() -> int:
                 except Exception as rot_exc:
                     logger.warning("Rotation plan generation skipped: %s", type(rot_exc).__name__)
                     print(f"NOTE: Rotation plan skipped (advisory failure, not a pipeline error): {type(rot_exc).__name__}")
+
+            # Notifications (best-effort, never blocks the pipeline)
+            try:
+                if run_status == RUN_STATUS_COMPLETE:
+                    _notif_body = (
+                        f"Run {run_id}: {run_status}\n"
+                        f"Equity: {result.get('t212_data', {}).get('account_summary', {}).get('total_equity', 'N/A')}\n"
+                        f"Reconciliation: {result.get('reconciliation', {}).get('status', 'N/A')}\n"
+                        f"Rotation: {raw_settings.get('rotation_plan', 'none')}\n"
+                        f"Brief: {brief_path}\n"
+                        f"Snapshot: {snapshot_path}\n"
+                    )
+                    notify_summary(f"Portfolio Report Complete ({run_id})", _notif_body)
+                elif run_status == RUN_STATUS_PARTIAL:
+                    _notif_body = (
+                        f"Run {run_id}: PARTIAL\n"
+                        f"Reasons: {status_reasons}\n"
+                        f"Degraded stages: {len(degraded)}\n"
+                    )
+                    notify_urgent(f"Portfolio Report Partial ({run_id})", _notif_body)
+            except Exception as _notif_exc:
+                logger.debug("Notification dispatch failed: %s", type(_notif_exc).__name__)
 
             intel_path = published.get("portfolio_intelligence_brief.md", "")
             print(f"\nSUCCESS: Brief saved to {brief_path}")

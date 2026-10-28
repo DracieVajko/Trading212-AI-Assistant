@@ -275,7 +275,8 @@ class PlanBuilder:
 
 
 def write_plan(result: RotationResult, run_id: str, attribution: dict,
-               reconciliation: dict | None, config_snapshot: dict) -> str:
+               reconciliation: dict | None, config_snapshot: dict,
+               standalone_summary: str = "") -> str:
     """Render advisory rotation plan as markdown; mirrors current report format."""
     lines: list[str] = [
         f"# Rotation Plan (Advisory — No Orders Executed)",
@@ -291,21 +292,36 @@ def write_plan(result: RotationResult, run_id: str, attribution: dict,
         f"",
         f"> **Disclaimer**: This plan is advisory only. No orders are placed. The engine never executes trades; it produces recommendations. Actual portfolio adjustments must be confirmed by the user through the broker (Trading212) independently. Reconciliation status (PASS/FAIL) reflects broker-data agreement, not rotation-plan correctness.",
         f"",
+    ]
+    # PIE vs standalone holdings section
+    if standalone_summary:
+        lines.extend([
+            f"## PIE vs Standalone Holdings",
+            f"",
+            f"{standalone_summary}",
+            f"",
+        ])
+    lines.extend([
         f"## Rotation Recommendations",
         f"",
         f"| # | Ticker | Action | Qty Change | Reason | Sim PNL (advisory) | Cycle |",
         f"|---|---|---|---|---|---|---|",
-    ]
+    ])
     for idx, item in enumerate(result.items, 1):
         lines.append(
             f"| {idx} | `{item.ticker}` | `{item.action}` | `{item.quantity_change:+.2f}` | {item.reason} | `{item.simulated_pnl:+.2f}` | {item.cycle} |"
         )
+    if not result.items:
+        lines.append(f"| — | *No eligible positions (PPL < 0 with qty > 0)* | — | — | — | — | — |")
     lines.extend([
         f"",
         f"## Exit Status",
-        f"- Exit conditions met: `{result.exit_reached}`",
-        f"- Cycles simulated (max advisory): `{result.cycles_completed}`",
-        f"- Plan mode: `{result.plan}`",
+        f"",
+        f"| Metric | Value |",
+        f"|--------|-------|",
+        f"| Exit conditions met | `{result.exit_reached}` |",
+        f"| Cycles simulated (max advisory) | `{result.cycles_completed}` |",
+        f"| Plan mode | `{result.plan}` |",
         f"",
         f"## Config Snapshot",
         f"```",

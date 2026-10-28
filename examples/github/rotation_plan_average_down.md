@@ -11,6 +11,11 @@
 
 > **Disclaimer**: This plan is advisory only. No orders are placed. The engine never executes trades; it produces recommendations. Actual portfolio adjustments must be confirmed by the user through the broker (Trading212) independently. Reconciliation status (PASS/FAIL) reflects broker-data agreement, not rotation-plan correctness.
 
+## PIE vs Standalone Holdings
+
+Standalone holdings (outside PIEs):
+  - AAPL: pie=0.3833, total=10.0000, standalone=9.6167
+
 ## Rotation Recommendations
 
 | # | Ticker | Action | Qty Change | Reason | Sim PNL (advisory) | Cycle |
@@ -20,9 +25,12 @@
 | 3 | `NVDA` | `reduce` | `-0.60` | average-down: PPL=-20.00 EUR; trim 30% to reinvest at lower cost (simulated) | `-6.00` | 3 |
 
 ## Exit Status
-- Exit conditions met: `False`
-- Cycles simulated (max advisory): `3`
-- Plan mode: `average-down`
+
+| Metric | Value |
+|--------|-------|
+| Exit conditions met | `False` |
+| Cycles simulated (max advisory) | `3` |
+| Plan mode | `average-down` |
 
 ## Config Snapshot
 ```

@@ -1,7 +1,7 @@
 # Rotation Plan (Advisory — No Orders Executed)
 
 * **Plan**: `average-down`
-* **Run ID**: `fb5074fc`
+* **Run ID**: `example-run-002`
 * **Advisory note**: Average-down reduces losing positions by trim\_pct; released capital simulated reinvested at same ticker with lower entry. Advisory only — no orders executed.
 * **Config**: `trim\_pct=30`, `target\_ticker=TTWO`, `apy\_rate=3.0%`
 * **Source**: Portfolio snapshot from current run (`run\_engine()`); tickers resolved via existing alias table.
