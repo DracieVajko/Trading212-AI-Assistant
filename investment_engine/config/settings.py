@@ -261,7 +261,24 @@ class EngineSettings:
     ollama_think: str = _env("OLLAMA_THINK", "")
     ollama_keep_alive: str = _env("OLLAMA_KEEP_ALIVE", "5m")
     ollama_auto_context: bool = _env_bool("OLLAMA_AUTO_CONTEXT", True)
-    
+
+    # Provider load guard: skip local endpoints while their host is busy or the
+    # configured model is not resident (cloud chain serves instead). Kill-switch
+    # LOAD_GUARD=0 restores the unguarded behaviour. See
+    # docs/specs/2026-10-28-provider-busy-guard-design.md for signal details.
+    load_guard_enabled: bool = _env_bool("LOAD_GUARD", True)
+    load_guard_cooldown_s: int = _env_int("LOAD_GUARD_COOLDOWN_S", 120)
+    load_guard_latency_ms: int = _env_int("LOAD_GUARD_LATENCY_MS", 2500)
+    load_guard_cpu_pct: int = _env_int("LOAD_GUARD_LOCAL_CPU_PCT", 85)
+    load_guard_ram_pct: int = _env_int("LOAD_GUARD_LOCAL_RAM_PCT", 90)
+    load_guard_gpu_max_util_pct: int = _env_int("LOAD_GUARD_GPU_MAX_UTIL_PCT", 85)
+    load_guard_vram_min_free_mib: int = _env_int("LOAD_GUARD_VRAM_MIN_FREE_MIB", 1500)
+    load_guard_use_nvidia_smi: bool = _env_bool("LOAD_GUARD_NVIDIA_SMI", True)
+    load_guard_ollama_require_loaded: bool = _env_bool("LOAD_GUARD_OLLAMA_REQUIRE_LOADED", True)
+    # After a local provider attempt times out, keep it out of the chain this
+    # long (0 = legacy retry-every-stage behaviour from before the load guard).
+    local_timeout_cooldown_s: int = _env_int("LOCAL_TIMEOUT_COOLDOWN_S", 300)
+
     output_folder: str = _env("OUTPUT_FOLDER", "reports")
     archive_folder: str = _env("ARCHIVE_FOLDER", "reports/archive")
     prompt_dir: str = _env("PROMPT_DIR", "investment_engine/prompts")
