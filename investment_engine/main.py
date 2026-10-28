@@ -183,6 +183,17 @@ def _note_unreachable_local_providers(settings) -> None:
         from investment_engine.providers.fallback import PREFLIGHT_COOLDOWN_S as _CD
     except Exception:
         _skip, _CD = None, 300.0
+    try:
+        from investment_engine.providers import health as _health
+        _guard_cooldown = int(getattr(settings, "load_guard_cooldown_s", 120) or 120)
+    except Exception:
+        _health = None
+        _guard_cooldown = 120
+    base_url_by_label = {
+        "LM Studio": str(getattr(settings, "lm_studio_base_url", "") or ""),
+        "llama.cpp": str(getattr(settings, "llamacpp_base_url", "") or ""),
+        "Ollama": str(getattr(settings, "ollama_base_url", "") or ""),
+    }
     for label, url in (
         ("LM Studio", f"{str(getattr(settings, 'lm_studio_base_url', '')).rstrip('/')}/models"),
         ("llama.cpp", f"{str(getattr(settings, 'llamacpp_base_url', '')).rstrip('/')}/models"),
@@ -198,9 +209,12 @@ def _note_unreachable_local_providers(settings) -> None:
         attempts = 2 if label == "LM Studio" else 1
         timeout = 10 if label == "LM Studio" else 2
         _ok, _detail = False, "pre-flight connect failed"
+        _latencies: list[float] = []
         for _a in range(attempts):
             try:
+                _t0 = time.monotonic()
                 _r = _rq.get(url, timeout=timeout)
+                _latencies.append(time.monotonic() - _t0)
                 if _r.status_code == 200:
                     _ok = True
                     break
@@ -211,6 +225,18 @@ def _note_unreachable_local_providers(settings) -> None:
             _record_fallback("provider-chain", f"{label} unreachable")
             if _skip is not None:
                 _skip(label, _detail, _CD)
+            continue
+        # Load guard: endpoint reachable but its host busy / model cold ->
+        # skip to the cloud chain loudly for a short cooldown (never silently).
+        if _health is not None and bool(_cfg_get(settings, "load_guard_enabled", True)):
+            _verdict = _health.probe_provider_busy(
+                label, base_url_by_label.get(label, ""), settings,
+                latencies=_latencies if label == "LM Studio" else None,
+            )
+            if _verdict.busy:
+                _record_fallback("provider-chain", f"{label} {_verdict.reason}")
+                if _skip is not None:
+                    _skip(label, _verdict.reason, _guard_cooldown)
 
 
 def _provider_fallback_note() -> str:
@@ -2941,6 +2967,23 @@ def _revive_locals_if_due(provider) -> None:
                 continue
             _r = _rq.get(url, timeout=3)
             if _r.status_code == 200:
+                # Load-guard: endpoint reachable, but host may still be busy or
+                # model not resident. Only revive when the busy-guard probe
+                # reports the host is idle (not busy, not model-cold).
+                try:
+                    from investment_engine.providers import health as _health_check
+                    _revive_settings = settings if "settings" in locals() else None
+                    _revive_probe = _health_check.probe_provider_busy(
+                        name, base, settings if "settings" in locals() else None)
+                    if _revive_probe.busy:
+                        # Host still busy / model cold: skip revival, apply cooldown.
+                        from investment_engine.providers.fallback import skip_for_run as _skip_revive, PREFLIGHT_COOLDOWN_S as _CD_REVIVE
+                        _skip_revive(name, _revive_probe.reason, 120)
+                        logger.info("Preflight: %s is back (HTTP 200) but host busy (%s) — kept skipped ~120s", name, _revive_probe.reason)
+                        continue
+                except Exception as exc:
+                    logger.debug("Preflight revive busy-check unavailable: %s", exc)
+                # Host idle -> revive.
                 _revive(name)
                 logger.info("Preflight: %s is back, revived for later stages", name)
             else:
