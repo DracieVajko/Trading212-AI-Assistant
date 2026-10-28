@@ -77,3 +77,109 @@ def test_unknown_provider_not_busy():
     from investment_engine.providers.health import probe_provider_busy
     v = probe_provider_busy("Mystery", "http://127.0.0.1:9", _settings())
     assert v.busy is False and "unknown provider" in v.reason
+
+
+# ---------------------------------------------------------------------------
+# Task 3: LM Studio guard — latency, loading-state, localhost metrics
+# ---------------------------------------------------------------------------
+
+def test_lmstudio_latency_requires_both_attempts_slow(monkeypatch):
+    from investment_engine.providers import health
+    monkeypatch.setattr(health, "psutil", None, raising=False)
+    monkeypatch.setattr(health.shutil, "which", lambda exe: None)
+    v = health.probe_provider_busy("LM Studio", "http://127.0.0.1:1234/v1",
+                                   _settings(), latencies=[0.05, 2.6])
+    assert v.busy is False
+
+
+def test_lmstudio_both_attempts_slow_is_busy():
+    from investment_engine.providers.health import probe_provider_busy
+    v = probe_provider_busy("LM Studio", "http://127.0.0.1:1234/v1",
+                            _settings(), latencies=[2.6, 2.7])
+    assert v.busy is True
+    assert "latency" in v.reason.lower()
+
+
+def test_lmstudio_loading_state_is_busy(monkeypatch):
+    from investment_engine.providers import lmstudio as lm, health
+    monkeypatch.setattr(lm, "v1_models", lambda url: {"openai/gpt-oss-20b": {"state": "loading"}})
+    v = health.probe_provider_busy("LM Studio", "http://127.0.0.1:1234/v1", _settings())
+    assert v.busy is True
+    assert "loading" in v.reason.lower()
+
+
+def test_lmstudio_unknown_api_not_busy(monkeypatch):
+    from investment_engine.providers import lmstudio as lm, health
+    monkeypatch.setattr(health, "psutil", None, raising=False)
+    monkeypatch.setattr(health.shutil, "which", lambda exe: None)
+
+    def _fail_get(url, **kw):
+        raise AssertionError("no HTTP expected when v1 known")
+
+    monkeypatch.setattr(lm, "v1_models", lambda url: None)  # unknown variant
+    monkeypatch.setattr(health.requests, "get", _fail_get)
+    v = health.probe_provider_busy("LM Studio", "http://127.0.0.1:1234/v1", _settings())
+    assert v.busy is False
+
+
+def test_lmstudio_v0_loading_state_is_busy(monkeypatch):
+    from investment_engine.providers import lmstudio as lm, health
+    monkeypatch.setattr(lm, "v1_models", lambda url: None)  # v0-era server
+
+    class _R:
+        status_code = 200
+        def json(self):
+            return {"data": [{"id": "m", "state": "loading"}]}
+
+    monkeypatch.setattr(health.requests, "get", lambda url, **kw: _R())
+    v = health.probe_provider_busy("LM Studio", "http://127.0.0.1:1234/v1", _settings())
+    assert v.busy is True
+
+
+def test_metrics_missing_degrades(monkeypatch):
+    from investment_engine.providers import health
+
+    monkeypatch.setattr(health, "psutil", None, raising=False)
+    monkeypatch.setattr(health.shutil, "which", lambda exe: None)
+    v = health.probe_provider_busy("LM Studio", "http://100.88.219.120:1234",
+                                   _settings(), latencies=[0.1, 0.2])
+    assert v.busy is False
+
+
+def test_localhost_metrics_breach_busy(monkeypatch):
+    from investment_engine.providers import health
+    import types as _t
+
+    fake_psutil = _t.SimpleNamespace(cpu_percent=lambda interval=None: 95.0,
+                                     virtual_memory=lambda: _t.SimpleNamespace(percent=60.0))
+    monkeypatch.setattr(health, "psutil", fake_psutil, raising=False)
+    monkeypatch.setattr(health.shutil, "which", lambda exe: None)
+    v = health.probe_provider_busy("LM Studio", "http://127.0.0.1:1234", _settings())
+    assert v.busy is True
+    assert "cpu" in v.reason.lower() or "cpu" in " ".join(v.evidence)
+
+
+def test_remote_host_no_metric_signals(monkeypatch):
+    from investment_engine.providers import health
+
+    import types as _t
+    fake_psutil = _t.SimpleNamespace(cpu_percent=lambda interval=None: 99.0,
+                                     virtual_memory=lambda: _t.SimpleNamespace(percent=99.0))
+    monkeypatch.setattr(health, "psutil", fake_psutil, raising=False)
+    v = health.probe_provider_busy("LM Studio", "http://100.88.219.120:1234", _settings())
+    assert v.busy is False  # remote metrics must never decide for another machine
+
+
+def test_kill_switch_no_probe(monkeypatch):
+    from investment_engine.providers import health, lmstudio as lm
+
+    lm.reset_v1_models_cache()
+
+    def _boom(url, **kw):
+        raise AssertionError("no HTTP expected when load guard disabled")
+
+    monkeypatch.setattr(health.requests, "get", _boom)
+    monkeypatch.setattr(lm, "v1_models", _boom)
+    s = _settings(load_guard_enabled=False)
+    v = health.probe_provider_busy("LM Studio", "http://127.0.0.1:1234/v1", s)
+    assert v.busy is False
