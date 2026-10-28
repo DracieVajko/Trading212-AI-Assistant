@@ -12,6 +12,18 @@ Reliable Investment Monitoring System with local AI models (Ollama/LM Studio).
 - **Ticker self-healing** - Unresolvable holdings get Yahoo search-API suggestions
   (`failed_tickers.md` + console block with copy-paste `symbol_aliases` fix)
 - **Deterministic Reports** - Markdown + JSON output
+- **Advisory Rotation** - Portfolio rotation strategies (average-down, short-rotation,
+  cash-apy) with simulated P&L and exit conditions; advisory only, no orders executed
+- **CSV Toggle** - `--include-quantities` flag controls whether quantity columns
+  are kept from CSV/XLSX input (default: tickers only)
+- **PIE Exposure** - Detects standalone holdings outside PIEs (when portfolio quantity
+  exceeds PIE quantity, the difference is a standalone holding)
+- **Provider Load Guard** - Skips local LLM providers (LM Studio, llama.cpp, Ollama)
+  when host is busy (GPU/CPU/RAM metrics) or model is not resident; falls back to
+  cloud APIs automatically
+- **Notifications** - Email (SMTP) + ntfy.sh push notifications (tiered: urgent/
+  summary/debug) for run completion, failures, and debug alerts
+- **Provider attribution** - Per-stage provider/model attribution in run manifest
 
 ## Quick Start
 
@@ -63,7 +75,8 @@ py -3.12 portfolio_ai_assistant.py --config portfolio_config.json
 
 Supported flags today: `--config <path>`, `--investment-engine`, `--generate-full-report`
 (compatibility only; reports are always written), `--execution-mode {auto,public,locals}`,
-`--api-only`, `--preflight`, and `--t212-csv <path>`.
+`--api-only`, `--preflight`, `--t212-csv <path>`, `--include-quantities`,
+and `--rotation-plan {none,average-down,short-rotation,cash-apy}`.
 Planned / not implemented: `--no-ai`, `--asset`, `--scheduled`, `--validate-only`, `--dry-run`.
 
 ### Trading 212 statement reconciliation (optional)
@@ -161,6 +174,22 @@ portfolio_ai_assistant/
 │   ├── auth.py                 # Authentication
 │   ├── portfolio.py            # Portfolio analysis
 │   └── integration.py          # High-level integration
+├── investment_engine/          # Core engine
+│   ├── config/                 # Settings, policy profiles
+│   ├── notifications.py        # Email + ntfy.sh notification dispatch
+│   ├── portfolio/              # PIE exposure, symbols, broker-first
+│   │   ├── pie_exposure.py     # Standalone holdings detection
+│   │   └── ...
+│   ├── providers/              # LLM providers (LM Studio, Ollama, Gemini, etc.)
+│   │   ├── health.py           # Load-guard busy detection
+│   │   └── ...
+│   ├── rotation.py             # Advisory rotation strategies
+│   └── ...
+├── examples/                   # Anonymized example outputs
+│   └── github/                 # Example reports, PIE CSVs, README
+├── tests/                      # Unit tests
+│   ├── test_rotation.py        # Rotation tests
+│   └── test_load_guard.py      # Load-guard tests
 ├── reports/                    # Generated reports (gitignored)
 ├── logs/                       # Runtime logs (gitignored)
 ├── data/                       # Cache/data
@@ -227,6 +256,11 @@ Windows Task Scheduler (or double-click `run_full_report.bat`, which pins Python
 py -3.12 portfolio_ai_assistant.py --config portfolio_config.json --investment-engine --generate-full-report
 ```
 
+With rotation and CSV toggle:
+```cmd
+py -3.12 portfolio_ai_assistant.py --config portfolio_config.json --investment-engine --generate-full-report --rotation-plan average-down --include-quantities
+```
+
 > Note: `--scheduled` is planned / not implemented. The batch files above pass only
 > the actually supported flags. A `runtime/run.lock` single-run lock plus exit codes
 > `3` (already running) / `4` (partial) / `5` (broker sync failed) are likewise
@@ -240,6 +274,7 @@ reports/current/portfolio_decision_brief.md      # curated deterministic brief
 reports/current/t212_portfolio_snapshot.md       # full broker inventory
 reports/current/portfolio_analysis.json          # canonical machine-readable result
 reports/current/failed_tickers.md                # only when tickers are unresolvable
+reports/current/rotation_plan.md                 # advisory rotation plan (when --rotation-plan is non-none)
 reports/current/run_manifest.json                # run_id, sha256, counts, recon, providers, indicator engine
 reports/ai_context/ai_context_<run_id>.md        # full machine archive
 reports/debug/<run_id>/                          # raw dump, recon diagnostics, run log
@@ -286,6 +321,64 @@ Secrets: `api.env` holds real keys — never commit it, never paste logs contain
 - `reports/portfolio_analysis.json` - Machine-readable JSON (compat copy)
 - `reports/archive/` - Timestamped history (new layout: `YYYY-MM-DD/<run_id>/`)
 - `reports/latest/` - Always the newest complete run (published atomically)
+
+## Notifications (optional)
+
+The engine can send notifications after a run:
+
+- **Email** (SMTP) — daily/weekly report summary
+- **ntfy.sh** — push notifications to mobile (iOS/Android)
+
+Configure in `api.env`:
+```env
+NOTIFY_EMAIL=your@gmail.com
+NOTIFY_EMAIL_PASSWORD=your_app_password
+NOTIFY_EMAIL_TO=recipient@example.com
+NOTIFY_NTFY_TOPIC=portfolio-alerts
+NOTIFY_ON_FAIL=1
+NOTIFY_ON_COMPLETE=1
+```
+
+- `NOTIFY_ON_FAIL=1` — sends urgent email + ntfy on run failure/PARTIAL
+- `NOTIFY_ON_COMPLETE=1` — sends summary email on successful run
+- If not configured, notifications are silently skipped (no errors)
+
+## Rotation Strategies (advisory only)
+
+The engine supports advisory rotation strategies via `--rotation-plan`:
+
+| Strategy | Description |
+|---|---|
+| `average-down` | Reduce losing positions by `trim_pct` (default 30%), reinvest at same ticker |
+| `short-rotation` | Reduce losing positions, rotate released capital to target ticker |
+| `cash-apy` | Full reduction to cash, earn simulated APY, repurchase when accumulated |
+
+```cmd
+py -3.12 portfolio_ai_assistant.py --config portfolio_config.json --investment-engine --generate-full-report --rotation-plan average-down --include-quantities
+```
+
+Output: `reports/current/rotation_plan.md` (advisory, no orders executed).
+
+## Load Guard (provider busy detection)
+
+Local LLM providers (LM Studio, llama.cpp, Ollama) are automatically skipped when:
+- Host is unreachable (connect refused) → 300s cooldown
+- Host is busy (GPU/CPU/RAM metrics exceed thresholds) → 120s cooldown
+- Model is not resident (Ollama `/api/ps`) → 120s cooldown
+- Generation attempt times out → 300s cooldown
+
+Falls back to cloud APIs (Gemini → OpenRouter → Mistral) automatically.
+
+Kill switch: `LOAD_GUARD=0` in `api.env` disables all guard checks.
+
+## Examples
+
+Anonymized example outputs are in `examples/github/`:
+- `portfolio_snapshot.md` — broker account summary + holdings
+- `portfolio_decision_brief.md` — curated deterministic brief
+- `rotation_plan_*.md` — rotation plan examples (3 strategies)
+- `PIEs/*.csv` — example PIE CSV exports
+- `README.md` — explanation of example outputs
 
 ## License
 

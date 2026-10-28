@@ -33,7 +33,8 @@ tzdata>=2022.0,<2027  # Windows-safe zoneinfo database (Europe/Bratislava); no-o
 # All Playwright paths degrade gracefully when the browser is missing.
 playwright>=1.40.0
 
-# --- pandas-ta (reference engine): install WITHOUT dependencies so the
+# --- Load-guard (provider busy detection): localhost metrics ---
+psutil>=5.9,<7  # optional; guard degrades to HTTP-only signals without it
 # pinned stack stays intact (verified 2026-10-12 on pandas 2.2.3 /
 # numpy 1.26.4: all 17 engine-called indicators compute; e2e analyze()
 # yields 50 columns):
