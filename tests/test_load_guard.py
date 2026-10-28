@@ -183,3 +183,105 @@ def test_kill_switch_no_probe(monkeypatch):
     s = _settings(load_guard_enabled=False)
     v = health.probe_provider_busy("LM Studio", "http://127.0.0.1:1234/v1", s)
     assert v.busy is False
+
+
+# ---------------------------------------------------------------------------
+# Task 4: Pi guards — llama.cpp latency, Ollama resident-model check
+# ---------------------------------------------------------------------------
+
+_PI = "http://100.125.47.31:11434"
+
+
+def _router(routes: dict, sleep_s: float = 0.0):
+    """Fake health.requests.get routing by URL suffix; raises on unknown."""
+    import time as _t
+
+    def _get(url, **kw):
+        if sleep_s:
+            _t.sleep(sleep_s)
+        if url not in routes:
+            raise AssertionError(f"unexpected URL {url}")
+        return routes[url]
+
+
+    return _get
+
+
+class _Resp:
+    def __init__(self, payload, status=200):
+        self.status_code = status
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+def test_ollama_model_cold_is_busy(monkeypatch):
+    from investment_engine.providers import health
+    s = _settings(ollama_base_url=_PI, ollama_model="ministral-3b-top")
+    routes = {f"{_PI}/api/ps": _Resp({"models": []})}
+    monkeypatch.setattr(health.requests, "get", _router(routes))
+    v = health.probe_provider_busy("Ollama", _PI, s)
+    assert v.busy is True
+    assert "model_cold" in v.reason
+
+
+def test_ollama_resident_not_busy(monkeypatch):
+    from investment_engine.providers import health
+    s = _settings(ollama_base_url=_PI, ollama_model="ministral-3b-top")
+    routes = {f"{_PI}/api/ps": _Resp({"models": [{"name": "ministral-3b-top:latest"}]})}
+    monkeypatch.setattr(health.requests, "get", _router(routes))
+    v = health.probe_provider_busy("Ollama", _PI, s)
+    assert v.busy is False
+
+
+def test_ollama_ps_absent_not_busy(monkeypatch):
+    from investment_engine.providers import health
+    s = _settings(ollama_base_url=_PI, ollama_model="ministral-3b-top")
+    routes = {f"{_PI}/api/ps": _Resp({}, status=404)}
+    monkeypatch.setattr(health.requests, "get", _router(routes))
+    v = health.probe_provider_busy("Ollama", _PI, s)
+    assert v.busy is False
+
+
+def test_ollama_require_loaded_off(monkeypatch):
+    from investment_engine.providers import health
+    s = _settings(ollama_base_url=_PI, ollama_model="ministral-3b-top",
+                  load_guard_ollama_require_loaded=False)
+    routes = {f"{_PI}/api/ps": _Resp({"models": []})}
+    monkeypatch.setattr(health.requests, "get", _router(routes))
+    v = health.probe_provider_busy("Ollama", _PI, s)
+    assert v.busy is False
+
+
+def test_ollama_latest_suffix_matches(monkeypatch):
+    from investment_engine.providers import health
+    # model pinned WITHOUT suffix, resident WITH :latest -> must count resident
+    s = _settings(ollama_base_url=_PI, ollama_model="ministral-3b-top")
+    routes = {f"{_PI}/api/ps": _Resp({"models": [{"name": "ministral-3b-top:latest"}]})}
+    monkeypatch.setattr(health.requests, "get", _router(routes))
+    assert health.probe_provider_busy("Ollama", _PI, s).busy is False
+
+
+def test_ollama_latency_slow_is_busy(monkeypatch):
+    from investment_engine.providers import health
+    s = _settings(ollama_base_url=_PI, ollama_model="ministral-3b-top",
+                  load_guard_latency_ms=10)
+    routes = {f"{_PI}/api/ps": _Resp({"models": [{"name": "ministral-3b-top"}]}),
+              f"{_PI}/api/tags": _Resp({"models": []})}
+    monkeypatch.setattr(health.requests, "get", _router(routes, sleep_s=0.05))
+    v = health.probe_provider_busy("Ollama", _PI, s)
+    assert v.busy is True
+    assert "latency" in v.reason.lower()
+
+
+def test_llamacpp_slow_busy(monkeypatch):
+    from investment_engine.providers import health
+
+    base = "http://100.125.47.31:11435/v1"
+    s = _settings(llamacpp_base_url=base, load_guard_latency_ms=10)
+    routes = {f"{base}/models": _Resp({"data": [{"id": "qwen3.8-9b"}]})}
+    monkeypatch.setattr(health.requests, "get", _router(routes, sleep_s=0.05))
+    v = health.probe_provider_busy("llama.cpp", base, s)
+    assert v.busy is True
+    assert "latency" in v.reason.lower()

@@ -209,6 +209,80 @@ def _aggregate(parts: list[str], evidence: dict) -> Verdict:
     return _not_busy("idle")
 
 
+def _norm_model_name(model: str) -> str:
+    """Ollama registry-normalized name: lowercase, ":latest" tag stripped."""
+    t = str(model or "").strip().lower()
+    return t[: -len(":latest")] if t.endswith(":latest") else t
+
+
+def _ollama_resident(base_url: str, model: str, evidence: dict) -> bool | None:
+    """Is the configured model loaded in Ollama? True/False when /api/ps answers,
+    None when endpoint absent/unknown (graceful degradation -> not busy)."""
+    root = str(base_url or "").rstrip("/")
+    try:
+        r = requests.get(f"{root}/api/ps", timeout=3)
+        if r.status_code != 200:
+            logger.debug("load guard: /api/ps HTTP %s on %s", r.status_code, root)
+            return None
+        payload = r.json() or {}
+        names: list[str] = []
+        for m in (payload.get("models") or payload.get("data") or []):
+            if isinstance(m, dict):
+                names.append(str(m.get("name") or m.get("Name") or m.get("model") or ""))
+        evidence["api_ps_names"] = ",".join(n for n in names if n) or "-"
+        pin = _norm_model_name(model)
+        for n in names:
+            if _norm_model_name(n) == pin:
+                return True
+        return False
+    except Exception as exc:
+        logger.debug("load guard: /api/ps unavailable on %s: %s", root, exc)
+        return None
+
+
+def _single_latency(base_url: str, path: str, settings, evidence: dict, tag: str) -> str | None:
+    """One timed GETPi probe (single attempt, ~2-3 s cap); any reply slower
+    than the latency knob counts as busy (b-found link is genuinely slow)."""
+    import time as _t
+    thr = int(_cfg(settings, "load_guard_latency_ms", 2500) or 2500)
+    url = str(base_url or "").rstrip("/") + path
+    try:
+        t0 = _t.monotonic()
+        r = requests.get(url, timeout=(3, max(3.0, thr / 1000.0 + 1.0)))
+        elapsed_ms = (_t.monotonic() - t0) * 1000.0
+        if r.status_code == 200 and elapsed_ms > thr:
+            evidence[tag] = f"{round(elapsed_ms)}ms"
+            return f"probe latency {round(elapsed_ms)}ms > {thr}ms"
+        return None
+    except Exception as exc:
+        logger.debug("load guard: latency probe unreachable %s%s: %s", base_url, path, exc)
+        return None
+
+
+def _probe_latency_only(base_url: str, settings) -> Verdict:
+    if not bool(_cfg(settings, "load_guard_enabled", True)):
+        return _not_busy("load guard disabled")
+    evidence: dict[str, str] = {}
+    slow = _single_latency(base_url, "/models", settings, evidence, "latency")
+    return _aggregate([slow] if slow else [], evidence)
+
+
+def _probe_ollama(base_url: str, settings) -> Verdict:
+    if not bool(_cfg(settings, "load_guard_enabled", True)):
+        return _not_busy("load guard disabled")
+    evidence: dict[str, str] = {}
+    parts: list[str] = []
+    if bool(_cfg(settings, "load_guard_ollama_require_loaded", True)):
+        model = str(_cfg(settings, "ollama_model", "") or "")
+        resident = _ollama_resident(base_url, model, evidence)
+        if resident is False:
+            parts.append(f"model_cold: {model} not loaded in /api/ps")
+    slow = _single_latency(base_url, "/api/tags", settings, evidence, "ollama")
+    if slow:
+        parts.append(slow)
+    return _aggregate(parts, evidence)
+
+
 def _probe_lmstudio(base_url: str, settings, latencies) -> Verdict:
     if not bool(_cfg(settings, "load_guard_enabled", True)):
         return _not_busy("load guard disabled")
