@@ -303,6 +303,10 @@ def main() -> int:
     parser.add_argument("--t212-csv", default="",
                         help="Path to a Trading 212 activity CSV export. If omitted, the newest CSV in "
                              "the configured t212_csv_folder (default: data/t212_exports) is used.")
+    parser.add_argument("--include-quantities", action="store_true",
+                        default=False, help="Keep quantity columns from CSV/XLSX input (default False: tickers only).")
+    parser.add_argument("--rotation-plan", choices=["none", "average-down", "short-rotation", "cash-apy"],
+                        default="none", help="Advisory rotation strategy (default: none; writes reports/current/rotation_plan.md).")
     args = parser.parse_args()
 
     config_path = (ROOT / args.config).resolve() if not Path(args.config).is_absolute() else Path(args.config)
@@ -329,6 +333,16 @@ def main() -> int:
             settings.execution_mode = args.execution_mode
             if args.execution_mode == "public":
                 settings.api_only = True
+        # Rotation + toggle overrides (advisory only; never executes orders)
+        include_quantities = args.include_quantities
+        rotation_plan = args.rotation_plan
+        # Persist override choices into raw_settings for loader/report wiring
+        raw_settings["include_quantities"] = include_quantities
+        raw_settings["rotation_plan"] = rotation_plan
+        # Rotation config knobs (defaults safe)
+        raw_settings.setdefault("rotation_trim_pct", 30)
+        raw_settings.setdefault("rotation_target", "AAPL")
+        raw_settings.setdefault("apy_rate", 3.0)
         # Resolve effective mode for provenance
         from investment_engine.config.settings import resolve_execution_mode as _resolve_mode
         _requested_mode = "API_ONLY" if args.api_only else (args.execution_mode or raw_settings.get("execution_mode", "auto"))
@@ -414,6 +428,25 @@ def main() -> int:
 
         # Extract data needed for human brief (already computed in run_engine)
         portfolio_rows = result.get("portfolio_rows", [])
+        # Toggle: include_quantities controls whether quantity columns stay in
+        # portfolio_rows (True = full data; False = tickers only, for binary presence).
+        include_quantities = raw_settings.get("include_quantities", False)
+        if portfolio_rows and isinstance(portfolio_rows, list) and not include_quantities:
+            # Strip quantity-related fields from every row (advisory: does not
+            # affect broker reconciliation, which reads raw endpoint fields).
+            stripped = []
+            for r in portfolio_rows:
+                if isinstance(r, dict):
+                    stripped_row = {k: v for k, v in r.items()
+                                     if k not in ("quantity", "pieQuantity",
+                                                  "averagePrice", "currentPrice",
+                                                  "maxBuy", "maxSell", "pieCash")}
+                    stripped.append(stripped_row)
+                else:
+                    stripped.append(r)
+            portfolio_rows = stripped
+            # Mirror stripped version back into result for downstream consistency
+            result["portfolio_rows"] = portfolio_rows
         monitoring_items = result.get("monitoring_items", [])
         regime_result = result.get("regime_result")
         t212_data = result.get("t212_data")
@@ -508,6 +541,39 @@ def main() -> int:
                 print(f"\nERROR: Report was saved, but model stages failed: {', '.join(failures)}", file=sys.stderr)
                 print(f"Log file: {run_log}", file=sys.stderr)
                 return 1
+            # Advisory rotation plan (only when requested; never executes orders)
+            rotation_plan_name = raw_settings.get("rotation_plan", "none")
+            if rotation_plan_name and rotation_plan_name != "none":
+                try:
+                    from investment_engine.rotation import PlanBuilder, write_plan
+                    portfolio_for_rot = result.get("portfolio_rows", [])
+                    rotation_result = PlanBuilder.build(
+                        portfolio_data=portfolio_for_rot,
+                        plan_name=rotation_plan_name,
+                        trim_pct=raw_settings.get("rotation_trim_pct", 30),
+                        target_ticker=raw_settings.get("rotation_target", "AAPL"),
+                        apy_rate=raw_settings.get("apy_rate", 3.0),
+                    )
+                    rotation_path = ROOT / "reports" / "current" / "rotation_plan.md"
+                    rotation_path.parent.mkdir(parents=True, exist_ok=True)
+                    rotation_path.write_text(
+                        write_plan(rotation_result, run_id=run_id, attribution=result.get("provider_attribution", {}),
+                                    reconciliation=result.get("reconciliation"),
+                                    config_snapshot={
+                                        "rotation_plan": rotation_plan_name,
+                                        "rotation_trim_pct": raw_settings.get("rotation_trim_pct", 30),
+                                        "rotation_target": raw_settings.get("rotation_target", "AAPL"),
+                                        "apy_rate": raw_settings.get("apy_rate", 3.0),
+                                        "include_quantities": raw_settings.get("include_quantities", False),
+                                    }),
+                        encoding="utf-8", newline=""  # newline="" preserves LF determinism
+                    )
+                    logger.info("Rotation plan (advisory) saved: %s", rotation_path)
+                    print(f"SUCCESS: Rotation plan (advisory, no orders executed) saved to {rotation_path}")
+                except Exception as rot_exc:
+                    logger.warning("Rotation plan generation skipped: %s", type(rot_exc).__name__)
+                    print(f"NOTE: Rotation plan skipped (advisory failure, not a pipeline error): {type(rot_exc).__name__}")
+
             intel_path = published.get("portfolio_intelligence_brief.md", "")
             print(f"\nSUCCESS: Brief saved to {brief_path}")
             print(f"SUCCESS: Snapshot saved to {snapshot_path}")
