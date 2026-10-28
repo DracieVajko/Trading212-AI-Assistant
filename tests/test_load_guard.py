@@ -70,7 +70,7 @@ def test_is_localhost_matches():
 
 def test_is_localhost_remote():
     from investment_engine.providers.health import is_localhost
-    assert is_localhost("http://100.88.219.120:1234") is False
+    assert is_localhost("http://192.168.1.100:1234") is False
 
 
 def test_unknown_provider_not_busy():
@@ -141,7 +141,7 @@ def test_metrics_missing_degrades(monkeypatch):
 
     monkeypatch.setattr(health, "psutil", None, raising=False)
     monkeypatch.setattr(health.shutil, "which", lambda exe: None)
-    v = health.probe_provider_busy("LM Studio", "http://100.88.219.120:1234",
+    v = health.probe_provider_busy("LM Studio", "http://192.168.1.100:1234",
                                    _settings(), latencies=[0.1, 0.2])
     assert v.busy is False
 
@@ -166,7 +166,7 @@ def test_remote_host_no_metric_signals(monkeypatch):
     fake_psutil = _t.SimpleNamespace(cpu_percent=lambda interval=None: 99.0,
                                      virtual_memory=lambda: _t.SimpleNamespace(percent=99.0))
     monkeypatch.setattr(health, "psutil", fake_psutil, raising=False)
-    v = health.probe_provider_busy("LM Studio", "http://100.88.219.120:1234", _settings())
+    v = health.probe_provider_busy("LM Studio", "http://192.168.1.100:1234", _settings())
     assert v.busy is False  # remote metrics must never decide for another machine
 
 
@@ -189,7 +189,7 @@ def test_kill_switch_no_probe(monkeypatch):
 # Task 4: Pi guards — llama.cpp latency, Ollama resident-model check
 # ---------------------------------------------------------------------------
 
-_PI = "http://100.125.47.31:11434"
+_PI = "http://192.168.1.101:11434"
 
 
 def _router(routes: dict, sleep_s: float = 0.0):
@@ -278,7 +278,7 @@ def test_ollama_latency_slow_is_busy(monkeypatch):
 def test_llamacpp_slow_busy(monkeypatch):
     from investment_engine.providers import health
 
-    base = "http://100.125.47.31:11435/v1"
+    base = "http://192.168.1.101:11435/v1"
     s = _settings(llamacpp_base_url=base, load_guard_latency_ms=10)
     routes = {f"{base}/models": _Resp({"data": [{"id": "qwen3.8-9b"}]})}
     monkeypatch.setattr(health.requests, "get", _router(routes, sleep_s=0.05))
