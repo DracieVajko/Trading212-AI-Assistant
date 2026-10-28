@@ -5,6 +5,7 @@ Strictly offline: no HTTP to real endpoints (monkeypatched), no local inference.
 """
 from __future__ import annotations
 
+import socket
 from types import SimpleNamespace
 
 
@@ -48,3 +49,31 @@ def test_load_guard_settings_defaults():
 def test_load_guard_kill_switch_flag():
     s = _settings(load_guard_enabled=False)
     assert s.load_guard_enabled is False
+
+
+# ---------------------------------------------------------------------------
+# Task 2: health.py — Verdict, localhost detection, dispatch skeleton
+# ---------------------------------------------------------------------------
+
+def test_verdict_default_not_busy():
+    from investment_engine.providers.health import Verdict
+    v = Verdict(busy=False, reason="", evidence={})
+    assert v.busy is False
+
+
+def test_is_localhost_matches():
+    from investment_engine.providers.health import is_localhost
+    for u in ("http://127.0.0.1:1234/v1", "http://localhost:1234",
+              "http://::1:1234", f"http://{socket.gethostname()}:1234"):
+        assert is_localhost(u) is True, u
+
+
+def test_is_localhost_remote():
+    from investment_engine.providers.health import is_localhost
+    assert is_localhost("http://100.88.219.120:1234") is False
+
+
+def test_unknown_provider_not_busy():
+    from investment_engine.providers.health import probe_provider_busy
+    v = probe_provider_busy("Mystery", "http://127.0.0.1:9", _settings())
+    assert v.busy is False and "unknown provider" in v.reason
