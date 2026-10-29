@@ -115,18 +115,19 @@ class PlanBuilder:
             # Average-down: only act on losing positions with positive quantity
             if ppl_eur >= 0 or qty <= 0:
                 continue
+            change_qty = -qty * (trim_pct / 100.0)
             # Exit: PPL returns to non-negative (simulated); else max 3 cycles
             if cycle > 3:
                 items.append(RotationPlanItem(
                     ticker=ticker,
-                    action="hold",
-                    quantity_change=0,
-                    reason=f"average-down: max cycles (3) reached; hold remaining position",
-                    simulated_pnl=0.0,
+                    action="reduce",
+                    quantity_change=change_qty,
+                    reason=f"average-down: PPL={ppl_eur:.2f} EUR; trim {trim_pct}% to reinvest at lower cost (simulated) — cycle {cycle} EXCEEDS recommended max of 3 rotations; review manually",
+                    simulated_pnl=cls._simulated_ppl_impact(ppl_eur, trim_pct, qty),
                     cycle=cycle,
                 ))
+                cycle += 1
                 continue
-            change_qty = -qty * (trim_pct / 100.0)
             items.append(RotationPlanItem(
                 ticker=ticker,
                 action="reduce",
@@ -147,7 +148,7 @@ class PlanBuilder:
             apy_rate=apy_rate,
             cycles_completed=max((i.cycle for i in items), default=0),
             exit_reached=exit_reached,
-            advisory_note="Average-down reduces losing positions by trim_pct; released capital simulated reinvested at same ticker with lower entry. Advisory only — no orders executed.",
+            advisory_note="Average-down reduces losing positions by trim_pct; released capital simulated reinvested at same ticker with lower entry. Up to 3 rotations are recommended; additional positions should be reviewed manually. Advisory only — no orders executed.",
         )
 
     @classmethod
@@ -162,17 +163,32 @@ class PlanBuilder:
             # Short-rotation: only losing positions with positive quantity
             if ppl_eur >= 0 or qty <= 0:
                 continue
+            change_qty = -qty * (trim_pct / 100.0)
+            target_qty = qty * (trim_pct / 100.0)  # same released amount -> target
             if cycle > 3:
                 items.append(RotationPlanItem(
                     ticker=ticker,
-                    action="hold",
-                    quantity_change=0,
-                    reason=f"short-rotation: max cycles (3) reached; hold",
+                    action="reduce",
+                    quantity_change=change_qty,
+                    reason=(
+                        f"short-rotation: PPL={ppl_eur:.2f} EUR; reduce {trim_pct}% "
+                        f"and rotate released capital to target ticker '{target_ticker}' (simulated). "
+                        f"Re-entry into original ticker when target achieves PPL >= 0. "
+                        f"Cycle {cycle} EXCEEDS recommended max of 3 rotations; review manually."
+                    ),
+                    simulated_pnl=cls._simulated_ppl_impact(ppl_eur, trim_pct, qty),
+                    cycle=cycle,
+                ))
+                items.append(RotationPlanItem(
+                    ticker=str(target_ticker),
+                    action="reinvest",
+                    quantity_change=target_qty,
+                    reason=f"short-rotation: temporary reinvestment into '{target_ticker}' (simulated) with released EUR (cycle {cycle} exceeds recommended max of 3)",
                     simulated_pnl=0.0,
                     cycle=cycle,
                 ))
+                cycle += 1
                 continue
-            change_qty = -qty * (trim_pct / 100.0)
             items.append(RotationPlanItem(
                 ticker=ticker,
                 action="reduce",
@@ -186,7 +202,6 @@ class PlanBuilder:
                 cycle=cycle,
             ))
             # Target ticker recommendation (simulated entry)
-            target_qty = qty * (trim_pct / 100.0)  # same released amount -> target
             items.append(RotationPlanItem(
                 ticker=str(target_ticker),
                 action="reinvest",
@@ -313,6 +328,15 @@ def write_plan(result: RotationResult, run_id: str, attribution: dict,
         )
     if not result.items:
         lines.append(f"| — | *No eligible positions (PPL < 0 with qty > 0)* | — | — | — | — | — |")
+    # Note about max 3 recommended rotations
+    over_limit = [i for i in result.items if i.cycle > 3]
+    if over_limit:
+        lines.extend([
+            f"",
+            f"> **Note**: {len(over_limit)} recommendation(s) exceed the recommended maximum of 3 rotation cycles. "
+            f"Only the first 3 rotations are advised; additional positions should be reviewed manually "
+            f"before any action is taken.",
+        ])
     lines.extend([
         f"",
         f"## Exit Status",
