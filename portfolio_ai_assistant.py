@@ -461,7 +461,7 @@ def main() -> int:
 
         # Investor Intelligence (Cramer inverse, etc.) — default OFF
         try:
-            from investment_engine.investor_intelligence import _is_enabled, _load_config, compute_investor_signals, get_investor_summary
+            from investment_engine.investor_intelligence import _is_enabled, _load_config, compute_investor_signals, get_investor_summary, parse_cramer_recommendation
             _inv_rules = {}
             try:
                 import json as _json
@@ -476,12 +476,89 @@ def main() -> int:
                 logger.info("Investor intelligence: ENABLED (mode=%s, sources=%s)", _inv_cfg.get("mode"), _inv_cfg.get("sources"))
                 result["investor_intelligence_enabled"] = True
                 result["investor_intelligence_mode"] = _inv_cfg.get("mode", "inverse")
+                # Try to load Cramer events from file or RSS
+                _cramer_events = []
+                _cramer_file = ROOT / "data" / "cramer_events.json"
+                if _cramer_file.exists():
+                    try:
+                        with open(_cramer_file, "r", encoding="utf-8") as _f:
+                            _cramer_events = _json.load(_f)
+                        if not isinstance(_cramer_events, list):
+                            _cramer_events = []
+                    except Exception:
+                        _cramer_events = []
+                # Also try parsing from a text file
+                _cramer_text_file = ROOT / "data" / "cramer_text.txt"
+                if _cramer_text_file.exists():
+                    try:
+                        _text = _cramer_text_file.read_text(encoding="utf-8")
+                        _parsed = parse_cramer_recommendation(_text)
+                        _cramer_events.extend([{"ticker": e.ticker, "action": e.action, "date": e.published_at, "source": e.source, "confidence": e.confidence} for e in _parsed])
+                    except Exception:
+                        pass
+                if _cramer_events:
+                    _signals = compute_investor_signals(
+                        [type("E", (), {"investor": "cramer", "ticker": e.get("ticker", ""), "stance": "bullish" if e.get("action") == "buy" else "bearish", "action": e.get("action", "buy"), "published_at": e.get("date", ""), "source": e.get("source", "file"), "confidence": e.get("confidence", 0.6)})() for e in _cramer_events],
+                        _inv_rules,
+                        held_tickers=set(t.get("broker_symbol", "") for t in assets if t.get("broker_symbol")),
+                    )
+                    result["investor_signals"] = [{"ticker": s.ticker, "mode": s.mode, "adjustment": s.adjustment, "reason": s.reason} for s in _signals]
+                    result["investor_summary"] = get_investor_summary(_signals)
+                    logger.info("Investor intelligence: %d signals computed", len(_signals))
+                else:
+                    result["investor_signals"] = []
+                    result["investor_summary"] = "No Cramer events found (place data/cramer_events.json or data/cramer_text.txt)"
             else:
                 logger.debug("Investor intelligence: disabled (default OFF)")
                 result["investor_intelligence_enabled"] = False
+                result["investor_signals"] = []
+                result["investor_summary"] = ""
         except Exception as _inv_exc:
             logger.debug("Investor intelligence skipped: %s", type(_inv_exc).__name__)
             result["investor_intelligence_enabled"] = False
+            result["investor_signals"] = []
+            result["investor_summary"] = ""
+
+        # Discovery Engine (optional, default OFF)
+        try:
+            _disc_enabled = raw_settings.get("discovery_enabled", False)
+            if _disc_enabled:
+                logger.info("Discovery Engine: ENABLED — running screener")
+                from investment_engine.discovery import build_universe, run_screener
+                _universe = build_universe(
+                    include_sp500=True,
+                    include_nasdaq100=raw_settings.get("discovery_nasdaq100", False),
+                    exclude_tickers=set(t.get("broker_symbol", "") for t in assets if t.get("broker_symbol")),
+                )
+                _candidates = run_screener(
+                    universe=_universe,
+                    max_candidates=raw_settings.get("discovery_max_candidates", 20),
+                )
+                result["discovery_candidates"] = _candidates.to_dict("records") if not _candidates.empty else []
+                result["discovery_universe_size"] = len(_universe)
+                logger.info("Discovery: %d candidates from %d universe tickers", len(_candidates), len(_universe))
+                # Write discovery_opportunities.md
+                try:
+                    from investment_engine.discovery.discovery_report import write_discovery_report
+                    _disc_md = write_discovery_report(
+                        _candidates.to_dict("records") if not _candidates.empty else [],
+                        len(_universe),
+                        run_id,
+                    )
+                    _disc_path = ROOT / "reports" / "current" / "discovery_opportunities.md"
+                    _disc_path.parent.mkdir(parents=True, exist_ok=True)
+                    _disc_path.write_text(_disc_md, encoding="utf-8", newline="")
+                    logger.info("Discovery opportunities saved: %s", _disc_path)
+                except Exception as _disc_write_exc:
+                    logger.debug("Discovery report write skipped: %s", type(_disc_write_exc).__name__)
+            else:
+                logger.debug("Discovery Engine: disabled (default OFF)")
+                result["discovery_candidates"] = []
+                result["discovery_universe_size"] = 0
+        except Exception as _disc_exc:
+            logger.warning("Discovery Engine skipped: %s", type(_disc_exc).__name__)
+            result["discovery_candidates"] = []
+            result["discovery_universe_size"] = 0
         # Toggle: include_quantities controls whether quantity columns stay in
         # portfolio_rows (True = full data; False = tickers only, for binary presence).
         include_quantities = raw_settings.get("include_quantities", False)
