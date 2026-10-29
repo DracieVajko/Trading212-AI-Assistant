@@ -109,8 +109,8 @@ class PlanBuilder:
         items: list[RotationPlanItem] = []
         cycle = 1
         for row in portfolio_data or []:
-            ticker = str(row.get("ticker") or row.get("display") or "")
-            ppl_eur = float(row.get("ppl", 0.0) or 0.0)
+            ticker = str(row.get("ticker") or row.get("display_symbol") or row.get("display") or "")
+            ppl_eur = float(row.get("unrealized_pnl", row.get("ppl", 0.0)) or 0.0)
             qty = float(row.get("quantity") or row.get("pieQuantity") or 0.0)
             # Average-down: only act on losing positions with positive quantity
             if ppl_eur >= 0 or qty <= 0:
@@ -156,8 +156,8 @@ class PlanBuilder:
         cycle = 1
         pin = cls._normalize_ticker(target_ticker)
         for row in portfolio_data or []:
-            ticker = str(row.get("ticker") or row.get("display") or "")
-            ppl_eur = float(row.get("ppl", 0.0) or 0.0)
+            ticker = str(row.get("ticker") or row.get("display_symbol") or row.get("display") or "")
+            ppl_eur = float(row.get("unrealized_pnl", row.get("ppl", 0.0)) or 0.0)
             qty = float(row.get("quantity") or row.get("pieQuantity") or 0.0)
             # Short-rotation: only losing positions with positive quantity
             if ppl_eur >= 0 or qty <= 0:
@@ -223,7 +223,7 @@ class PlanBuilder:
         for row in portfolio_data or []:
             ticker = str(row.get("ticker") or row.get("display") or "")
             qty = float(row.get("quantity") or row.get("pieQuantity") or 0.0)
-            ppl_eur = float(row.get("ppl", 0.0) or 0.0)
+            ppl_eur = float(row.get("unrealized_pnl", row.get("ppl", 0.0)) or 0.0)
             # Cash-apy applies to ANY positive-quantity position (not only losses)
             if qty <= 0:
                 continue
