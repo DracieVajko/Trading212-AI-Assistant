@@ -458,6 +458,30 @@ def main() -> int:
             logger.debug("PIE exposure detection skipped: %s", type(_pie_exc).__name__)
             result["pie_exposure"] = {}
             result["standalone_summary"] = ""
+
+        # Investor Intelligence (Cramer inverse, etc.) — default OFF
+        try:
+            from investment_engine.investor_intelligence import _is_enabled, _load_config, compute_investor_signals, get_investor_summary
+            _inv_rules = {}
+            try:
+                import json as _json
+                _cr_path = ROOT / "custom_rules.json"
+                if _cr_path.exists():
+                    with open(_cr_path, "r", encoding="utf-8") as _f:
+                        _inv_rules = _json.load(_f)
+            except Exception:
+                pass
+            if _is_enabled(_inv_rules):
+                _inv_cfg = _load_config(_inv_rules)
+                logger.info("Investor intelligence: ENABLED (mode=%s, sources=%s)", _inv_cfg.get("mode"), _inv_cfg.get("sources"))
+                result["investor_intelligence_enabled"] = True
+                result["investor_intelligence_mode"] = _inv_cfg.get("mode", "inverse")
+            else:
+                logger.debug("Investor intelligence: disabled (default OFF)")
+                result["investor_intelligence_enabled"] = False
+        except Exception as _inv_exc:
+            logger.debug("Investor intelligence skipped: %s", type(_inv_exc).__name__)
+            result["investor_intelligence_enabled"] = False
         # Toggle: include_quantities controls whether quantity columns stay in
         # portfolio_rows (True = full data; False = tickers only, for binary presence).
         include_quantities = raw_settings.get("include_quantities", False)
