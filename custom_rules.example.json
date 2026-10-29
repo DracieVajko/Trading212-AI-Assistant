@@ -1,0 +1,99 @@
+{
+  "_comment": "Custom Investment Rules Profile — user-editable. Copy to custom_rules.json and modify. This file OVERRIDES investment_policy.json and portfolio_config.json settings where keys match. See docs/CUSTOM_RULES.md for full documentation.",
+  "_version": "1.0.0",
+
+  "investment_rules": {
+    "max_position_pct": 15.0,
+    "cash_floor_pct": 5.0,
+    "stop_loss_pct": -7.0,
+    "take_profit_pct": 10.0,
+    "dca_interval": "monthly",
+    "dca_day": 1,
+    "sector_limits": {
+      "TECH": 40.0,
+      "CRYPTO": 10.0,
+      "ENERGY": 15.0,
+      "HEALTHCARE": 15.0,
+      "FINANCIAL": 15.0
+    },
+    "ignore_otc": true,
+    "prefer_dividend": false,
+    "risk_per_trade_pct": 2.0,
+    "max_positions": 20,
+    "min_position_pct": 1.0,
+    "rebalance_threshold_pct": 5.0,
+    "allow_averaging_down": true,
+    "averaging_down_max_cycles": 3,
+    "averaging_down_trim_pct": 30
+  },
+
+  "strategy_aggression": {
+    "buy_threshold": 60,
+    "sell_threshold": 65,
+    "hold_threshold": 40,
+    "earnings_priority": "high",
+    "earnings_prediction_weight": 0.3,
+    "news_trust_level": "medium",
+    "news_relevance_min": 60,
+    "technical_weight": 0.4,
+    "fundamental_weight": 0.4,
+    "sentiment_weight": 0.2,
+    "min_data_quality_for_signal": 60,
+    "allow_ai_override": false,
+    "contrarian_mode": false
+  },
+
+  "script_behavior": {
+    "provider_chain": "auto",
+    "lm_studio_model": "openai/gpt-oss-20b",
+    "news_relevance_threshold": 60,
+    "max_news_age_days": 2,
+    "use_social_sentiment": true,
+    "use_reddit": true,
+    "use_x_sentiment": true,
+    "use_stocktwits": true,
+    "auto_discovery_limit": 8,
+    "max_news_per_asset": 4,
+    "max_forum_per_asset": 5,
+    "max_web_per_asset": 5,
+    "enable_slovak_news": false,
+    "use_playwright_fallback": true,
+    "playwright_headless": true,
+    "playwright_timeout_seconds": 30,
+    "language": "en",
+    "output_folder": "reports",
+    "archive_folder": "reports/archive",
+    "log_folder": "logs"
+  },
+
+  "rotation": {
+    "rotation_plan": "none",
+    "rotation_trim_pct": 30,
+    "rotation_target": "AAPL",
+    "apy_rate": 3.0,
+    "include_quantities": false
+  },
+
+  "per_ticker_overrides": {
+    "AAPL": {
+      "max_position_pct": 20.0,
+      "preferred_action": "hold"
+    },
+    "NVDA": {
+      "max_position_pct": 15.0,
+      "preferred_action": "hold"
+    },
+    "TSLA": {
+      "max_position_pct": 8.0,
+      "preferred_action": "trim"
+    }
+  },
+
+  "notifications": {
+    "notify_on_fail": true,
+    "notify_on_complete": true,
+    "notify_email_to": "",
+    "notify_ntfy_topic": "",
+    "notify_urgent_threshold_pct": -10.0
+  }
+}

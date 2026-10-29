@@ -334,6 +334,23 @@ def main() -> int:
             settings.execution_mode = args.execution_mode
             if args.execution_mode == "public":
                 settings.api_only = True
+        # Custom rules: override settings where keys match
+        try:
+            from investment_engine.config.custom_rules import load_custom_rules, apply_custom_rules_to_settings, get_custom_rules_summary
+            _custom_rules = load_custom_rules(ROOT / "custom_rules.json")
+            if _custom_rules:
+                apply_custom_rules_to_settings(settings, _custom_rules)
+                logger.info("Custom rules loaded: %s", get_custom_rules_summary(_custom_rules).replace(chr(10), " | "))
+                # Override rotation config from custom rules
+                _rot = _custom_rules.get("rotation", {})
+                if isinstance(_rot, dict):
+                    raw_settings.setdefault("rotation_plan", _rot.get("rotation_plan", raw_settings.get("rotation_plan", "none")))
+                    raw_settings.setdefault("rotation_trim_pct", _rot.get("rotation_trim_pct", raw_settings.get("rotation_trim_pct", 30)))
+                    raw_settings.setdefault("rotation_target", _rot.get("rotation_target", raw_settings.get("rotation_target", "AAPL")))
+                    raw_settings.setdefault("apy_rate", _rot.get("apy_rate", raw_settings.get("apy_rate", 3.0)))
+                    raw_settings.setdefault("include_quantities", _rot.get("include_quantities", raw_settings.get("include_quantities", False)))
+        except Exception as _cr_exc:
+            logger.debug("Custom rules loading skipped: %s", type(_cr_exc).__name__)
         # Rotation + toggle overrides (advisory only; never executes orders)
         include_quantities = args.include_quantities
         rotation_plan = args.rotation_plan
