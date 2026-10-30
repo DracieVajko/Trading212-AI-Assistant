@@ -95,5 +95,22 @@
     "notify_email_to": "",
     "notify_ntfy_topic": "",
     "notify_urgent_threshold_pct": -10.0
+  },
+
+  "investor_intelligence": {
+    "enabled": false,
+    "mode": "inverse",
+    "sources": ["cramer"],
+    "lookback_days": 14,
+    "weight": 0.5,
+    "cap": 1.0,
+    "min_confidence": 0.7,
+    "track_performance": true,
+    "paper_trading": true,
+    "modes": {
+      "cramer": "inverse",
+      "buffett": "follow",
+      "congress": "contrarian_confirmation"
+    }
   }
 }

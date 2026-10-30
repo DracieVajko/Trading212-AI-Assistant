@@ -1,7 +1,7 @@
 """discovery_report.py — Generate discovery_opportunities.md report.
 
 Formats discovery screener results into a markdown report with:
-- Top candidates (CANDIDATE status)
+- Top candidates (CANDIDATE status) with price targets
 - Watch list (WATCH status)
 - Rejected (REJECT status with reasons)
 - Discovery metadata (universe size, filters applied)
@@ -15,8 +15,9 @@ from typing import Any, Dict, List
 logger = logging.getLogger(__name__)
 
 
-def write_discovery_report(candidates: list[dict], universe_size: int, run_id: str) -> str:
-    """Render discovery results as markdown."""
+def write_discovery_report(candidates: list[dict], universe_size: int, run_id: str, price_targets: dict | None = None) -> str:
+    """Render discovery results as markdown with price targets."""
+    price_targets = price_targets or {}
     lines: list[str] = [
         f"# Discovery Opportunities",
         f"",
@@ -52,17 +53,35 @@ def write_discovery_report(candidates: list[dict], universe_size: int, run_id: s
         lines.extend([
             f"## Top Candidates ({len(candidates_list)})",
             f"",
-            f"| # | Ticker | Score | Base | Ext | Components | Reasons | Flags |",
-            f"|---|--------|-------|------|-----|------------|---------|-------|",
+            f"| # | Ticker | Score | Base | Ext | Buy Range | Take Profit | Stop Loss | Expected (30d) | R/R |",
+            f"|---|--------|-------|------|-----|-----------|-------------|-----------|----------------|-----|",
         ])
         for idx, c in enumerate(candidates_list, 1):
-            comps = c.get("components", {})
-            comp_str = ", ".join(f"{k}={v}" for k, v in comps.items()) if comps else "—"
-            reasons = ", ".join(c.get("reasons", [])) or "—"
-            flags = ", ".join(c.get("flags", [])) or "—"
+            ticker = c.get("ticker", "?")
+            pt = price_targets.get(ticker, {})
+            buy_range = f"{pt.get('buy_range_low', '—')} - {pt.get('buy_range_high', '—')}" if pt.get("buy_range_low") else "—"
+            tp = pt.get("take_profit", "—")
+            sl = pt.get("stop_loss", "—")
+            exp = pt.get("expected_price_30d", "—")
+            rr = pt.get("risk_reward_ratio", "—")
             lines.append(
-                f"| {idx} | `{c.get('ticker', '?')}` | {c.get('score', 0)} | {c.get('base', 0)} | {c.get('ext', 0)} | {comp_str} | {reasons} | {flags} |"
+                f"| {idx} | `{ticker}` | {c.get('score', 0)} | {c.get('base', 0)} | {c.get('ext', 0)} | {buy_range} | {tp} | {sl} | {exp} | {rr} |"
             )
+        # Add detailed price target section
+        lines.extend(["", "### Price Target Details", ""])
+        for c in candidates_list:
+            ticker = c.get("ticker", "?")
+            pt = price_targets.get(ticker, {})
+            if pt.get("current_price"):
+                lines.extend([
+                    f"**{ticker}** (current: {pt['current_price']})",
+                    f"- Support: {pt.get('support', 'N/A')} | Resistance: {pt.get('resistance', 'N/A')}",
+                    f"- Buy range: {pt.get('buy_range_low', 'N/A')} - {pt.get('buy_range_high', 'N/A')}",
+                    f"- Take profit: {pt.get('take_profit', 'N/A')} | Stop loss: {pt.get('stop_loss', 'N/A')}",
+                    f"- Expected (30d): {pt.get('expected_price_30d', 'N/A')} | Risk/Reward: {pt.get('risk_reward_ratio', 'N/A')}",
+                    f"- ATR(14): {pt.get('atr', 'N/A')} | SMA50: {pt.get('sma50', 'N/A')} | SMA200: {pt.get('sma200', 'N/A')}",
+                    f"",
+                ])
         lines.append("")
 
     if watch_list:
@@ -87,7 +106,7 @@ def write_discovery_report(candidates: list[dict], universe_size: int, run_id: s
             f"| Ticker | Reasons |",
             f"|--------|---------|",
         ])
-        for c in reject_list[:20]:  # limit to 20
+        for c in reject_list[:20]:
             reasons = ", ".join(c.get("reasons", [])) or "—"
             lines.append(f"| `{c.get('ticker', '?')}` | {reasons} |")
         if len(reject_list) > 20:

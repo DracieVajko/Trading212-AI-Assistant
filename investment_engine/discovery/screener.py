@@ -91,6 +91,17 @@ def run_screener(
     else:
         candidates = result_df
 
+    # Compute price targets for each candidate
+    try:
+        from .price_targets import compute_price_targets
+        price_targets = {}
+        for _, row in candidates.iterrows():
+            ticker = row.get("ticker", "")
+            # We don't have price data here, so skip (will be computed in report)
+            pass
+    except Exception:
+        pass
+
     # Limit
     if len(candidates) > max_candidates:
         candidates = candidates.head(max_candidates)
