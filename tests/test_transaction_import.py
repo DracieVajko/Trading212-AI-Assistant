@@ -1,6 +1,5 @@
 """Tests for Trading 212 CSV transaction import."""
 
-import pytest
 from decimal import Decimal
 from pathlib import Path
 

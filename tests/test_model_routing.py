@@ -52,7 +52,6 @@ def _capture(monkeypatch, **context):
     class CapResp(_FakeResp):
         pass
 
-    orig = CapResp.json
 
     def fake_post(url, json=None, timeout=None):
         captured.update(json or {})

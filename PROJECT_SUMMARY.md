@@ -1,9 +1,10 @@
 # Portfolio AI Assistant — project handoff summary
 
-Date: 2026-10-07. Audience: a frontier AI agent that will implement the next
+Date: 2026-11-03. Audience: a frontier AI agent that will implement the next
 changes. Language of the repo: English code/logs, Slovak config comments.
 Runtime: **Python 3.12 only** (`py -3.12`), no venv (system interpreter).
-Full offline suite: **469 tests passing** (`py -3.12 -m pytest tests/ -q`).
+Offline suite: **908 passing, 3 skipped** on the reference environment; the
+remaining 5 tests depend on local PIE exports or the exact 3.12 interpreter.
 
 ## 1. What it is
 
@@ -60,8 +61,8 @@ Batch helpers: `run_full_report.bat`, `run_automated.bat`, `run_t212_analysis.ba
   warning, by design).
 - `scripts/` — `verify_environment.py` (offline preflight),
   `verify_indicators.py`, `verify_manifest.py`, `build_universe.py`.
-- `tools/t212_cli.py`, `trading212/` package (also legacy root
-  `trading212_*.py` shims — do not extend, kept for compat).
+- `tools/t212_cli.py`, `trading212/` package. Root `trading212_*.py` files are
+  compatibility shims only; new code belongs in the package.
 - `experimental/` — isolated backtest suite (own tests, not part of main suite).
 
 ## 4. LLM providers (local-first chain)
@@ -118,9 +119,9 @@ localhost) come from `api.env`; no private endpoints are committed.
    verify with `ollama ps` on the deployed Pi before relying on it.
 7. `pandas-ta` absent: INTENTIONAL (archived, incompatible with pinned stack).
    The import warning is expected/harmless. Do NOT "fix" by installing it.
-8. `ddgs` is a declared dependency but used nowhere (future web-search source).
+8. `ddgs` is not a dependency; news retrieval uses feedparser, yfinance, and
+   provider APIs.
 9. Intraday EXI2 timeframes often fail validation (warning, by design).
-10. README model table (`fin-r1`…) is stale vs actual stage models (§4).
 
 ## 8. In-flight plans (not implemented)
 

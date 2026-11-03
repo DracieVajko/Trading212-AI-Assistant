@@ -1,11 +1,10 @@
 """Indicator correctness - Wilder vs SMA, warmup, no future access."""
 import pandas as pd
 import numpy as np
-import pytest
 
 from experimental.backtest.indicators import (
     sma, ema, wilder_rma, rsi, rsi_sma_variant,
-    true_range, atr, atr_sma_variant,
+    atr, atr_sma_variant,
     macd, bollinger_bands, adx, adx_sma_variant,
     supertrend, obv, vwap_daily, rolling_vwap,
 )

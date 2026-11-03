@@ -17,8 +17,8 @@ from typing import Dict, List, Tuple
 import pandas as pd
 import numpy as np
 
-from experimental.backtest.io import load_ohlcv, load_ohlcv_from_dataframe, load_fx_config
-from experimental.backtest.validate import validate_dataframe, ValidationError, ValidationReport
+from experimental.backtest.io import load_ohlcv, load_fx_config
+from experimental.backtest.validate import validate_dataframe, ValidationError
 from experimental.backtest.costs import CostsConfig
 from experimental.backtest.metrics import compute_metrics, metrics_to_dict
 from experimental.backtest.benchmarks import equal_weight_buy_and_hold, periodic_equal_weight_rebalance
@@ -182,7 +182,6 @@ def run_comparison(config_path: str | Path) -> dict:
     # Filter df to eligible only
     df_eligible = df[df["symbol"].isin(eligible)].copy()
     # Dropped dates/symbols reporting
-    dropped_symbols = excluded
     dropped_dates = []  # Not dropping dates, but if some dates have missing eligible symbols, report
     # For each date, count eligible symbols present
     for d in all_dates:

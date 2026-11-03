@@ -426,11 +426,9 @@ def to_display_symbol(internal_id: str, known_clean: Optional[set] = None) -> st
         return "UNKNOWN"
     up = s.upper()
     stem = s
-    had_eq_suffix = False
     for suffix in _INTERNAL_SUFFIXES:
         if up.endswith(suffix):
             stem = s[: len(s) - len(suffix)]
-            had_eq_suffix = True
             break
     else:
         if "_" in stem:

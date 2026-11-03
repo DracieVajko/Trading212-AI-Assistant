@@ -14,11 +14,6 @@ from investment_engine.investor_intelligence import (
     compute_investor_signals,
     get_investor_summary,
     track_performance,
-    MODE_FOLLOW,
-    MODE_INVERSE,
-    MODE_CONTRARIAN,
-    MODE_IGNORE,
-    MODE_PAPER_ONLY,
 )
 
 

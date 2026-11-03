@@ -5,20 +5,18 @@ pandas-ta comparison runs only when installed (importorskip).
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from investment_engine.research.ta_snapshot import (
-    _adx_wilder,
     _atr_wilder,
     _bollinger,
     _cagr,
     _drawdown_series,
     _ema,
-    _macd,
     _rsi_wilder,
     _sma,
     build_snapshot,
@@ -290,7 +288,7 @@ def test_selftests_recorded_in_snapshot():
 
 def test_reference_library_comparison():
     """B8: SMA/EMA <1e-6 post-warmup; Wilder indicators small diffs."""
-    pd_ta = pytest.importorskip("pandas_ta")
+    pytest.importorskip("pandas_ta")
     import pandas_ta as ta
 
     close = _frame(n=900)["close"]

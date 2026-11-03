@@ -1,6 +1,5 @@
 """Tests for fee accounting and categorization."""
 
-import pytest
 from decimal import Decimal
 from pathlib import Path
 

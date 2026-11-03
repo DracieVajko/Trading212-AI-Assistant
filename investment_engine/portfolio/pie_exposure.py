@@ -17,7 +17,7 @@ import csv
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

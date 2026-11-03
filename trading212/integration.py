@@ -14,13 +14,11 @@ Changes from the previous version:
 import os
 import json
 import logging
-import socket
 import requests
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pathlib import Path
 
-from .auth import Trade212Client
 from .portfolio import PortfolioMonitor
 
 logging.basicConfig(
@@ -220,11 +218,11 @@ class Trading212Integration:
         self.account_id = account_id or self.config.get("TRADING212_ACCOUNT_ID") or os.getenv("TRADING212_ACCOUNT_ID")
 
         if not self.api_key or not self.api_secret:
-            logger.warning("TRADING212_API_KEY or TRADING212_API_SECRET is not set - integration disabled")
+            logger.warning("Trading212 credentials are not set - integration disabled")
             self.enabled = False
         else:
             self.enabled = True
-            logger.info("Trading212 initialized (credentials loaded)")
+            logger.info("Trading212 initialized (authentication configured)")
 
         if self.enabled:
             self.monitor = PortfolioMonitor(self.api_key, self.api_secret, self.account_id)
@@ -380,7 +378,7 @@ def create_integration(config_file: str = "api.env",
                        odysseus_url: str = None) -> Optional[Trading212Integration]:
     t = Trading212Integration(config_file=config_file, odysseus_url=odysseus_url)
     if not t.is_enabled():
-        logger.error("Trading212 integration failed - check TRADING212_API_KEY in api.env")
+        logger.error("Trading212 integration failed - check the API credentials in api.env")
         return None
     return t
 

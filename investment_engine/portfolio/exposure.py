@@ -526,9 +526,11 @@ def generate_actionability_view(
     for exp in canonical_exposures:
         pie_action = _map_pie_action(exp)
         standalone_action = _map_standalone_action(exp)
-        assert pie_action != "SELL", f"Pie action must never be SELL for {exp.symbol}"
+        if pie_action == "SELL":
+            raise ValueError(f"Pie action must never be SELL for {exp.symbol}")
         allowed_pie = {"HOLD_PIE", "ADD_VIA_PIE", "REDUCE_VIA_PIE", "REVIEW_PIE", "REVIEW_PIE_ALLOCATION", "N/A"}
-        assert pie_action in allowed_pie, f"Invalid pie action {pie_action}"
+        if pie_action not in allowed_pie:
+            raise ValueError(f"Invalid pie action {pie_action}")
 
         explanation = ""
         if pie_action == "REVIEW_PIE_ALLOCATION":

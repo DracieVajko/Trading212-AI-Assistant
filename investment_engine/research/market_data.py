@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import logging
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
-from typing import Any
 from urllib.parse import quote_plus
 
 import requests
@@ -141,7 +140,6 @@ def filter_earnings_window(
     Returns {"in_window": [...sorted by (date, display)...],
              "next_after": {...} | None}.
     """
-    from datetime import date as _date
     from datetime import timedelta as _td
     if report_dt is None:
         report_dt = report_now_bta()
@@ -480,7 +478,7 @@ def _fetch_technical_yfinance(symbol: str, period: str = "3mo", interval: str = 
     close = hist['Close']
     high = hist['High']
     low = hist['Low']
-    volume = hist['Volume']
+    hist['Volume']
     
     # RSI
     delta = close.diff()
@@ -499,7 +497,7 @@ def _fetch_technical_yfinance(symbol: str, period: str = "3mo", interval: str = 
     ema_26 = close.ewm(span=26, adjust=False).mean()
     macd = ema_12 - ema_26
     signal = macd.ewm(span=9, adjust=False).mean()
-    macd_hist = macd - signal
+    macd - signal
     
     # Bollinger Bands
     bb_mid = close.rolling(20).mean()
@@ -571,7 +569,7 @@ def _fetch_technical_playwright(symbol: str) -> dict | None:
         
         settings = EngineSettings.from_defaults()
         headless = getattr(settings, "playwright_headless", True)
-        timeout = getattr(settings, "playwright_timeout_seconds", 30) * 1000
+        getattr(settings, "playwright_timeout_seconds", 30) * 1000
         
         # TradingView URL for the symbol
         # Map Yahoo symbol to TradingView format if needed

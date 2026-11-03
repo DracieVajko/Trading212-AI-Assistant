@@ -6,7 +6,6 @@ import pytest
 from experimental.backtest.io import load_ohlcv_from_dataframe
 from experimental.backtest.validate import validate_dataframe, ValidationError
 from experimental.backtest.engine import BacktestEngine
-import json
 from pathlib import Path
 
 

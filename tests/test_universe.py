@@ -148,7 +148,6 @@ def test_universe_support_state_delegates(tmp_path):
 
 def test_kill_switch_and_key_never_printed(monkeypatch, tmp_path, capsys):
     _seed_cache(tmp_path, {})
-    import os
 
     from investment_engine.research import universe as uni
 

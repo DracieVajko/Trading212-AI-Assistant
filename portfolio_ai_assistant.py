@@ -7,7 +7,7 @@ import json
 import logging
 import shutil
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 from investment_engine.config.settings import EngineSettings
@@ -16,17 +16,15 @@ from investment_engine.reporting.report_structure import (
     setup_debug_layer,
     save_ai_context_layer,
     generate_human_brief,
-    write_human_brief,
     move_debug_outputs,
 )
 from investment_engine import liveness as _lv
 from investment_engine.reporting.finalize import (
     RUN_STATUS_COMPLETE, RUN_STATUS_PARTIAL, RUN_STATUS_ABORTED,
-    compute_run_status, build_status_document, partial_status_header,
-    publish_status_report, recover_aborted_runs,
-    atomic_write_text as _atomic_write_text,
+    compute_run_status, partial_status_header,
+    publish_status_report, atomic_write_text as _atomic_write_text,
 )
-from investment_engine.notifications import notify_urgent, notify_summary, notify_debug
+from investment_engine.notifications import notify_urgent, notify_summary
 
 
 ROOT = Path(__file__).resolve().parent
@@ -76,27 +74,6 @@ def setup_logging(log_folder: Path) -> Path:
         # The hard link may be unavailable on some drives; write a copy on exit instead.
         logging.getLogger(__name__).debug("Could not create latest_run.log link; it will be copied at the end.")
     return run_log
-
-
-def _atomic_write_text(dest: Path, text: str) -> None:
-    """Write fully to a temp sibling, fsync, then atomically replace dest.
-
-    newline="" is load-bearing: text-mode "\n"->CRLF translation on Windows
-    used to make every manifest sha256/bytes mismatch the file on disk
-    (finding 16 — deterministic on all 5 files, every run). Artifacts stay LF.
-    """
-    import os as _os
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.parent / f".tmp.{dest.name}.{_os.getpid()}.part"
-    with open(tmp, "w", encoding="utf-8", newline="") as fh:
-        fh.write(text)
-        fh.flush()
-        try:
-            _os.fsync(fh.fileno())
-        except OSError:
-            pass
-    _os.replace(tmp, dest)
 
 
 def write_reports(
@@ -605,18 +582,7 @@ def main() -> int:
         failed_markdown = _render_failed_md(_failed, run_id, suggestions=_suggestions)
 
         # Generate human brief
-        human_brief = generate_human_brief(
-            result=result,
-            portfolio_rows=portfolio_rows,
-            monitoring_items=monitoring_items,
-            regime_result=regime_result,
-            t212_data=t212_data,
-            decision_news=result.get("decision_news", []),
-            earnings_7d=result.get("earnings_7d", {}),
-            ideas=result.get("ideas", []),
-            portfolio_names=result.get("portfolio_names", {}),
-            reconciliation=result.get("reconciliation"),
-        )
+        human_brief = generate_human_brief(result=result)
         try:
             from investment_engine.accounting.t212_statement import (
                 render_reconciliation_markdown as _render_stmt_md,

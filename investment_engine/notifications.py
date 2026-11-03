@@ -45,7 +45,7 @@ def send_email(subject: str, body: str, to: Optional[str] = None) -> bool:
     password = _cfg("NOTIFY_EMAIL_PASSWORD")
     recipient = to or _cfg("NOTIFY_EMAIL_TO")
     if not (sender and password and recipient):
-        logger.debug("email: not configured (NOTIFY_EMAIL/NOTIFY_EMAIL_PASSWORD/NOTIFY_EMAIL_TO)")
+        logger.debug("email: not configured (missing notification settings)")
         return False
     try:
         smtp_host = _cfg("NOTIFY_SMTP_HOST", "smtp.gmail.com")

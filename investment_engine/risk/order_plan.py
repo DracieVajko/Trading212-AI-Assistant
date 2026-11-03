@@ -190,7 +190,6 @@ def build_plans(*, committee_decisions: list[dict[str, Any]],
             if sizing["notional_eur"] < MIN_NOTIONAL_EUR:
                 return None, {"ticker": ticker,
                               "reason": f"trim size below minimum (€{sizing['notional_eur']:,.2f})"}
-        tech = {}
         stop_hint = limit_hint = None
         if needs_levels and all(g["pass"] for g in gates if g["rule"] == "mapping-verified"):
             stop_hint, limit_hint = "from canonical Support", "from canonical Resistance"

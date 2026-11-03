@@ -58,7 +58,6 @@ def test_broker_stems_never_validate():
 
 def test_config_aliases_point_at_live_symbols():
     """Stale config aliases must not resurrect dead symbols (live EGT case)."""
-    import json
 
     from investment_engine.portfolio.symbols import support_state, to_yahoo_symbol
 

@@ -18,7 +18,6 @@ import subprocess
 from dataclasses import dataclass, field
 
 import requests
-from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 

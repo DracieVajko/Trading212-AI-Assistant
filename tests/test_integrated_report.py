@@ -1,6 +1,5 @@
 """Tests for integrated report generation with pie exposure and historical ledger."""
 
-import pytest
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import Mock

@@ -1,8 +1,8 @@
 """Pydantic schemas for AI recommendation validation."""
 from __future__ import annotations
 
-from typing import Any, List, Optional
-from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Any, List
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import Literal
 
 
@@ -118,8 +118,7 @@ class AIRecommendations(BaseModel):
             # We'll validate the structure in the CashDeployment model
         return self
 
-    class Config:
-        extra = "forbid"  # Reject any extra fields
+    model_config = ConfigDict(extra="forbid")
 
 
 def parse_ai_recommendations(json_str: str) -> dict:
@@ -174,7 +173,6 @@ def parse_ai_recommendations(json_str: str) -> dict:
     
     # Validate against schema
     try:
-        from pydantic import ValidationError
         validated = AIRecommendations.model_validate(data)
         # Convert to dict for compatibility
         return validated.model_dump(mode="json")
@@ -199,7 +197,6 @@ def validate_ai_recommendations(ai_recs: dict) -> dict:
     
     # Validate against schema
     try:
-        from pydantic import ValidationError
         validated = AIRecommendations.model_validate(ai_recs)
         return validated.model_dump(mode="json")
     except Exception as e:

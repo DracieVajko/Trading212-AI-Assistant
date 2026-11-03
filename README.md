@@ -177,14 +177,34 @@ portfolio_ai_assistant/
 ├── investment_engine/          # Core engine
 │   ├── config/                 # Settings, policy profiles
 │   ├── notifications.py        # Email + ntfy.sh notification dispatch
+│   ├── run_engine.py           # Run orchestrator (thin: calls run_phases)
+│   ├── run_phases/             # One module per pipeline stage
+│   │   ├── setup.py            # Run identity, watchdog, asset universe
+│   │   ├── broker.py           # T212 fetch + canonical reconciliation
+│   │   ├── news.py             # News fetch + source ledger
+│   │   ├── earnings.py         # Earnings fast path + calendar layer
+│   │   ├── enrichment.py       # Per-holding research + PIE deep dive
+│   │   ├── decisions.py        # Per-scope LLM decision sections
+│   │   ├── ai_context.py       # Machine context archive
+│   │   └── reporting.py        # Briefs, diagnostics, result payload
+│   ├── fetching.py             # T212/news/earnings/technicals fetchers
+│   ├── run_state.py            # Per-run fallback + attribution state
 │   ├── portfolio/              # PIE exposure, symbols, broker-first
+│   │   ├── t212_view.py        # Snapshot accessors (one precedence rule)
 │   │   ├── pie_exposure.py     # Standalone holdings detection
 │   │   └── ...
 │   ├── providers/              # LLM providers (LM Studio, Ollama, Gemini, etc.)
+│   │   ├── generation.py       # Routing, chained generation, fallback
+│   │   ├── telemetry.py        # Local-AI attempt tracker
 │   │   ├── health.py           # Load-guard busy detection
+│   │   └── ...
+│   ├── reporting/              # Brief/snapshot/deep-dive builders
+│   │   ├── sections.py         # Formatting helpers extracted from main.py
 │   │   └── ...
 │   ├── rotation.py             # Advisory rotation strategies
 │   └── ...
+├── experimental/               # Isolated backtest sandbox (not production)
+│   └── README.md               # Sandbox status and rules
 ├── examples/                   # Anonymized example outputs
 │   └── github/                 # Example reports, PIE CSVs, README
 ├── tests/                      # Unit tests
@@ -195,6 +215,21 @@ portfolio_ai_assistant/
 ├── data/                       # Cache/data
 └── run_*.bat                   # Windows batch helpers
 ```
+
+### Package roles and boundaries
+
+- `portfolio_ai_assistant.py` is the only supported CLI facade. It parses
+  arguments, sets up logging, calls `investment_engine.main.run_engine`, and
+  publishes reports.
+- `investment_engine/` is the production domain engine: settings, portfolio
+  canonicalization (`broker_first`), research, providers, accounting, and
+  reporting.
+- `trading212/` is the production broker adapter. The root
+  `trading212_*.py` files are compatibility shims; do not add new code there.
+- `experimental/` is an isolated backtest sandbox with its own tests. Production
+  packages must never import it.
+- `scripts/` contains offline verification and operator tooling, not runtime
+  pipeline code.
 
 ## Agent tooling (TA snapshots, charts, fundamentals, decision log)
 

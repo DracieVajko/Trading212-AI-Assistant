@@ -6,7 +6,7 @@ Offline only (RSS fetch tested with a stubbed session, never the network).
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 
 @dataclasses.dataclass

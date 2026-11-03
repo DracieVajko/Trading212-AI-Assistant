@@ -18,7 +18,7 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from investment_engine.accounting.models import (
     LedgerEvent,
@@ -193,7 +193,7 @@ def _generate_event_id(source_file: str, row_num: int, prefix: str = "evt") -> s
     """Generate a stable event ID."""
     import hashlib
     content = f"{source_file}:{row_num}"
-    hash_suffix = hashlib.md5(content.encode()).hexdigest()[:8]
+    hash_suffix = hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()[:8]
     return f"{prefix}_{hash_suffix}"
 
 

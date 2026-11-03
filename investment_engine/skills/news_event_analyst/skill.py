@@ -34,7 +34,6 @@ def _extract_json_object(text: str) -> str | None:
         return None
     text = text.strip()
     # Try to find JSON object in markdown code fences
-    import re
     fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL | re.IGNORECASE)
     if fence_match:
         return fence_match.group(1).strip()

@@ -139,7 +139,6 @@ except ImportError:
 # Canonical manual engine lives in research/indicators.py (Phase 3 policy A).
 # IndicatorConfig is re-exported here for backward compatibility.
 from investment_engine.research.indicators import (
-    ENGINE_VERSION as MANUAL_ENGINE_VERSION,
     IndicatorConfig,
     apply_manual_indicators,
     resolve_engine,

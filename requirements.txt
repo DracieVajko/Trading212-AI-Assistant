@@ -9,11 +9,13 @@ requests>=2.31.0,<3
 yfinance>=1.6.0,<1.8
 pandas==2.2.3
 numpy==1.26.4
-scipy==1.13.1
-ddgs>=0.2.0,<10
+scipy==1.13.1  # required for scipy.signal.find_peaks in research/peak_valley.py (prominence + distance semantics)
+# ddgs is intentionally not a dependency: news retrieval uses feedparser,
+# yfinance, and provider APIs instead.
 python-dotenv>=1.0.0,<2
 pydantic>=2.0.0,<3
 feedparser>=6.0.10,<7
+defusedxml>=0.7.1,<1.0  # hardened XML parsing for RSS/discovery feeds
 finvizfinance>=1.0.0,<2
 pyyaml>=6.0  # investor_profile.yaml / tax_facts.yaml parsing (setup_agent)
 # Plotting for the TA chart pack (Appendix B6). WARNING: install with the
@@ -35,19 +37,12 @@ playwright>=1.40.0
 
 # --- Load-guard (provider busy detection): localhost metrics ---
 psutil>=5.9,<7  # optional; guard degrades to HTTP-only signals without it
-# pinned stack stays intact (verified 2026-10-12 on pandas 2.2.3 /
-# numpy 1.26.4: all 17 engine-called indicators compute; e2e analyze()
-# yields 50 columns):
-#   py -3.12 -m pip install --no-deps pandas-ta==0.4.71b0
-#   py -3.12 -m pip install numba llvmlite tqdm
-# NEVER plain `pip install pandas-ta`: 0.4.x pulls pandas 3.x + numpy 2.x
-# and breaks the frozen manual-v1 numerics (0.3.x has no Python 3.12 wheels
-# at all). NOTE: pip check flags pandas-ta's version metadata afterwards
-# (wants pandas>=2.3.2/numpy>=2.2.6) — metadata-only, runtime is verified.
-# Engine default is "auto" (reference when installed, else manual).
-# NOTE: pandas-ta is archived/incompatible with the pinned pandas 2.2.3 +
-# numpy 1.26.4 + scipy 1.13.1 combo. The manual indicator engine in
-# investment_engine/research/technical_analysis.py stays canonical; the
+# --- Optional reference indicator engine (unsupported) ---
+# pandas-ta is archived and its 0.4.x metadata requires pandas>=2.3.2 /
+# numpy>=2.2.6, which conflicts with the pinned pandas 2.2.3 / numpy 1.26.4.
+# It is therefore NOT installed by this file and its reference engine is
+# unsupported. The manual indicator engine in
+# investment_engine/research/technical_analysis.py is canonical; the
 # "pandas-ta not installed" warning is expected and harmless.
 
 # Optional: TA-Lib for 60+ candlestick patterns (requires Visual C++ Build Tools on Windows)

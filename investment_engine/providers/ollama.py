@@ -95,8 +95,8 @@ class OllamaProvider(BaseLLMProvider):
     def generate(self, prompt: str, *, stage: str, context: dict | None = None) -> str:
         # Track this as a local AI attempt (direct call to Ollama provider)
         try:
-            import investment_engine.main as _main
-            _main._track_local_ai_attempt(blocked=False)
+            from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai
+            _track_local_ai(blocked=False)
         except Exception:
             pass
 

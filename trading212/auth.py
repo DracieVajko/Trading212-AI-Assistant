@@ -13,14 +13,18 @@ Actual T212 response fields:
   /equity/history/orders?limit=N → { items: [...] }
 """
 
-import os
 import requests
 import time
 import json
+import logging
 import uuid
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any
+
+from investment_engine.utils.coerce import coerce_float as _safe_float
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 # ===========================================================================
@@ -114,9 +118,11 @@ class Trading212Auth:
                     continue
 
                 if response.status_code == 401:
-                    return {"error": "Unauthorized – check TRADING212_API_KEY", "status": "auth_failed"}
+                    logger.warning("Trading212 auth failed (401) for %s; check API credentials", endpoint)
+                    return {"error": "Unauthorized – check API credentials", "status": "auth_failed"}
 
                 if response.status_code == 403:
+                    logger.warning("Trading212 auth forbidden (403) for %s; verify read-only key permissions", endpoint)
                     return {"error": "Forbidden – API key has no permission for this endpoint (read-only key?)", "status": "forbidden"}
 
                 if response.status_code == 404:
@@ -165,13 +171,10 @@ class Trading212Auth:
                 self._request_count = 0
 
 
-class Trade212Client:
-    """Trading212 API Client – read-only operations (GET only)."""
+class Trade212Client(Trading212Auth):
+    """Read-only endpoint helpers over the shared Trading212 HTTP/auth layer."""
 
-    def __init__(self, api_key: str, api_secret: str = None, account_id: str = None):
-        """Both api_key and api_secret required for Basic Auth."""
-        self.auth = Trading212Auth(api_key, api_secret, account_id)
-        self.account_id = account_id
+    pass
 
     # ------------------------------------------------------------------
     # ACCOUNT
@@ -182,14 +185,14 @@ class Trade212Client:
         GET /api/v0/equity/account/cash
         Response: { free, invested, pieCash, result, total }
         """
-        return self.auth.make_request("GET", "/equity/account/cash")
+        return self.make_request("GET", "/equity/account/cash")
 
     def get_account_info(self) -> Dict[str, Any]:
         """
         GET /api/v0/equity/account/info
         Response: { currencyCode, id }
         """
-        return self.auth.make_request("GET", "/equity/account/info")
+        return self.make_request("GET", "/equity/account/info")
 
     # ------------------------------------------------------------------
     # PORTFOLIO
@@ -202,7 +205,7 @@ class Trade212Client:
           { ticker, quantity, averagePrice, currentPrice,
             ppl, fxPpl, initialFillDate, maxBuy, maxSell, pieQuantity }
         """
-        return self.auth.make_request("GET", "/equity/portfolio")
+        return self.make_request("GET", "/equity/portfolio")
 
     # ------------------------------------------------------------------
     # HISTORY
@@ -213,15 +216,15 @@ class Trade212Client:
         params = {"limit": limit}
         if ticker:
             params["ticker"] = ticker
-        return self.auth.make_request("GET", "/equity/history/orders", params=params)
+        return self.make_request("GET", "/equity/history/orders", params=params)
 
     def get_dividends(self, limit: int = 50) -> Dict[str, Any]:
         """GET /api/v0/history/dividends"""
-        return self.auth.make_request("GET", "/history/dividends", params={"limit": limit})
+        return self.make_request("GET", "/history/dividends", params={"limit": limit})
 
     def get_transactions(self, limit: int = 50) -> Dict[str, Any]:
         """GET /api/v0/history/transactions"""
-        return self.auth.make_request("GET", "/history/transactions", params={"limit": limit})
+        return self.make_request("GET", "/history/transactions", params={"limit": limit})
 
     def get_all_transaction_history(self, limit: int = 50, max_pages: int = 40) -> Dict[str, Any]:
         """GET /api/v0/equity/history/transactions with cursor pagination.
@@ -241,7 +244,7 @@ class Trade212Client:
             params: Dict[str, Any] = {"limit": limit}
             if next_params:
                 params.update(next_params)
-            payload = self.auth.make_request(
+            payload = self.make_request(
                 "GET", "/equity/history/transactions", params=params)
             pages.append(payload)
             if not isinstance(payload, dict) or payload.get("error"):
@@ -279,11 +282,11 @@ class Trade212Client:
 
     def get_pies(self) -> Any:
         """GET /api/v0/equity/pies"""
-        return self.auth.make_request("GET", "/equity/pies")
+        return self.make_request("GET", "/equity/pies")
 
     def get_pie(self, pie_id: str) -> Dict[str, Any]:
         """GET /api/v0/equity/pies/{id}"""
-        return self.auth.make_request("GET", f"/equity/pies/{pie_id}")
+        return self.make_request("GET", f"/equity/pies/{pie_id}")
 
     # ------------------------------------------------------------------
     # MARKET DATA
@@ -291,7 +294,7 @@ class Trade212Client:
 
     def search_instrument(self, query: str) -> Dict[str, Any]:
         """GET /api/v0/equity/metadata/instruments?search=<query>"""
-        return self.auth.make_request("GET", "/equity/metadata/instruments",
+        return self.make_request("GET", "/equity/metadata/instruments",
                                       params={"search": query})
 
 
@@ -368,12 +371,6 @@ def dump_raw_t212_diagnostics(client: "Trade212Client", run_id: str = None) -> D
     print("\n" + "="*60)
     print("ALL DELTA COMBINATIONS:")
     print("="*60)
-    
-    def _safe_float(v, default=0.0):
-        try:
-            return float(v) if v is not None else default
-        except (TypeError, ValueError):
-            return default
     
     cash = cash_resp if isinstance(cash_resp, dict) else {}
     portfolio = portfolio_resp if isinstance(portfolio_resp, list) else []

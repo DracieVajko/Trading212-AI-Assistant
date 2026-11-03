@@ -7,7 +7,6 @@ Exits Phase 1: hard stop 7%, weekly break, time stop 20d.
 from __future__ import annotations
 
 import pandas as pd
-import numpy as np
 
 from experimental.backtest.indicators import add_daily_indicators, add_weekly_indicators
 from experimental.backtest.strategy.base import StrategyBase
@@ -54,20 +53,20 @@ class TechPiePullbackV1(StrategyBase):
         daily_cfg = cfg.get("daily_entry", {})
 
         # Parameters
-        w_sma50 = weekly_cfg.get("sma50_period", 50)
-        w_sma200 = weekly_cfg.get("sma200_period", 200)
+        weekly_cfg.get("sma50_period", 50)
+        weekly_cfg.get("sma200_period", 200)
         w_rsi_min = weekly_cfg.get("rsi_min", 45)
         w_rsi_max = weekly_cfg.get("rsi_max", 70)
         w_adx_min = weekly_cfg.get("adx_min", 18)
-        require_weeks = weekly_cfg.get("require_weeks", 2)
+        weekly_cfg.get("require_weeks", 2)
 
         d_rsi_min = daily_cfg.get("rsi_min", 35)
         d_rsi_max = daily_cfg.get("rsi_max", 50)
-        d_sma20 = daily_cfg.get("sma20_period", 20)
-        d_sma200 = daily_cfg.get("sma200_period", 200)
+        daily_cfg.get("sma20_period", 20)
+        daily_cfg.get("sma200_period", 200)
         dist_min = daily_cfg.get("dist_sma20_min_pct", -8.0)
         dist_max = daily_cfg.get("dist_sma20_max_pct", -2.0)
-        vol_sma = daily_cfg.get("volume_sma_period", 20)
+        daily_cfg.get("volume_sma_period", 20)
         vol_ratio_min = daily_cfg.get("volume_ratio_min", 0.8)
         earn_before = daily_cfg.get("earnings_blackout_before_bdays", 5)
         earn_after = daily_cfg.get("earnings_blackout_after_bdays", 2)

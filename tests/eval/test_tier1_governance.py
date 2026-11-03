@@ -1,12 +1,10 @@
 """T10 log, T11 matrix, T14 profile, T15 gate — eval-named. Offline."""
 from __future__ import annotations
 
-import json
 import pathlib
 
 from scripts.decision_log import anti_churn, append_record, build_record, lookup_prior
 from investment_engine.decision.matrix import decide
-from investment_engine.reporting.regime_report import build_canonical_signals
 from investment_engine.research.fundamentals import build_pack
 from scripts.setup_agent import validate_profile
 

@@ -4,7 +4,6 @@ Covers the F.1-F.6 matrix. Offline and deterministic: network fetchers are
 stubbed; the yfinance historical-rate path is injected, never called live.
 """
 
-from datetime import date
 
 import pytest
 

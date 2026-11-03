@@ -55,7 +55,7 @@ def parse_utc(value: Any) -> Optional[datetime]:
 def item_id_for_url(url: str) -> str:
     from investment_engine.research.corpus.dedupe import normalize_url
 
-    return hashlib.md5(normalize_url(url).encode("utf-8")).hexdigest()[:16]
+    return hashlib.md5(normalize_url(url).encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 class ResearchItem(BaseModel, extra="forbid"):

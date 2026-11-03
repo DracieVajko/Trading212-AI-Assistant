@@ -52,6 +52,7 @@ def test_api_only_chain_without_keys_degrades_silently():
 def test_api_only_never_probes_locals(monkeypatch):
     import investment_engine.main as engine
     import requests
+    from investment_engine import run_state
 
     calls = []
 
@@ -60,11 +61,11 @@ def test_api_only_never_probes_locals(monkeypatch):
         raise AssertionError("local endpoint probed in API-only mode")
 
     monkeypatch.setattr(requests, "get", _boom)
-    engine._FALLBACK_EVENTS.clear()
+    run_state.FALLBACK_EVENTS.clear()
     engine._note_unreachable_local_providers(_settings(api_only=True))
     assert calls == []
-    assert any("API-only mode" in e for e in engine._FALLBACK_EVENTS)
-    engine._FALLBACK_EVENTS.clear()
+    assert any("API-only mode" in e for e in run_state.FALLBACK_EVENTS)
+    run_state.FALLBACK_EVENTS.clear()
 
 
 def test_execution_mode_lines_only_when_api_only():
@@ -151,7 +152,7 @@ def test_corpus_decision_items_fully_validated_and_aggregator_labelled():
 def test_guard_reads_no_legacy_r1_fields():
     import pathlib
 
-    src = pathlib.Path("investment_engine/main.py").read_text(encoding="utf-8")
+    src = pathlib.Path("investment_engine/run_phases/broker.py").read_text(encoding="utf-8")
     assert "T212 Reconciliation:" not in src
     guard_at = src.find("Canonical broker-first snapshot FIRST")
     assert guard_at != -1
@@ -159,16 +160,18 @@ def test_guard_reads_no_legacy_r1_fields():
     assert 'summary.get("reconciliation_status"' not in guard_block
     assert 'summary.get("reconciliation_difference"' not in guard_block
 
+    engine_src = pathlib.Path("investment_engine/run_engine.py").read_text(encoding="utf-8")
+    assert "T212 Reconciliation:" not in engine_src
 
-def test_legacy_disagreement_message_exact():
+
+def test_legacy_r1_path_removed():
     import pathlib
 
     src = pathlib.Path("trading212/portfolio.py").read_text(encoding="utf-8")
-    # The legacy-module check must never impersonate the canonical verdict
-    # (run 524fffa0 logged "canonical FAIL" while canonical PASSed).
-    assert "legacy-module check, ignored for decisions" in src
-    assert "Authoritative verdict comes from the " in src
-    assert "Canonical broker-first result:" not in src
+    assert "compute_legacy_r1" not in src
+    assert "reconciliation_status_legacy" not in src
+    assert "reconciliation_difference_legacy" not in src
+    assert "reconciliation_threshold_legacy" not in src
 
 
 def test_slovak_hard_failure_disables_site_once(monkeypatch, caplog):
@@ -233,9 +236,6 @@ def test_api_only_blocks_all_local_calls_including_teardown(monkeypatch):
     warmup, unload, and model discovery. Zero local AI network calls.
     """
     import investment_engine.providers.lmstudio as lm_mod
-    import investment_engine.providers.ollama as oll_mod
-    import investment_engine.providers.llamacpp as ll_mod
-    import investment_engine.providers.gemini as gem_mod
 
     local_calls = []
 
@@ -323,7 +323,7 @@ def test_run_scoped_circuit_breaker_reuse(monkeypatch):
     No repeated failed provider attempt after its run-scoped breaker opens.
     """
     from investment_engine.providers.fallback import (
-        ChainedFallbackProvider, reset_circuit_breaker, is_skipped, skip_for_run,
+        ChainedFallbackProvider, reset_circuit_breaker, is_skipped,
     )
     from investment_engine.providers.base import BaseLLMProvider
 
@@ -395,7 +395,7 @@ def test_api_only_never_instantiates_local_provider_classes(monkeypatch):
     from investment_engine.config.settings import EngineSettings
 
     s = EngineSettings(api_only=True, gemini_api_key="test")
-    chain = ProviderFactory.create(s)
+    ProviderFactory.create(s)
 
     # Verify no local provider classes were instantiated
     lm_instances = [i for i in instantiations if i[0] == "LMStudioProvider"]
@@ -409,29 +409,29 @@ def test_api_only_never_instantiates_local_provider_classes(monkeypatch):
 
 def test_local_ai_tracker_distinguishes_blocked_vs_sent():
     """Local AI tracker must distinguish blocked attempts from sent requests."""
-    import investment_engine.main as main_mod
+    from investment_engine.providers import telemetry
 
     # Reset tracker
-    main_mod._reset_local_ai_tracker()
-    assert main_mod._LOCAL_AI_TRACKER["attempts"] == 0
-    assert main_mod._LOCAL_AI_TRACKER["requests_sent"] == 0
-    assert main_mod._LOCAL_AI_TRACKER["blocked"] == 0
+    telemetry.reset_local_ai_tracker()
+    assert telemetry.LOCAL_AI_TRACKER["attempts"] == 0
+    assert telemetry.LOCAL_AI_TRACKER["requests_sent"] == 0
+    assert telemetry.LOCAL_AI_TRACKER["blocked"] == 0
 
     # Simulate blocked attempt (API_ONLY mode)
-    main_mod._track_local_ai_attempt(blocked=True)
-    assert main_mod._LOCAL_AI_TRACKER["attempts"] == 1
-    assert main_mod._LOCAL_AI_TRACKER["blocked"] == 1
-    assert main_mod._LOCAL_AI_TRACKER["requests_sent"] == 0
+    telemetry.track_local_ai_attempt(blocked=True)
+    assert telemetry.LOCAL_AI_TRACKER["attempts"] == 1
+    assert telemetry.LOCAL_AI_TRACKER["blocked"] == 1
+    assert telemetry.LOCAL_AI_TRACKER["requests_sent"] == 0
 
     # Simulate sent request (STANDARD mode)
-    main_mod._track_local_ai_attempt(blocked=False)
-    assert main_mod._LOCAL_AI_TRACKER["attempts"] == 2
-    assert main_mod._LOCAL_AI_TRACKER["blocked"] == 1
-    assert main_mod._LOCAL_AI_TRACKER["requests_sent"] == 1
+    telemetry.track_local_ai_attempt(blocked=False)
+    assert telemetry.LOCAL_AI_TRACKER["attempts"] == 2
+    assert telemetry.LOCAL_AI_TRACKER["blocked"] == 1
+    assert telemetry.LOCAL_AI_TRACKER["requests_sent"] == 1
 
     # Reset and verify
-    main_mod._reset_local_ai_tracker()
-    assert main_mod._LOCAL_AI_TRACKER["attempts"] == 0
+    telemetry.reset_local_ai_tracker()
+    assert telemetry.LOCAL_AI_TRACKER["attempts"] == 0
 
 
 def test_local_ai_tracker_in_manifest():

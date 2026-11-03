@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -204,8 +204,6 @@ def test_chain_budget_not_starting_exhausted():
 
 def test_retry_backoff_respects_remaining_budget():
     """Provider retry sleeps respect the passed deadline (simulated)."""
-    from investment_engine.providers.openrouter import OpenRouterProvider
-    from unittest.mock import MagicMock
 
     # This test verifies the provider's internal retry loop checks deadline
     # when provided via context. Since we don't change provider signatures,
@@ -308,7 +306,7 @@ print("SHOULD NOT REACH HERE")
     assert code != 0, f"Expected non-zero exit (watchdog kill), got {code}"
     # Verify dump file exists and has content
     import glob
-    dumps = glob.glob(os.path.join(os.environ.get("TEMP", "/tmp"), "tmp*", "watchdog_stack.txt"))
+    glob.glob(os.path.join(os.environ.get("TEMP", "/tmp"), "tmp*", "watchdog_stack.txt"))
     # Can't easily find the temp dir from parent; just verify process exited
     assert "watchdog" in (stdout + stderr).lower() or code != 0
 
@@ -320,8 +318,7 @@ print("SHOULD NOT REACH HERE")
 def test_partial_publication_no_invented_recommendations():
     """PARTIAL status document contains no invented recommendations."""
     from investment_engine.reporting.finalize import (
-        RUN_STATUS_PARTIAL, compute_run_status, build_status_document,
-        partial_status_header, publish_status_report
+        RUN_STATUS_PARTIAL, publish_status_report
     )
     import tempfile
 
@@ -359,7 +356,7 @@ def test_partial_publication_no_invented_recommendations():
 def test_broker_unavailable_diagnostic_only():
     """ABORTED status when no broker data available."""
     from investment_engine.reporting.finalize import (
-        RUN_STATUS_ABORTED, build_status_document, publish_status_report
+        RUN_STATUS_ABORTED, publish_status_report
     )
     import tempfile
 
@@ -494,7 +491,7 @@ def test_cleanup_dry_run_changes_nothing():
 
 def test_cleanup_apply_retention_preserves_protected():
     """Retention keeps current run, recent runs, run_events, decision logs."""
-    from scripts.cleanup_outputs import plan_retention, CleanupPolicy, is_protected
+    from scripts.cleanup_outputs import plan_retention, CleanupPolicy
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -542,7 +539,7 @@ def test_cleanup_rejects_out_of_root_paths():
         # The actual protection is that allowed roots are fixed and all paths are validated
         # against the repo root before any deletion.
         policy = CleanupPolicy()
-        plan = plan_retention(root, policy)
+        plan_retention(root, policy)
         # No errors expected for normal operation
         # The protection is structural: only allowed roots are scanned
         assert True
@@ -588,8 +585,7 @@ def test_api_only_zero_local_requests():
 
 def test_recover_aborted_runs():
     """Abandoned checkpoints are recovered as ABORTED status docs."""
-    from investment_engine.reporting.finalize import recover_aborted_runs, RUN_STATUS_ABORTED
-    from investment_engine import liveness as lv
+    from investment_engine.reporting.finalize import recover_aborted_runs
     import tempfile
     import json
 
@@ -633,7 +629,7 @@ def test_no_orphaned_supervised_worker():
     # Give thread a moment to be marked abandoned
     time.sleep(0.2)
     # Count non-daemon threads (excluding main)
-    non_daemon = [t for t in threading.enumerate() if not t.daemon and t.name != "MainThread"]
+    [t for t in threading.enumerate() if not t.daemon and t.name != "MainThread"]
     # Should be 0 (or only pytest's own threads)
     # Note: in test environment there may be pytest threads; just verify our daemon didn't block
     assert res.timed_out

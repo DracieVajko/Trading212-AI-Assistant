@@ -266,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
     if not pip_ok:
         failures_core = True
 
-    print("\n[secret guards]")
+    print("\n[credential guards]")
     guards_ok, guard_lines = _check_secret_guards()
     for line in guard_lines:
         print(f"  {line}")
@@ -289,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print()
     if failures_secret:
-        print("RESULT: FAIL (secret-unignored, exit 2)")
+        print("RESULT: FAIL (credential file unignored, exit 2)")
         return 2
     if failures_core:
         print("RESULT: FAIL (missing core dependency/syntax/smoke, exit 1)")

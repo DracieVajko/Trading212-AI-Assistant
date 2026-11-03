@@ -7,11 +7,9 @@ Offline and deterministic throughout.
 
 from datetime import date, datetime, timedelta, timezone
 
-import pytest
 
 from investment_engine.reporting.documents import (
     build_monitoring_items,
-    extract_validated_ideas,
     render_brief,
     render_snapshot,
 )
@@ -180,7 +178,7 @@ def _ev(display, day, status="estimated", company=None, source_type=None):
 
 
 def test_window_boundaries():
-    base = date(2026, 9, 9)
+    date(2026, 9, 9)
     out = filter_earnings_window(
         [_ev("TODAY", "2026-09-09"), _ev("DAY7", "2026-09-16"), _ev("DAY8", "2026-09-17")],
         report_dt=datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc))

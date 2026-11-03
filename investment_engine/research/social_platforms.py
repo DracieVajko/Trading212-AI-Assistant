@@ -10,7 +10,6 @@ import logging
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -151,12 +150,6 @@ def record_platform_attempt(platform: str, status: AccessStatus, items: int = 0,
 
 
 # Import at module level to avoid circular
-from datetime import datetime, timezone
-
-
-def get_social_platform_statuses() -> list[dict]:
-    """Return all platform statuses for manifest inclusion."""
-    return get_all_platform_statuses()
 
 
 if __name__ == "__main__":

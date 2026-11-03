@@ -20,7 +20,7 @@ Design rules (see docs/specs/2026-10-29-rotation-csv-toggle.md):
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +155,7 @@ class PlanBuilder:
     def _short_rotation(cls, portfolio_data, trim_pct, target_ticker, apy_rate):
         items: list[RotationPlanItem] = []
         cycle = 1
-        pin = cls._normalize_ticker(target_ticker)
+        cls._normalize_ticker(target_ticker)
         for row in portfolio_data or []:
             ticker = str(row.get("ticker") or row.get("display_symbol") or row.get("display") or "")
             ppl_eur = float(row.get("unrealized_pnl", row.get("ppl", 0.0)) or 0.0)

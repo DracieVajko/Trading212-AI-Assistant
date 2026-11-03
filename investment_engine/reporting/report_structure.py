@@ -16,9 +16,7 @@ import logging
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-from investment_engine.reporting.documents import portfolio_stance
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +61,6 @@ def _prune_debug_layer(base_dir: Path) -> None:
         if item.is_dir():
             try:
                 # Expect format: run_id (8 chars) or timestamp
-                dir_name = item.name
                 # Try to parse as date from name or use mtime
                 mtime = datetime.fromtimestamp(item.stat().st_mtime)
                 run_dirs.append((mtime, item))
@@ -156,29 +153,15 @@ def save_ai_context_layer(
     return context_file, analysis_file
 
 
-def generate_human_brief(
-    result: dict,
-    portfolio_rows: list[dict],
-    monitoring_items: list[dict],
-    regime_result: Optional[Any],
-    t212_data: Optional[dict],
-    decision_news: list[dict],
-    earnings_7d: dict,
-    ideas: list[dict],
-    portfolio_names: dict,
-    reconciliation: Optional[Any],
-) -> str:
+def generate_human_brief(result: dict) -> str:
     """Generate the intelligence brief (Phase 4: delegates to the concise builder).
 
-    Signature is frozen by tests/test_result_contract.py (wrapper-key parity).
+    All content is read from the canonical run result; callers must not pass
+    parallel copies of portfolio, news, or reconciliation data.
     """
     from investment_engine.reporting.documents import build_intelligence_brief
 
     return build_intelligence_brief(result if isinstance(result, dict) else {})
-
-def _get_portfolio_stance(portfolio_rows: list[dict], recon_status: str) -> str:
-    """Single stance source (Phase 4): alias of documents.portfolio_stance."""
-    return portfolio_stance(portfolio_rows, recon_status)
 
 
 def _build_ai_attribution_section(result: dict) -> list[str]:

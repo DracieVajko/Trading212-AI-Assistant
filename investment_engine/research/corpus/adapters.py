@@ -29,7 +29,7 @@ yields a single FAILED placeholder, the run always continues.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)

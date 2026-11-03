@@ -4,7 +4,6 @@ import logging
 import os
 import re
 import time
-from typing import Any
 
 from .base import BaseLLMProvider
 
@@ -19,8 +18,8 @@ def _record_event(event: dict) -> None:
     try:
         path = os.getenv("RUN_EVENTS_PATH", "reports/run_events.jsonl")
         record_run_event(path, event)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("run event record failed: %s", type(exc).__name__)
 
 
 # Per-run circuit breaker: unavailable providers are skipped for the rest of
@@ -105,7 +104,7 @@ def is_skipped(name: str, model: str | None = None) -> bool:
             if until is not None and now < float(until):
                 return True
         return False
-    except Exception:
+    except (TypeError, ValueError, KeyError):
         return False
 
 
@@ -117,7 +116,7 @@ def due_for_reprobe(name: str, model: str | None = None) -> bool:
         if until is None:
             return False
         return time.time() >= float(until)
-    except Exception:
+    except (TypeError, ValueError, KeyError):
         return False
 
 
@@ -147,8 +146,8 @@ def revive(name: str, model: str | None = None) -> None:
         for k in list(_SKIP_REASON):
             if k.startswith(prefix):
                 _SKIP_REASON.pop(k, None)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("provider revive sweep failed: %s", type(exc).__name__)
 
 
 def skip_for_run(
@@ -189,8 +188,8 @@ def skip_for_run(
             _SKIP_REASON[key] = str(reason or "unavailable")
             logger.info("Preflight: skipping %s for the rest of the run%s",
                         label, f" ({reason})" if reason else "")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("skip_for_run failed: %s", type(exc).__name__)
 
 
 def _is_error_result(result: str, stage: str) -> bool:
@@ -232,6 +231,16 @@ class FallbackProvider(BaseLLMProvider):
     @property
     def name(self) -> str:
         return f"Fallback({self.primary.name}/{self.fallback.name})"
+
+    @property
+    def depth(self) -> int:
+        return 2
+
+    def is_skipped(self, name: str, model: str | None = None) -> bool:
+        return is_skipped(name, model)
+
+    def budget_remaining_s(self) -> float | None:
+        return None
 
     def generate(self, prompt: str, *, stage: str, context: dict | None = None) -> str:
         # Use each provider's own default model - don't pass model from context to primary
@@ -282,6 +291,20 @@ class ChainedFallbackProvider(BaseLLMProvider):
     def name(self) -> str:
         return "Chain(" + "->".join(p.name for p in self.providers) + ")"
 
+    @property
+    def depth(self) -> int:
+        return len(self.providers)
+
+    def is_skipped(self, name: str, model: str | None = None) -> bool:
+        return is_skipped(name, model)
+
+    def budget_remaining_s(self) -> float | None:
+        budget = float(os.getenv("CHAIN_BUDGET_SECONDS", "180"))
+        started = getattr(self, "_budget_started", None)
+        if started is None:
+            return budget
+        return max(0.0, budget - (time.monotonic() - started))
+
     def _eligible(self) -> list[BaseLLMProvider]:
         now = time.time()
         out = []
@@ -309,12 +332,13 @@ class ChainedFallbackProvider(BaseLLMProvider):
                     "provider": _first.name,
                     "kind": _skip_reason(_first.name, _provider_model(_first)) or "unavailable",
                 }
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("stage attribution failed: %s", type(exc).__name__)
         import os as _os
         chain_budget_s = float(_os.getenv("CHAIN_BUDGET_SECONDS", "180"))
         attempt_max_s = float(_os.getenv("PROVIDER_ATTEMPT_MAX_S", "90"))
         started = _t.monotonic()
+        self._budget_started = started
 
         # cooldown registry per run (process-global)
         if not hasattr(ChainedFallbackProvider, "_run_cooldowns"):

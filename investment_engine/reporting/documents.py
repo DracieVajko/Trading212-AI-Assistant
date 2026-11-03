@@ -7,11 +7,13 @@ deterministically from canonical rows — no LLM prose enters either document.
 
 from __future__ import annotations
 
+from investment_engine.utils.coerce import coerce_float as _num
+from investment_engine.portfolio import t212_view
+
 import re
 from datetime import date as _date
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from investment_engine.portfolio.symbols import resolve_company_name
 from investment_engine.reporting.regime_report import normalize_signal, signal_emoji
 
 
@@ -324,7 +326,8 @@ def extract_validated_ideas(
     return ideas[:5]
 
 
-def _stance(rows, recon_status: str) -> str:
+def portfolio_stance(rows, recon_status: str) -> str:
+    """Single portfolio-stance source of truth (fail-safe: non-PASS → DEGRADED)."""
     if str(recon_status or "").upper() != "PASS":
         return "DEGRADED"
     buys = sum(1 for r in rows or [] if normalize_signal((r or {}).get("signal")) == "BUY")
@@ -347,11 +350,6 @@ def _mday(date_iso: str) -> str:
         return f"{_MONTHS[int(m) - 1]} {int(d):02d}"
     except (ValueError, TypeError, IndexError):
         return date_iso
-
-
-def portfolio_stance(rows, recon_status: str) -> str:
-    """Single portfolio-stance source of truth (fail-safe: non-PASS → DEGRADED)."""
-    return _stance(rows, recon_status)
 
 
 def _news_assessment(n: dict) -> str:
@@ -393,14 +391,8 @@ def build_intelligence_brief(result: dict) -> str:
     except Exception:
         pass
 
-    def _num(value):
-        try:
-            return float(value) if value is not None else 0.0
-        except (TypeError, ValueError):
-            return 0.0
-
-    summary = (result.get("t212_data", {}) or {}).get("account_summary", {}) or {}
-    cash = (result.get("t212_data", {}) or {}).get("cash", {}) or {}
+    summary = t212_view.account_summary(result.get("t212_data"))
+    cash = t212_view.cash(result.get("t212_data"))
     equity = _num(summary.get("total_equity", 0))
     free_cash = _num(cash.get("free", 0))
     perf = result.get("account_performance", {}) or {}
@@ -808,7 +800,6 @@ def build_intelligence_brief(result: dict) -> str:
             _bucket["weight"] = round(_bucket["weight"] + _w, 2)
             _bucket["count"] += 1
         if _wts:
-            import math as _math
             _eff_n = round(1.0 / sum(w * w for w in _wts), 1) if sum(_wts) > 0 else 0.0
             _top_sorted = sorted(_top, reverse=True)[:5]
             lines.extend(["", "## Concentration"])
@@ -937,7 +928,7 @@ def render_brief(
     lines += [
         quality, "",
         "## Executive Decision", "",
-        f"- Portfolio stance: **{_stance(rows, status)}**",
+        f"- Portfolio stance: **{portfolio_stance(rows, status)}**",
         f"- Market regime: **{regime_line}**",
         f"- Account reconciliation: **{status}**",
         f"- Broker total equity: {_feur(perf.get('broker_total_equity_eur', (recon or {}).get('total_equity')))}",
@@ -1057,12 +1048,6 @@ def _group_rows_by_isin(rows: list[dict] | None) -> list[tuple[str, dict, list[d
     """
     groups: dict[tuple, dict] = {}
     order: list[tuple] = []
-
-    def _num(value):
-        try:
-            return float(value) if value is not None else 0.0
-        except (TypeError, ValueError):
-            return 0.0
 
     for r in rows or []:
         if not isinstance(r, dict):
@@ -1351,12 +1336,6 @@ def build_deep_dive(
     regime = getattr(regime_result, "regime", "UNKNOWN") if regime_result is not None else "UNKNOWN"
     perf = ((t212_data or {}).get("account_summary", {}) or {}) if isinstance(t212_data, dict) else {}
     cash = ((t212_data or {}).get("cash", {}) or {}) if isinstance(t212_data, dict) else {}
-
-    def _num(value):
-        try:
-            return float(value) if value is not None else 0.0
-        except (TypeError, ValueError):
-            return 0.0
 
     # Phase 5: explicit statuses instead of a single opaque health score.
     broker_status = "OK" if rows else "NO_ROWS"

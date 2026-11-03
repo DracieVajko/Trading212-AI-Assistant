@@ -13,6 +13,8 @@ from investment_engine.providers.fallback import FallbackProvider, ChainedFallba
 from investment_engine.providers.gemini import GeminiProvider
 from investment_engine.providers.mistral import MistralProvider
 from investment_engine.providers.opencode_zen import OpenCodeZenProvider
+from investment_engine.providers.permissions import API_ONLY_DISABLED
+from investment_engine.providers.config import CloudProviderSpec
 
 logger = logging.getLogger(__name__)
 
@@ -41,19 +43,16 @@ class ProviderFactory:
     """Create a provider instance using automatic selection and chained fallback."""
 
     #: Providers excluded before generation starts in API-only mode.
-    API_ONLY_DISABLED = ("LM Studio", "llama.cpp", "Ollama")
+    API_ONLY_DISABLED = API_ONLY_DISABLED
 
     @staticmethod
     def api_only_chain(settings: EngineSettings) -> BaseLLMProvider:
-        """Gemini -> OpenRouter(:free) -> Mistral -> deterministic fallback. Locals never constructed."""
-        # SAFETY: Verify no local provider classes are instantiated in this call stack.
-        # This is a defense-in-depth check; the mode resolution should already prevent
-        # reaching this method when locals are allowed.
-        import inspect as _inspect
-        for _frame in _inspect.stack():
-            _fname = _frame.filename.lower()
-            if any(_name in _fname for _name in ("lmstudio", "llamacpp", "ollama")):
-                logger.warning("api_only_chain called from local provider context: %s", _fname)
+        """Gemini -> Mistral -> deterministic fallback. Locals never constructed.
+
+        The execution-mode resolver already forbids this path when locals are
+        allowed; the invariant is enforced by construction here (only cloud
+        provider classes are referenced), not by runtime stack inspection.
+        """
 
         chain: list[BaseLLMProvider] = []
         if getattr(settings, "gemini_api_key", ""):
@@ -161,8 +160,8 @@ class ProviderFactory:
                     mode, getattr(settings, "api_only", False), getattr(settings, "provider", "auto"))
         if mode == "public":
             # API_ONLY mode: verify no local providers are constructed
-            import investment_engine.main as _main
-            _main._track_local_ai_attempt(blocked=True)
+            from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai
+            _track_local_ai(blocked=True)
             return ProviderFactory.api_only_chain(settings)
         if mode == "locals":
             return ProviderFactory.locals_chain(settings)
@@ -336,30 +335,33 @@ class ProviderFactory:
 
     @staticmethod
     def _gemini(settings: EngineSettings) -> BaseLLMProvider:
-        return GeminiProvider(
+        return CloudProviderSpec(
+            factory=GeminiProvider,
             api_key=settings.gemini_api_key,
             model=settings.gemini_model,
             base_url=settings.gemini_base_url,
-            max_output_tokens=settings.openrouter_max_output_tokens,
-        )
+            max_output_tokens=settings.gemini_max_output_tokens,
+        ).build()
 
     @staticmethod
     def _mistral(settings: EngineSettings) -> BaseLLMProvider:
-        return MistralProvider(
+        return CloudProviderSpec(
+            factory=MistralProvider,
             api_key=settings.mistral_api_key,
             model=settings.mistral_model,
             base_url=settings.mistral_base_url,
-            max_output_tokens=settings.openrouter_max_output_tokens,
-        )
+            max_output_tokens=settings.mistral_max_output_tokens,
+        ).build()
 
     @staticmethod
     def _opencode_zen(settings: EngineSettings) -> BaseLLMProvider:
-        return OpenCodeZenProvider(
+        return CloudProviderSpec(
+            factory=OpenCodeZenProvider,
             api_key=settings.opencode_zen_api_key,
             model=settings.opencode_zen_model,
             base_url=settings.opencode_zen_base_url,
-            max_output_tokens=settings.openrouter_max_output_tokens,
-        )
+            max_output_tokens=settings.opencode_zen_max_output_tokens,
+        ).build()
 
     @staticmethod
     def _ollama(settings: EngineSettings) -> BaseLLMProvider:

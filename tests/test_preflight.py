@@ -14,6 +14,7 @@ def _live_settings(**kw):
         lm_studio_base_url="http://127.0.0.1:9/v1",
         llamacpp_base_url="http://127.0.0.1:9/v1",
         ollama_base_url="http://127.0.0.1:9",
+        load_guard_enabled=False,
     )
     base.update(kw)
     return SimpleNamespace(**base)
@@ -181,7 +182,7 @@ def test_revive_locals_if_due_revives_on_200(monkeypatch):
         fb.skip_for_run("LM Studio", "test", cooldown_s=300)
         fb._SKIP_UNTIL["LM Studio"] = 0.0
         monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp())
-        m._revive_locals_if_due(ChainedFallbackProvider([link]))
+        m._revive_locals_if_due(ChainedFallbackProvider([link]), _live_settings())
         assert not fb.is_skipped("LM Studio")
     finally:
         fb.reset_circuit_breaker()
@@ -202,7 +203,7 @@ def test_revive_refreshes_cooldown_on_failure(monkeypatch):
         fb.skip_for_run("LM Studio", "test", cooldown_s=300)
         fb._SKIP_UNTIL["LM Studio"] = 0.0
         monkeypatch.setattr(requests, "get", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")))
-        m._revive_locals_if_due(ChainedFallbackProvider([link]))
+        m._revive_locals_if_due(ChainedFallbackProvider([link]), _live_settings())
         assert fb.is_skipped("LM Studio")
         assert fb._SKIP_UNTIL["LM Studio"] > time.time()
     finally:

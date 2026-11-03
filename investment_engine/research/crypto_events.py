@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +96,7 @@ def extract_event(text: str, source: str, url: str, published_at: str | None) ->
 def extract_events_from_item(item: dict) -> list[dict]:
     """Extract all crypto events from a corpus item."""
     title = str(item.get("title", "") or "")
-    extract = str(item.get("clean_extract", "") or "")
+    str(item.get("clean_extract", "") or "")
     text = f"{title} {item.get('raw_extract_if_available', '')}".strip()
 
     if not is_crypto_context(text):

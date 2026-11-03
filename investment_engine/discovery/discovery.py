@@ -142,6 +142,11 @@ def run_discovery(universe, index_daily: pd.DataFrame, loader=yf_loader, ext: di
                          "base": 0.0, "ext": 0.0, "components": {}, "reasons": [f"error:{type(ex).__name__}"],
                          "flags": []})
     df = pd.DataFrame(rows)
+    if df.empty:
+        return pd.DataFrame(columns=[
+            "ticker", "held", "status", "score", "base", "ext",
+            "components", "reasons", "flags",
+        ])
     order = {"CANDIDATE": 0, "WATCH": 1, "REJECT": 2}
     return df.sort_values(["status", "score"], key=lambda s: s.map(order) if s.name == "status" else -s)\
              .reset_index(drop=True)

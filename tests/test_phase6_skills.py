@@ -172,11 +172,15 @@ def test_skill_modules_never_read_prompt_files_directly():
 def test_engine_wires_all_four_skills():
     import pathlib
 
-    src = pathlib.Path("investment_engine/main.py").read_text(encoding="utf-8")
+    engine_src = pathlib.Path("investment_engine/run_engine.py").read_text(encoding="utf-8")
+    report_src = pathlib.Path("investment_engine/run_phases/reporting.py").read_text(
+        encoding="utf-8"
+    )
+    combined = engine_src + report_src
     for skill in ("portfolio_risk_manager", "news_event_analyst",
                   "equity_research_analyst", "investment_committee"):
-        assert f'"{skill}"' in src
-    assert '"skill_outputs"' in src and '"skill_versions"' in src
+        assert f'"{skill}"' in combined
+    assert '"skill_outputs"' in combined and '"skill_versions"' in combined
 
 
 def test_skill_execution_type_deterministic():

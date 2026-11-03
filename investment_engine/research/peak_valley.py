@@ -6,6 +6,9 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+# scipy.signal.find_peaks is a deliberate dependency: its prominence and
+# distance semantics are the reference behavior for support/resistance
+# detection, and reimplementing them locally would risk numerical drift.
 from scipy.signal import find_peaks
 
 logger = logging.getLogger(__name__)
@@ -205,8 +208,8 @@ class PeakValleyDetector:
         # Overall range from recent extrema
         recent_peak_max = max(p.price for p in recent_peaks)
         recent_valley_min = min(v.price for v in recent_valleys)
-        recent_peak_min = min(p.price for p in recent_peaks)
-        recent_valley_max = max(v.price for v in recent_valleys)
+        min(p.price for p in recent_peaks)
+        max(v.price for v in recent_valleys)
         
         peak_range = (recent_peak_max - recent_valley_min) / recent_valley_min * 100 if recent_valley_min > 0 else 0
         

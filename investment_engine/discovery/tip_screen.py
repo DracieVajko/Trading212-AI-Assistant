@@ -5,7 +5,6 @@ pump-risk features used by the Discovery Engine.
 """
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 

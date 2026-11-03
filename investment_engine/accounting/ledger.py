@@ -15,7 +15,6 @@ from investment_engine.accounting.models import (
     LedgerEvent,
     LedgerSummary,
     ManualAdjustments,
-    EventType,
 )
 from investment_engine.accounting.importers.t212_csv import (
     import_t212_activity_csv,

@@ -4,8 +4,8 @@ Topology: `reports/current/` (this run) · `reports/ai_context/` (machine archiv
 `ai_context_<run_id>.md`, `portfolio_state_<run_id>.json` via `portfolio_analysis_<run_id>.json`,
 `research_corpus_<run_id>.md/.json`) · `reports/debug/<run_id>/` (raw endpoint dump,
 reconciliation CSV/MD, run.log; 30d/14-run retention) · `reports/archive/<run_id>/`
-(full copy of `current/`). Legacy `reports/latest/` V4 layout and `reports/summary/`
-writes are retired (stale files archived outside git, not rewritten).
+(full copy of `current/`). Older `reports/latest/` and `reports/summary/` layouts
+are retired; stale files were archived outside git and are not rewritten.
 
 `portfolio_intelligence_brief.md`: deterministic, ≤60 lines — stance/regime/recon
 line, ONE account-warning line on FAIL/DEGRADED, account line, ≤5 priority items,

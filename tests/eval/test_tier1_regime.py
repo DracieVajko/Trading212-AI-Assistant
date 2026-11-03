@@ -68,7 +68,7 @@ def test_exactly_one_label_per_bar_and_weekly_monthly():
     s200_full = _sma(close, 200)
     labels = set()
     for i in range(220, 600):
-        s = s200_full[i - 20] if i >= 220 else float("nan")
+        s200_full[i - 20] if i >= 220 else float("nan")
         slope = s200_full[i] / s200_full[i - 20] - 1.0
         labels.add(classify_regime(close[i], s50_full[i], s200_full[i], slope))
     assert labels <= {"STRONG_UPTREND", "UPTREND_PULLBACK", "TRANSITION_OR_RANGE",

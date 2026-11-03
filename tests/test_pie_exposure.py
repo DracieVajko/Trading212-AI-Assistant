@@ -1,6 +1,4 @@
 """Pie-aware exposure tests – advisory only, no live trading."""
-from pathlib import Path
-import json
 
 from investment_engine.portfolio.pie_metadata import load_pie_universe
 from investment_engine.portfolio.sidecar import load_sidecar_registry
@@ -8,7 +6,6 @@ from investment_engine.portfolio.exposure import (
     build_canonical_exposures,
     evaluate_opportunistic_standalone_add,
     generate_actionability_view,
-    generate_exposure_view,
 )
 from trading212.portfolio import parse_position
 
@@ -98,7 +95,7 @@ def test_standalone_buy_blocked_when_total_cap_exceeded():
     assert tech_sidecar.max_total_ticker_pct_of_account == 7.0
     # Create position where total already 6.5% of 10k = 650 EUR, pie 600, standalone 50
     raw = _fake_api_position("NVDA_US_EQ", quantity=0.75, pie_quantity=0.60, current_price=180, ppl=0, fx_ppl=1)
-    parsed = parse_position(raw)
+    parse_position(raw)
     # Adjust price to get desired value: 0.75*180=135 EUR -> 1.35% of 10k, not enough to test cap
     # Create larger position: quantity 3, price 300 => 900 EUR = 9% > cap
     raw2 = _fake_api_position("AAPL_US_EQ", quantity=3, pie_quantity=3, current_price=300, ppl=0, fx_ppl=1)

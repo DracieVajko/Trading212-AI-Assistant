@@ -132,7 +132,7 @@ def test_stage_log_reports_served_model(caplog):
         ai_aggressiveness="balanced",
     )
 
-    with caplog.at_level(logging.INFO, logger="investment_engine.main"):
+    with caplog.at_level(logging.INFO, logger="investment_engine.providers.generation"):
         out = _generate_with_fallback(_CloudChain(), "p", settings, tokens=10, stage="decision")
 
     assert out == "ok"

@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 import re
-from dataclasses import asdict
 from datetime import date as _date
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from investment_engine.research.market_regime import RegimeResult
-from investment_engine.research.peak_valley import PriceStructure, KeyLevel
+from investment_engine.portfolio import t212_view
+from investment_engine.research.peak_valley import PriceStructure
 from investment_engine.portfolio.symbols import (
-    COMPANY_OVERRIDES,
-    UNKNOWN_INSTRUMENT,
     resolve_company_name,
     to_display_symbol,
 )
@@ -449,7 +447,7 @@ def build_unified_portfolio_rows(
     """
     if not isinstance(t212_data, dict):
         return []
-    summary = t212_data.get("account_summary", {}) or {}
+    summary = t212_view.account_summary(t212_data)
     # Authoritative source first; fallback only when unavailable.
     raw_positions: list[dict] = []
     source = "positions"
@@ -1062,7 +1060,6 @@ class RegimeReportGenerator:
             return ""
         if isinstance(recs, dict) and recs.get("error") and not recs.get("portfolio_actions") and not recs.get("trades"):
             return ""
-        import re as _re_ai
         fail_state = str(recon_status or "").upper() != "PASS"
 
         def _disp(sym: str) -> str:
@@ -1340,10 +1337,10 @@ class AIContextBuilder:
         
         if t212_data:
             sections.extend(["", "## Trading212 Portfolio"])
-            summary = t212_data.get("account_summary", {})
+            summary = t212_view.account_summary(t212_data)
             sections.append(f"  Total Equity (broker): €{summary.get('total_equity', 0):,.2f}")
-            sections.append(f"  Free Cash: €{t212_data.get('cash', {}).get('free', 0):,.2f}")
-            sections.append(f"  Pie Cash: €{t212_data.get('cash', {}).get('pie_cash', 0):,.2f}")
+            sections.append(f"  Free Cash: €{t212_view.cash(t212_data).get('free', 0):,.2f}")
+            sections.append(f"  Pie Cash: €{t212_view.cash(t212_data).get('pie_cash', 0):,.2f}")
             sections.append(f"  Validated positions market value: €{summary.get('invested', 0):,.2f}")
             _v2leg = summary.get("reconciliation_v2", {}) or {}
             recon_status = _v2leg.get("reconciliation_status") or summary.get("reconciliation_status", "UNKNOWN")
@@ -1949,7 +1946,6 @@ class AIContextReportBuilder:
             if ts:
                 timestamps.append(("account_snapshot", ts))
 
-        unstable = False
         if len(timestamps) >= 2:
             from datetime import datetime, timezone
             parsed = []
@@ -1979,7 +1975,6 @@ class AIContextReportBuilder:
                 lines.append(f"- timestamp spread: {spread:.0f} seconds "
                              f"(max allowed: {self.max_timestamp_spread_seconds}s)")
                 if spread > self.max_timestamp_spread_seconds:
-                    unstable = True
                     lines.append(f"- STATUS: SNAPSHOT_TIMING_UNSTABLE (spread {spread:.0f}s > {self.max_timestamp_spread_seconds}s)")
                     lines.append("- WARNING: avoid producing portfolio-level conclusions from inconsistent snapshots")
                 else:

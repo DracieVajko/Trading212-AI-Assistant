@@ -11,7 +11,6 @@ import pytest
 from investment_engine.research.indicators import (
     ENGINE_VERSION,
     MANUAL_COLUMNS,
-    IndicatorConfig,
     apply_manual_indicators,
     resolve_engine,
 )

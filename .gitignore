@@ -128,3 +128,14 @@ ROBUST_EXI2_REGIME_SPEC.md
 # Trading 212 transaction exports are private; keep them local only.
 from_*_to_*_*.csv
 PIEs/from_*_to_*.csv
+
+# desloppify local state
+.desloppify/
+
+# Local agent tooling and generated artifacts
+.claude/
+scorecard.png
+OUTPUTExample/
+
+# User-specific rule overrides (example file is tracked)
+custom_rules.json

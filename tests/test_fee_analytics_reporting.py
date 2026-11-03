@@ -1,6 +1,5 @@
 """Tests for fee analytics and cost-aware reporting."""
 
-import pytest
 from decimal import Decimal
 from pathlib import Path
 
@@ -37,10 +36,6 @@ def test_generate_historical_ledger_report_basic():
 
 def test_generate_historical_ledger_report_unavailable():
     """Report should handle UNAVAILABLE data quality."""
-    from investment_engine.accounting.performance import PerformanceResult
-    from investment_engine.accounting.models import LedgerSummary
-    from investment_engine.accounting.fees import FeeBreakdown
-    from investment_engine.accounting.performance import TradeStatistics
     
     perf = PerformanceResult(
         summary=LedgerSummary(accounting_status="UNAVAILABLE", total_events=0),
@@ -58,10 +53,6 @@ def test_generate_historical_ledger_report_unavailable():
 
 def test_generate_historical_ledger_report_reconciled():
     """Report should show RECONCILED status when appropriate."""
-    from investment_engine.accounting.performance import PerformanceResult
-    from investment_engine.accounting.models import LedgerSummary
-    from investment_engine.accounting.fees import FeeBreakdown
-    from investment_engine.accounting.performance import TradeStatistics
     
     perf = PerformanceResult(
         summary=LedgerSummary(
@@ -135,10 +126,6 @@ def test_report_format_eur():
 def test_report_with_reconciliation():
     """Report should include reconciliation data when provided."""
     from investment_engine.accounting.reconciliation import ReconciliationResult
-    from investment_engine.accounting.performance import PerformanceResult
-    from investment_engine.accounting.models import LedgerSummary
-    from investment_engine.accounting.fees import FeeBreakdown
-    from investment_engine.accounting.performance import TradeStatistics
     
     perf = PerformanceResult(
         summary=LedgerSummary(

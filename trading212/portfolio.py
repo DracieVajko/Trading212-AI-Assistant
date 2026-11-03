@@ -21,7 +21,6 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from collections import defaultdict
 import logging
-import re
 
 from .auth import Trade212Client
 
@@ -30,58 +29,6 @@ logging.basicConfig(
     format='[%(asctime)s] [%(name)s] %(message)s'
 )
 logger = logging.getLogger('Trading212Portfolio')
-
-
-# ---------------------------------------------------------------------------
-# Legacy R1 reconciliation (DEPRECATED since Phase 1)
-# ---------------------------------------------------------------------------
-# R1: diff=abs(total-derived), threshold=max(€1, 0.1% of equity), no dedupe,
-# empty snapshot yields PASS. It can disagree with the canonical
-# broker_first.reconcile_snapshot (min(0.1%, €2), signed, ISIN dedupe,
-# empty→UNKNOWN). R1 fields below are computed for backward compatibility
-# but NOTHING may consume them for decisions; mirrors carry a _legacy suffix.
-# Removal: Phase 2 (after report-parity tests pass on both threshold regimes).
-R1_DEPRECATED_ALIASES = (
-    "reconciliation_status_legacy",
-    "reconciliation_threshold_legacy",
-    "reconciliation_difference_legacy",
-)
-
-_R1_DEPRECATION_LOGGED = False
-
-
-def compute_legacy_r1(total: float, derived: float):
-    """Deprecated R1 formula. Do not use for decisions.
-
-    Use investment_engine.portfolio.broker_first.reconcile_snapshot instead.
-    """
-    diff = abs((total or 0) - (derived or 0))
-    threshold = max(1.0, (total or 0) * 0.001)
-    return diff, threshold, ("PASS" if diff <= threshold else "FAIL")
-
-
-def _note_r1_deprecated(r1_status: str, v2_status: str | None) -> None:
-    """One-time log when legacy R1 disagrees with the embedded v2 check.
-
-    The embedded v2 here is computed on the legacy module's partial view
-    (endpoint-timing cash assembly) and can disagree with the authoritative
-    canonical broker-first reconciliation downstream (run 524fffa0 logged
-    "canonical FAIL" here while canonical PASSed with -0.86 EUR). The message
-    therefore names this as the LEGACY-module check and prints BOTH values;
-    the authoritative verdict always comes from the canonical reconciliation.
-    """
-    global _R1_DEPRECATION_LOGGED
-    if _R1_DEPRECATION_LOGGED:
-        return
-    _R1_DEPRECATION_LOGGED = True
-    if v2_status and str(r1_status).upper() != str(v2_status).upper():
-        logger.warning(
-            "Legacy reconciliation differs (legacy-module check, ignored for decisions): "
-            "legacy R1=%s, embedded v2=%s. Authoritative verdict comes from the "
-            "canonical broker-first reconciliation downstream.",
-            r1_status, v2_status)
-    else:
-        logger.debug("Legacy R1 reconciliation fields computed (deprecated, unconsumed).")
 
 
 # ---------------------------------------------------------------------------
@@ -165,49 +112,14 @@ DEFAULT_FX_RATES = {
     "NOK": 0.085,  # NOK -> EUR
 }
 
-_live_fx_cache: Dict[str, Any] = {}
-_live_fx_timestamp: float = 0.0
 LIVE_FX_TTL_S = 3600.0
 
 
 def get_live_fx_rates(ttl_s: float = LIVE_FX_TTL_S) -> Dict[str, Any]:
-    """Live FX rates (quote -> EUR) for analytics-grade conversion.
+    """Delegate to the canonical broker-first FX source (single cache)."""
+    from investment_engine.portfolio.broker_first import get_live_fx_rates as _canonical
 
-    Uses Yahoo EURUSD=X / EURGBP=X with in-process cache. On any failure
-    returns the static table flagged as stale fallback. Never raises.
-    Returned dict: {"rates": {...}, "source": "live-fx"|"static-fallback",
-    "retrieved_at": ts, "stale": bool}.
-    """
-    import time as _time
-    global _live_fx_timestamp
-    now = _time.time()
-    if _live_fx_cache and (now - _live_fx_timestamp) < ttl_s:
-        return {"rates": dict(_live_fx_cache.get("rates", {})),
-                "source": "live-fx-cache",
-                "retrieved_at": _live_fx_timestamp, "stale": False}
-    try:
-        import yfinance as yf
-        rates: Dict[str, float] = {"EUR": 1.0}
-        eurusd = yf.Ticker("EURUSD=X").history(period="5d", interval="1d")
-        if eurusd is not None and not eurusd.empty:
-            px = float(eurusd["Close"].iloc[-1])
-            if px > 0:
-                rates["USD"] = 1.0 / px
-        eurgbp = yf.Ticker("EURGBP=X").history(period="5d", interval="1d")
-        if eurgbp is not None and not eurgbp.empty:
-            px = float(eurgbp["Close"].iloc[-1])
-            if px > 0:
-                rates["GBP"] = 1.0 / px
-        if len(rates) > 1:
-            _live_fx_cache.clear()
-            _live_fx_cache["rates"] = rates
-            _live_fx_timestamp = now
-            return {"rates": dict(rates), "source": "live-fx",
-                    "retrieved_at": now, "stale": False}
-    except Exception as exc:
-        logger.debug(f"Live FX unavailable: {type(exc).__name__}")
-    return {"rates": dict(DEFAULT_FX_RATES), "source": "static-fallback",
-            "retrieved_at": now, "stale": True}
+    return _canonical(ttl_s=ttl_s)
 
 
 def _normalize_price(price: float, minor_factor: int) -> float:
@@ -234,11 +146,7 @@ def _convert_to_account_ccy(amount: float, from_ccy: str, to_ccy: str = "EUR",
     return amount * rate
 
 
-def _safe_float(value, default: float = 0.0) -> float:
-    try:
-        return float(value) if value is not None else default
-    except (TypeError, ValueError):
-        return default
+from investment_engine.utils.coerce import coerce_float as _safe_float
 
 
 def _is_api_error(resp: Any) -> bool:
@@ -292,8 +200,8 @@ def parse_position(raw: Dict[str, Any], fx_rates: Optional[Dict[str, float]] = N
             quote_ccy, price_unit = _ccy, _ccy
             minor_factor = 100 if _ccy == "GBX" else 1
             currency_source = "broker_metadata"
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Currency metadata lookup failed for %s: %s", ticker, type(exc).__name__)
     if quote_ccy is None and ticker in INSTRUMENT_CURRENCY_OVERRIDES:
         quote_ccy, price_unit, minor_factor = INSTRUMENT_CURRENCY_OVERRIDES[ticker]
         currency_source = "explicit_override"
@@ -332,7 +240,7 @@ def parse_position(raw: Dict[str, Any], fx_rates: Optional[Dict[str, float]] = N
 
     # Determine FX source hierarchy
     # Priority: 1) Broker EUR value (if available) -> 2) Broker-implied FX -> 3) Static fallback
-    broker_eur_value = raw.get("value")  # Not typically available in T212 API
+    raw.get("value")  # Not typically available in T212 API
     fx_source = "static_fallback"
     fx_rate = implied_fx_rate
     fx_is_fallback = True
@@ -369,17 +277,20 @@ def parse_position(raw: Dict[str, Any], fx_rates: Optional[Dict[str, float]] = N
         from investment_engine.portfolio.broker_first import lookup_instrument as _lookup_ins
         try:
             _cat = catalog if catalog is not None else _get_cat()
-        except Exception:
+        except Exception as exc:
+            logger.debug("Instrument catalog unavailable for %s: %s", ticker, type(exc).__name__)
             _cat = {}
         _entry = _lookup_ins(ticker, _cat)
         _isin = (_entry.get("isin") or _KNOWN_ISINS.get(ticker)
                  or _KNOWN_ISINS.get(ticker.strip().upper().split("_")[0]))
-    except Exception:
+    except Exception as exc:
+        logger.debug("ISIN enrichment failed for %s: %s", ticker, type(exc).__name__)
         _isin = None
     try:
         _dkey = _dedupe_key(account_id, _isin, ticker)
         _dedupe_key_str = f"{_dkey[0]}:{_dkey[1]}"
-    except Exception:
+    except Exception as exc:
+        logger.debug("Dedupe key fallback for %s: %s", ticker, type(exc).__name__)
         _dedupe_key_str = f"{account_id}:{ticker}"
     _valuation_source = "broker_value" if raw.get("value") is not None else (
         "live_fx" if not fx_is_fallback else "static_fx_fallback")
@@ -516,12 +427,12 @@ class PortfolioMonitor:
         free_cash   = _safe_float(cash_resp.get("free"))
         pie_cash    = _safe_float(cash_resp.get("pieCash"))
         invested    = _safe_float(cash_resp.get("invested"))
-        result      = _safe_float(cash_resp.get("result"))    # T212: realized+unrealized P&L (snapshot, NOT account return)
+        _safe_float(cash_resp.get("result"))    # T212: realized+unrealized P&L (snapshot, NOT account return)
         ppl         = _safe_float(cash_resp.get("ppl"))       # unrealized position P&L
         total       = _safe_float(cash_resp.get("total"))     # total account value (broker equity)
         blocked     = _safe_float(cash_resp.get("blocked"))   # blocked for pending orders
 
-        cash = free_cash + pie_cash   # fully available cash
+        free_cash + pie_cash   # fully available cash
 
         # Authoritative source: `all_positions` is the complete broker snapshot.
         # `active_positions` (non-pie) is a subset view for display only and
@@ -542,9 +453,6 @@ class PortfolioMonitor:
         # Derived total = all positions value + reported cash (free + pie + blocked)
         # Per T212 API: total equity = invested + free + pieCash + blocked
         derived_holdings_plus_reported_cash = all_positions_value_eur + free_cash + pie_cash + blocked
-        reconciliation_difference, reconciliation_threshold, reconciliation_status = compute_legacy_r1(
-            total, derived_holdings_plus_reported_cash)
-
         # --- Broker-first reconciliation v2 (explicit formula, strict tolerance).
         # Legacy fields above are preserved untouched for backward compatibility.
         # v2: expected = equity - reported_cash - pending_adjustments (only when
@@ -558,7 +466,6 @@ class PortfolioMonitor:
             from investment_engine.portfolio.broker_first import BrokerPosition as _BPos
             from investment_engine.portfolio.broker_first import CashBalance as _CBal
             from investment_engine.portfolio.broker_first import AccountSnapshot as _ASnap
-            from investment_engine.portfolio.broker_first import deduplicate_positions as _ddp
             _v2_positions = []
             for p in all_positions:
                 _v2_positions.append(_BPos(
@@ -603,9 +510,6 @@ class PortfolioMonitor:
         except Exception as exc:
             logger.debug(f"Broker-first reconciliation v2 unavailable: {type(exc).__name__}")
             reconciliation_v2_dict = {"reconciliation_status": "UNKNOWN", "notes": ["v2 unavailable"]}
-        _note_r1_deprecated(reconciliation_status,
-                            (reconciliation_v2_dict or {}).get("reconciliation_status"))
-
         # NOTE: T212 does not provide net_deposits (deposits - withdrawals only) via API.
         # The 'invested' field is current market value of positions, NOT net deposits.
         # The 'result' field is T212's snapshot realized+unrealized P&L, NOT equity - net_deposits.
@@ -638,13 +542,6 @@ class PortfolioMonitor:
             # --- reconciliation ---
             "reported_cash":     free_cash + pie_cash + blocked,  # total reported cash (free + pie + blocked)
             "derived_holdings_plus_reported_cash": derived_holdings_plus_reported_cash,
-            "reconciliation_difference": reconciliation_difference,
-            "reconciliation_threshold": reconciliation_threshold,
-            "reconciliation_status": reconciliation_status,
-            # Deprecated mirrors (computed, unconsumed). Canonical: reconciliation_v2.
-            "reconciliation_difference_legacy": reconciliation_difference,
-            "reconciliation_threshold_legacy": reconciliation_threshold,
-            "reconciliation_status_legacy": reconciliation_status,
             "invested_reconciliation_diff": abs(invested - all_positions_value_eur),
             # --- metadata ---
             "positions_count":   len(active_positions),

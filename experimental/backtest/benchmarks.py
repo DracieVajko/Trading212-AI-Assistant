@@ -6,14 +6,11 @@ No future data inspection, deterministic missing-data handling.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-import numpy as np
 import pandas as pd
 
 from experimental.backtest.costs import CostsConfig, apply_costs, fill_price_with_slippage
-from experimental.backtest.metrics import compute_metrics, metrics_to_dict
 
 
 def _get_rebalance_dates(all_dates: List[pd.Timestamp], frequency: str) -> List[pd.Timestamp]:
@@ -379,13 +376,13 @@ def periodic_equal_weight_rebalance(
                 next_open = float(open_s_next.loc[next_date])
                 # Current market price for target calculation: use close at d
                 if d in close_s.index and not pd.isna(close_s.loc[d]):
-                    cur_price = float(close_s.loc[d])
+                    float(close_s.loc[d])
                 else:
                     # Use last available
                     prev_idx = close_s.index[close_s.index < d]
                     if len(prev_idx)==0:
                         continue
-                    cur_price = float(close_s.loc[prev_idx.max()])
+                    float(close_s.loc[prev_idx.max()])
                 # Target qty based on equity at close of d
                 target_value = equity * weight
                 # Execution price with slippage

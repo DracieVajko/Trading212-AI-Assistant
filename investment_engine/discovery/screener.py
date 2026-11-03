@@ -9,7 +9,7 @@ Wraps discovery.py and signals_ext.py into a single callable that:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import List
 
 import pandas as pd
 
@@ -93,10 +93,8 @@ def run_screener(
 
     # Compute price targets for each candidate
     try:
-        from .price_targets import compute_price_targets
-        price_targets = {}
         for _, row in candidates.iterrows():
-            ticker = row.get("ticker", "")
+            row.get("ticker", "")
             # We don't have price data here, so skip (will be computed in report)
             pass
     except Exception:

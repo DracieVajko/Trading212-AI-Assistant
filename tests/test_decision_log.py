@@ -85,7 +85,7 @@ def test_anti_churn_matrix():
 
 
 def test_secrets_in_notes_rejected_and_action_stays_null():
-    from scripts.decision_log import append_record, build_record, validate_record
+    from scripts.decision_log import build_record, validate_record
 
     evil = dict(_good(), notes="contact broker, api_key=AKIAIOSFODNN7EXAMPLE")
     assert any("secret" in p for p in validate_record(evil))

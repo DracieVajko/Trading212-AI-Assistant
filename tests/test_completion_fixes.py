@@ -74,9 +74,6 @@ def test_order_plans_section_renders_only_when_gated():
 
 def test_retention_dry_run_never_changes_protected_files(tmp_path):
     """Phase 5: retention dry-run must never delete protected files."""
-    import json
-    import os
-    from pathlib import Path
 
     # Create protected files
     protected_dir = tmp_path / "reports" / "archive" / "run123"

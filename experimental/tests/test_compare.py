@@ -1,7 +1,6 @@
 """Phase 2 comparison runner tests."""
 import json
 import tempfile
-import hashlib
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -9,10 +8,7 @@ import pytest
 import uuid
 import shutil
 
-from experimental.backtest.io import load_ohlcv_from_dataframe
 from experimental.backtest.compare import run_comparison
-from experimental.backtest.benchmarks import equal_weight_buy_and_hold, periodic_equal_weight_rebalance
-from experimental.backtest.costs import CostsConfig
 
 FX = Path("experimental/backtest/config/fx_rates.json")
 STRAT_CFG = Path("experimental/backtest/config/tech_pie_pullback_v1.json")

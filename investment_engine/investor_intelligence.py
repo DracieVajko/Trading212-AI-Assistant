@@ -20,13 +20,10 @@ All recommendations are stored with timestamps for backtesting.
 """
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -182,9 +179,8 @@ def compute_investor_signals(
     if not _is_enabled(rules):
         return []
 
-    held = held_tickers or set()
     cfg = _load_config(rules)
-    lookback = int(cfg.get("lookback_days", 14))
+    int(cfg.get("lookback_days", 14))
     weight = float(cfg.get("weight", 0.5))
     cap = float(cfg.get("cap", 1.0))
     min_conf = float(cfg.get("min_confidence", 0.7))

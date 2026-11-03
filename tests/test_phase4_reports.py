@@ -77,26 +77,20 @@ def test_brief_rules_pass_no_warning():
 
 
 def test_stance_single_source():
-    assert report_structure._get_portfolio_stance([], "FAIL") == "DEGRADED"
-    assert report_structure._get_portfolio_stance([], "UNKNOWN") == "DEGRADED"
-    assert report_structure._get_portfolio_stance([], "PASS") == portfolio_stance([], "PASS") == "HOLD"
+    assert portfolio_stance([], "FAIL") == "DEGRADED"
+    assert portfolio_stance([], "UNKNOWN") == "DEGRADED"
+    assert portfolio_stance([], "PASS") == "HOLD"
     rows = [{"signal": "BUY"}, {"signal": "HOLD"}]
-    assert report_structure._get_portfolio_stance(rows, "PASS") == portfolio_stance(rows, "PASS") == "BUY"
+    assert portfolio_stance(rows, "PASS") == "BUY"
 
 
 def test_generate_human_brief_delegates_and_keeps_signature():
     import inspect
 
     params = set(inspect.signature(report_structure.generate_human_brief).parameters)
-    assert params == {"result", "portfolio_rows", "monitoring_items", "regime_result",
-                      "t212_data", "decision_news", "earnings_7d", "ideas",
-                      "portfolio_names", "reconciliation"}
+    assert params == {"result"}
     result = _result()
-    assert report_structure.generate_human_brief(
-        result=result, portfolio_rows=[], monitoring_items=[], regime_result=None,
-        t212_data=result["t212_data"], decision_news=[], earnings_7d={},
-        ideas=[], portfolio_names={}, reconciliation={"status": "PASS"},
-    ) == build_intelligence_brief(result)
+    assert report_structure.generate_human_brief(result=result) == build_intelligence_brief(result)
 
 
 def test_chain_records_winner_without_network():

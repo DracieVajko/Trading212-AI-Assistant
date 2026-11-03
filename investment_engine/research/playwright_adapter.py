@@ -13,7 +13,7 @@ import logging
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Optional, Dict, List
+from typing import Callable, Optional, Dict, List
 from functools import wraps
 
 logger = logging.getLogger(__name__)
@@ -198,7 +198,7 @@ def fetch_with_playwright(
         
         settings = EngineSettings.from_defaults()
         headless = getattr(settings, "playwright_headless", True)
-        timeout = getattr(settings, "playwright_timeout_seconds", 30) * 1000
+        getattr(settings, "playwright_timeout_seconds", 30) * 1000
         
         # Map symbol to TradingView format
         tv_symbol = _yahoo_to_tradingview(symbol)

@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
 import yfinance as yf
 
-from investment_engine.research.news_engine import StrictNewsFetcher, analyze_news_sentiment, NewsItem
-from investment_engine.research.technical_analysis import TechnicalAnalyzer, IndicatorConfig, FinVizEnrichment
-from investment_engine.research.peak_valley import PeakValleyDetector, PriceStructure, FibonacciLevels
+from investment_engine.research.news_engine import StrictNewsFetcher, analyze_news_sentiment
+from investment_engine.research.technical_analysis import TechnicalAnalyzer, FinVizEnrichment
+from investment_engine.research.peak_valley import PeakValleyDetector, PriceStructure
 
 logger = logging.getLogger(__name__)
 
@@ -334,8 +334,8 @@ class EXI2RegimeAnalyzer:
         # Get key timeframe data
         daily = tf_analysis.get("daily", {})
         weekly = tf_analysis.get("weekly", {})
-        monthly = tf_analysis.get("monthly", {})
-        intraday = tf_analysis.get("intraday_1h", {})
+        tf_analysis.get("monthly", {})
+        tf_analysis.get("intraday_1h", {})
 
         # --- PEAK_HOLD Detection ---
         peak_score = 0

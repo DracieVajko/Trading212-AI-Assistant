@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +148,7 @@ def extract_policy_event(text: str, source: str, url: str, published_at: str | N
 def extract_events_from_item(item: dict) -> list[dict]:
     """Extract all policy events from a corpus item."""
     title = str(item.get("title", "") or "")
-    extract = str(item.get("clean_extract", "") or "")
+    str(item.get("clean_extract", "") or "")
     text = f"{title} {item.get('raw_extract_if_available', '')}".strip()
 
     events = []

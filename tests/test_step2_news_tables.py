@@ -4,7 +4,6 @@ Offline only: stubbed HTTP sessions, synthetic rows/DataFrames, no network.
 """
 from __future__ import annotations
 
-import math
 from datetime import datetime, timezone
 
 

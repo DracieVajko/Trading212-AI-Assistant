@@ -8,7 +8,6 @@ a data-quality error, never a guess ( Eval T02).
 
 from __future__ import annotations
 
-from typing import Any
 
 import numpy as np
 
@@ -56,7 +55,6 @@ def position_values(holdings: list[dict], *, base_ccy: str = "EUR",
     price_unit raises ValueError; missing fx yields native-only + note.
     """
     fx = fx or {}
-    out: list[dict] = []
     notes: list[str] = []
     total = float(include_cash or 0.0)
     rows = []
@@ -292,7 +290,7 @@ def resulting_exposure(holdings: list[dict], candidate: dict,
             return {"error": "empty portfolio"}
     except (TypeError, ValueError):
         return {"error": "non-numeric inputs"}
-    sym = str(candidate.get("symbol", "?"))
+    str(candidate.get("symbol", "?"))
     post_w = 100.0 * amount / new_total
     sector = str(candidate.get("sector", "") or "")
     ccy = str(candidate.get("currency", "") or "")

@@ -8,7 +8,8 @@ rates and percentiles are computed only over the years actually present.
 
 from __future__ import annotations
 
-from typing import Any
+from investment_engine.utils.coerce import optional_float as _num
+
 
 import numpy as np
 import pandas as pd
@@ -53,12 +54,6 @@ def pick_row(frame: pd.DataFrame, metric: str) -> pd.Series | None:
     return None
 
 
-def _num(value: Any) -> float | None:
-    try:
-        v = float(value)
-    except (TypeError, ValueError):
-        return None
-    return v if v == v else None
 
 
 def _col(row: pd.Series | None, pos: int = 0) -> float | None:

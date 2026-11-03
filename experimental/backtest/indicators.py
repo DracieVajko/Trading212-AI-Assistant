@@ -164,7 +164,7 @@ def adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> 
     """
     prev_high = high.shift(1)
     prev_low = low.shift(1)
-    prev_close = close.shift(1)
+    close.shift(1)
 
     # Directional movements
     up_move = high - prev_high

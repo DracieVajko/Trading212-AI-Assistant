@@ -168,7 +168,6 @@ class BacktestEngine:
                         market_value += pos.quantity * last_close
                     pos.bars_held += 1
 
-            gross_exposure = market_value
             equity = cash + market_value
             # Track equity history with date
             equity_history.append({"date": cur_date, "equity": equity, "cash": cash, "market_value": market_value, "gross_exposure": market_value})
@@ -180,7 +179,7 @@ class BacktestEngine:
                 # So we just record pending but not fill
                 break
 
-            next_date = all_dates[idx + 1]
+            all_dates[idx + 1]
 
             # 1. Check for exits to be executed at next open (pending_exits from previous bar's close)
             # Actually pending_exits were set at previous close to execute at cur_date open? Let's handle symmetrically:
@@ -245,7 +244,7 @@ class BacktestEngine:
                     open_price = float(grp.loc[cur_date, "open_eur"])
                     close_price = float(grp.loc[cur_date, "close_eur"])
                     low_price = float(grp.loc[cur_date, "low_eur"])
-                    high_price = float(grp.loc[cur_date, "high_eur"])
+                    float(grp.loc[cur_date, "high_eur"])
                     # Determine fill price: for hard stop, if low <= stop, fill at stop (with slippage)
                     fill_price = open_price
                     if reason == "hard_stop":
@@ -275,7 +274,7 @@ class BacktestEngine:
                         pass
                     cash += net_proceeds
                     # Record trade
-                    pnl = (fill_price_adj - pos.entry_price) * qty - costs["total_cost"] - apply_costs(pos.entry_value, self.costs)["total_cost"]
+                    (fill_price_adj - pos.entry_price) * qty - costs["total_cost"] - apply_costs(pos.entry_value, self.costs)["total_cost"]
                     # Simplified pnl: exit value - entry value - costs both sides
                     holding_days = pos.bars_held
                     trades.append(
@@ -425,7 +424,7 @@ class BacktestEngine:
             # --- Phase C: At close of cur_date, check conditions to generate pending for next open ---
             if idx >= len(all_dates) - 1:
                 continue  # no next date
-            next_date = all_dates[idx + 1]
+            all_dates[idx + 1]
 
             # For each symbol, check exit conditions based on cur_date close
             for sym, pos in list(positions.items()):
@@ -433,7 +432,7 @@ class BacktestEngine:
                 if cur_date not in grp.index:
                     continue
                 low = float(grp.loc[cur_date, "low_eur"])
-                close = float(grp.loc[cur_date, "close_eur"])
+                float(grp.loc[cur_date, "close_eur"])
                 # Hard stop check: if low <= stop_price, trigger hard stop for next open (or intraday)
                 if low <= pos.stop_price:
                     pending_exits[sym] = "hard_stop"

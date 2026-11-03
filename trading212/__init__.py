@@ -9,8 +9,6 @@ from .portfolio import (
     parse_position,
     get_live_fx_rates,
     INSTRUMENT_CURRENCY_OVERRIDES,
-    R1_DEPRECATED_ALIASES,
-    compute_legacy_r1,
 )
 from .integration import Trading212Integration, create_integration, OllamaClient
 
@@ -22,8 +20,6 @@ __all__ = [
     "parse_position",
     "get_live_fx_rates",
     "INSTRUMENT_CURRENCY_OVERRIDES",
-    "R1_DEPRECATED_ALIASES",
-    "compute_legacy_r1",
     "Trading212Integration",
     "create_integration",
     "OllamaClient",

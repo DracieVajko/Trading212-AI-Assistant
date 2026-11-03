@@ -139,7 +139,6 @@ def test_distinct_lots_same_isin_both_count():
 
 def test_identical_rows_still_merge():
     """Byte-identical mirror rows (alias case) keep merging into one."""
-    from investment_engine.portfolio.broker_first import deduplicate_positions
 
     positions = [_pos("VWSBd_EQ", 30.0), _pos("VWSB", 30.0)]
     rows = build_unified_portfolio_rows(
@@ -181,25 +180,18 @@ def test_row_pnl_is_broker_truth_never_recomputed():
     assert rows[0]["unrealized_pnl"] == pytest.approx(10.15)
 
 
-def test_r1_helper_math_and_aliases_present():
-    from trading212.portfolio import R1_DEPRECATED_ALIASES, compute_legacy_r1
+def test_legacy_r1_helpers_removed():
+    import trading212.portfolio as portfolio
 
-    diff, thr, status = compute_legacy_r1(3000.00, 2997.50)
-    assert diff == pytest.approx(2.50)
-    assert thr == pytest.approx(3.0)
-    assert status == "PASS"  # legacy tolerance; canonical min(0.1%, €2) would FAIL this
-    assert set(R1_DEPRECATED_ALIASES) == {
-        "reconciliation_status_legacy",
-        "reconciliation_threshold_legacy",
-        "reconciliation_difference_legacy",
-    }
+    assert not hasattr(portfolio, "compute_legacy_r1")
+    assert not hasattr(portfolio, "R1_DEPRECATED_ALIASES")
 
 
 def test_engine_guard_prefers_canonical_v2():
-    """run_engine's recon guard must use the canonical snapshot, never R1 fields."""
+    """The broker phase's recon guard must use the canonical snapshot, never R1 fields."""
     import pathlib
 
-    src = pathlib.Path("investment_engine/main.py").read_text(encoding="utf-8")
+    src = pathlib.Path("investment_engine/run_phases/broker.py").read_text(encoding="utf-8")
     guard_at = src.find("Canonical broker-first snapshot FIRST")
     assert guard_at != -1
     guard_block = src[guard_at:guard_at + 4500]

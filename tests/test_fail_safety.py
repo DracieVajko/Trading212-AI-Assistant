@@ -2,22 +2,13 @@
 
 # --- FAIL-state leakage + watchlist + registry + observability ----------------
 
-from datetime import date, timedelta
 from unittest.mock import Mock
 
-import pytest
 
-from investment_engine.portfolio.symbols import (
-    resolve_company_name,
-    to_display_symbol,
-    to_yahoo_symbol,
-)
 from investment_engine.reporting.regime_report import (
     RegimeReportGenerator,
-    build_canonical_signals,
     build_unified_portfolio_rows,
     compute_reconciliation,
-    ensure_canonical_defaults,
 )
 
 
@@ -75,8 +66,6 @@ FAIL_RECS = {
 
 
 def _fail_report():
-    from investment_engine.reporting.regime_report import RegimeReportGenerator
-    from unittest.mock import Mock
     allp = [_pos("TUYA_US_EQ", 104.0, qty=61.0, pnl=-1.3, pnl_pct=-1.2),
             _pos("TTWO_US_EQ", 324.0, qty=1.6, pnl=-11.0, pnl_pct=-3.4),
             _pos("SYNl_EQ", 64.0, qty=100.0, pnl=2.9, pnl_pct=4.8)]

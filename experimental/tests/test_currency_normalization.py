@@ -55,7 +55,7 @@ def test_gbx_not_double_divided_when_already_gbp():
 
 def test_csv_file_hash_and_fx_hash_persisted():
     # Use load_ohlcv file path to ensure hashes
-    import tempfile, os, json
+    import tempfile
     rows = [{"date": "2024-01-02T00:00:00Z", "symbol": "HASH", "open": 100, "high": 101, "low": 99, "close": 100, "volume": 1_000_000, "currency": "EUR", "earnings_date": ""}]
     df_raw = pd.DataFrame(rows)
     with tempfile.TemporaryDirectory() as td:

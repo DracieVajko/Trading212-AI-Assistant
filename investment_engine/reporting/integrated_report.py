@@ -6,7 +6,6 @@ and historical transaction ledger sections. Advisory only - no live trading.
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from investment_engine.portfolio.exposure import (

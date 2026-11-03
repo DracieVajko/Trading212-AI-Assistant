@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
@@ -172,14 +171,14 @@ class WebResearcher:
                 return None
             data = json.loads(path.read_text(encoding="utf-8"))
             return data
-        except Exception:
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
             return None
 
     def _save_cache(self, name: str, data: Any):
         path = self._cache_path(name)
         try:
             path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.warning("Failed to save cache %s: %s", name, e)
 
     # -------------------------------------------------------------------------
@@ -196,7 +195,6 @@ class WebResearcher:
                 if attempt == 2:
                     raise
                 await asyncio.sleep(2 * (attempt + 1))
-        return False
 
     async def _dismiss_popups(self, page):
         """Dismiss common popups (cookies, login, etc.)."""
@@ -218,8 +216,8 @@ class WebResearcher:
                 if btn and await btn.is_visible():
                     await btn.click(timeout=1000)
                     await asyncio.sleep(0.5)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Popup dismissal failed: %s", type(exc).__name__)
 
     def _parse_number(self, text: str) -> Optional[float]:
         """Parse number from text like '$321.93M', '-$0.05', '+4.35%'."""
@@ -265,8 +263,8 @@ class WebResearcher:
                     if this_week_tab:
                         await this_week_tab.click(timeout=5000)
                         await asyncio.sleep(2)  # Wait for table to update
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Finviz tab switch failed: %s", type(exc).__name__)
 
                 # Wait for table to render
                 await page.wait_for_selector("table tbody tr", timeout=20000)
@@ -370,7 +368,8 @@ class WebResearcher:
                                     source="earningshub.com",
                                     fetched_at=datetime.now(timezone.utc).isoformat(),
                                 ))
-                            except Exception:
+                            except Exception as exc:
+                                logger.debug("EarningsHub row failed: %s", type(exc).__name__)
                                 continue
                         break
 
@@ -578,7 +577,8 @@ class WebResearcher:
             
             text = await container.inner_text()
             return {"raw_text": text[:2000], "extracted_at": datetime.now(timezone.utc).isoformat()}
-        except Exception:
+        except Exception as exc:
+            logger.debug("Financials quadrant extraction failed: %s", type(exc).__name__)
             return None
 
     async def fetch_tradingview_symbols_batch(
@@ -661,7 +661,8 @@ class WebResearcher:
                             source=f"tradingview.com/markets/{market}/{self.TV_MOVER_CATEGORIES[category]}",
                             fetched_at=datetime.now(timezone.utc).isoformat(),
                         ))
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug("TradingView mover row failed: %s", type(exc).__name__)
                         continue
 
                 self._save_cache(cache_name, [m.to_dict() for m in movers])
@@ -720,8 +721,8 @@ class WebResearcher:
                         text = (await n.inner_text()).strip()
                         if text and len(text) > 20:
                             news.append(text[:500])
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("FinQuota news item failed: %s", type(exc).__name__)
 
                 data = FinQuotaData(
                     symbol=symbol,
@@ -758,7 +759,7 @@ class WebResearcher:
             await self._context.tracing.stop(path=trace_path)
             print(f"Trace saved to {trace_path}")
 
-            script = self._generate_script_from_trace(trace_path, output_path)
+            self._generate_script_from_trace(trace_path, output_path)
             print(f"Script template saved to {output_path}")
 
         await page.close()
@@ -854,8 +855,8 @@ def extract_tv_text_signals(page_text: str, symbol: str) -> dict:
                      and re.search(r"[.!?]\s*$", p)]
             if facts:
                 out["key_facts_today"] = "; ".join(facts[:3])[:600]
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("TV text signal extraction failed: %s", type(exc).__name__)
     return out
 
 

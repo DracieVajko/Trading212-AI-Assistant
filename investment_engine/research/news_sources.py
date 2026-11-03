@@ -166,7 +166,7 @@ def assign_section_tag(record: dict) -> str:
     trump_cat = (record.get("trump_category") or "").lower()
     commodity_target = (record.get("commodity_target") or "").lower()
     analyst_target = (record.get("analyst_target") or "").lower()
-    source = (record.get("source") or "").lower()
+    (record.get("source") or "").lower()
     title = (record.get("title") or "").lower()
     preview = (record.get("preview") or "").lower()
     text = f"{title} {preview}"

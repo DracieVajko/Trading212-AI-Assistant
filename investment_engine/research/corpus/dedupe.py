@@ -31,7 +31,7 @@ def normalize_url(url: str) -> str:
 
 
 def item_id(url: str) -> str:
-    return hashlib.md5(normalize_url(url).encode("utf-8")).hexdigest()[:16]
+    return hashlib.md5(normalize_url(url).encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 def _tokens(title: str) -> set[str]:

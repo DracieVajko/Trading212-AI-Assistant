@@ -16,20 +16,16 @@ def _sample_portfolio():
 
 
 def test_config_default_toggle_false():
-    import tempfile, json
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
         json.dump({"provider":"auto"}, f)
-        p = f.name
     # Default when key missing: False (tickers-only; backward-compatible)
     # Verified by loader behavior: no crash, quantity columns stripped.
     assert True  # contract verified by loader integration test below
 
 
 def test_config_missing_keys_default():
-    import tempfile, json
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
         json.dump({"provider":"auto"}, f)
-        p = f.name
     # Missing rotation_plan / rotation_trim_pct -> defaults applied safely
     assert True
 

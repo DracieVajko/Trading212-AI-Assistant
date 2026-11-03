@@ -1,6 +1,5 @@
 """Strategy tech_pie_pullback_v1 deterministic tests."""
 import pandas as pd
-import numpy as np
 from pathlib import Path
 import json
 
@@ -135,13 +134,11 @@ def test_time_stop_exits_after_20_days():
     df_raw = pd.DataFrame(rows)
     df, meta = load_ohlcv_from_dataframe(df_raw, FX)
     from unittest.mock import patch
-    import experimental.backtest.strategy.tech_pie_pullback_v1 as strat_mod
 
     cfg = _load_cfg()
     cfg["exits"]["weekly_break_enabled"] = False  # disable weekly break for this test
     cfg["exits"]["hard_stop_pct"] = 50  # disable hard stop
     # Patch to force one entry signal at day 3
-    original_generate = TechPiePullbackV1.generate_signals
 
     def fake_generate(self, df):
         sig_rows = []
@@ -245,7 +242,7 @@ def test_no_trades_when_validation_fails_end_to_end():
     df, meta = load_ohlcv_from_dataframe(df_raw, FX)
     engine = BacktestEngine(CFG_PATH, FX)
     try:
-        result = engine.run(df, meta)
+        engine.run(df, meta)
         # Should not reach here
         assert False, "Should have raised ValidationError"
     except ValidationError as e:

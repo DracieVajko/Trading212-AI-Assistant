@@ -3,9 +3,7 @@ and generate_human_brief() consume. Guards against empty-brief regressions."""
 
 from __future__ import annotations
 
-import pytest
 
-import portfolio_ai_assistant as wrapper
 from investment_engine.reporting import report_structure
 
 
@@ -22,38 +20,22 @@ def _required_keys() -> tuple:
 
 
 def test_wrapper_contract_keys_match_brief_signature():
-    """Every key the wrapper extracts must be a generate_human_brief() parameter."""
+    """The brief reads only the canonical result dict."""
     import inspect
 
     params = set(inspect.signature(report_structure.generate_human_brief).parameters)
-    for key in _required_keys():
-        assert key in params, f"wrapper reads {key!r} which generate_human_brief() does not accept"
+    assert params == {"result"}
 
 
 def test_run_engine_returns_brief_keys(monkeypatch):
     """run_engine() return dict contains all human-brief keys (mocked internals)."""
-    import investment_engine.main as engine
-
-    sentinel = {
-        "portfolio_rows": [{"display": "AAPL"}],
-        "monitoring_items": [{"display": "AAPL"}],
-        "regime_result": None,
-        "decision_news": [],
-        "earnings_7d": {},
-        "ideas": [],
-        "portfolio_names": {"AAPL": "Apple"},
-    }
-
-    # Patch at module level is heavy; instead verify the source contract:
-    # the final return statement of run_engine() must reference each key.
     import pathlib
 
-    src = pathlib.Path(engine.__file__).read_text(encoding="utf-8")
-    anchor = src.index("def _build_ai_recommendations")
-    start = src.rindex("    return {", 0, anchor)
-    ret_block = src[start:anchor]
+    import investment_engine.run_phases.reporting as reportmod
+
+    src = pathlib.Path(reportmod.__file__).read_text(encoding="utf-8")
     for key in _required_keys():
-        assert f'"{key}"' in ret_block, f"run_engine() return is missing {key!r}"
+        assert f'"{key}"' in src, f"run_engine() return is missing {key!r}"
 
 
 def test_failed_tickers_helpers_present():
@@ -246,15 +228,16 @@ def test_deterministic_skill_attribution_not_unknown():
     """_note_deterministic_skill must record provider=deterministic, never unknown."""
     import investment_engine.main as m
     from investment_engine.providers.fallback import reset_circuit_breaker
+    from investment_engine import run_state
 
     reset_circuit_breaker()
-    m._STAGE_ATTRIBUTION.clear()
+    run_state.STAGE_ATTRIBUTION.clear()
     m._note_deterministic_skill("risk", "deterministic_by_design")
-    rec = m._STAGE_ATTRIBUTION["risk"]
+    rec = run_state.STAGE_ATTRIBUTION["risk"]
     assert rec["provider"] == "deterministic"
     assert rec["model_served"] == "deterministic(skills)"
     assert rec["reason"] == "deterministic_by_design"
-    m._STAGE_ATTRIBUTION.clear()
+    run_state.STAGE_ATTRIBUTION.clear()
     reset_circuit_breaker()
 
 

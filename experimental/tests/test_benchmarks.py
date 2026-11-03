@@ -2,7 +2,6 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-import math
 
 from experimental.backtest.benchmarks import equal_weight_buy_and_hold, periodic_equal_weight_rebalance
 from experimental.backtest.costs import CostsConfig
@@ -90,7 +89,7 @@ def test_benchmark_no_future_access():
     curve2 = res2["equity_curve"]
     # First len(curve1) values must be unchanged (no leak)
     # Align by index
-    common = curve1.index.intersection(curve2.index)
+    curve1.index.intersection(curve2.index)
     # Check first n-1 equal (last of curve1 is second last of curve2 before extreme)
     # Actually curve2 has one extra date at end, so first len(curve1) points should equal
     assert len(curve1) + 1 == len(curve2)

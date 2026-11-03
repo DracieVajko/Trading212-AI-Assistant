@@ -6,7 +6,6 @@ Strictly offline: no HTTP to real endpoints (monkeypatched), no local inference.
 from __future__ import annotations
 
 import socket
-from types import SimpleNamespace
 
 
 def _settings(**kw):
@@ -292,14 +291,13 @@ def test_llamacpp_slow_busy(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_preflight_busy_skips_with_cooldown(monkeypatch):
-    import time as _t
-    import requests as _rq_mod  # module-level; main.py uses its own local alias
     from investment_engine import main as m
     from investment_engine.providers import fallback as fb
     from investment_engine.providers import health
+    from investment_engine import run_state
 
     fb.reset_circuit_breaker()
-    m._FALLBACK_EVENTS.clear()
+    run_state.FALLBACK_EVENTS.clear()
 
     # Monkeypatch requests.get globally; main.py's local import picks it up.
     class _Resp200:
@@ -308,7 +306,6 @@ def test_preflight_busy_skips_with_cooldown(monkeypatch):
     monkeypatch.setattr("requests.get", lambda url, **kw: _Resp200())
     # Also monkeypatch health.requests path (feature-detect in health module uses module-level)
     try:
-        import investment_engine.providers.health as _h
         monkeypatch.setattr("investment_engine.providers.health.requests", type("_rq2", (), {"get": lambda url, **kw: _Resp200()})())
     except Exception:
         pass

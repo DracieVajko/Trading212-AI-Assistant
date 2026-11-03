@@ -6,7 +6,6 @@ import pytest
 
 from investment_engine.research.fundamentals import (
     _cagr,
-    annual_series,
     build_pack,
     pick_row,
 )

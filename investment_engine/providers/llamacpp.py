@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 
 import requests
 
@@ -32,8 +31,8 @@ class LlamaCppProvider(BaseLLMProvider):
     def generate(self, prompt: str, *, stage: str, context: dict | None = None) -> str:
         # Track this as a local AI attempt (direct call to llama.cpp provider)
         try:
-            import investment_engine.main as _main
-            _main._track_local_ai_attempt(blocked=False)
+            from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai
+            _track_local_ai(blocked=False)
         except Exception:
             pass
         # Context-budget guard: the Pi server runs n_ctx=4096 (probed

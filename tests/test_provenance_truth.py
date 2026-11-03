@@ -225,13 +225,17 @@ def test_broker_account_snapshot_is_not_shadowed_by_consensus_lookup():
     back to a minimal file (research/watchlist/reconciliation lost)."""
     import re
 
-    src = Path("investment_engine/main.py").read_text(encoding="utf-8")
-    assert re.search(r"(?<![A-Za-z0-9_])_snap\s*=\s*_build_snap\(", src), (
+    broker_src = Path("investment_engine/run_phases/broker.py").read_text(encoding="utf-8")
+    assert re.search(r"(?<![A-Za-z0-9_])snapshot\s*=\s*_build_snap\(", broker_src), (
         "AccountSnapshot assignment missing"
     )
-    assert not re.search(r"(?<![A-Za-z0-9_])_snap\s*=\s*analyst_consensus\(", src), (
-        "_snap is shadowed by the analyst-consensus lookup; use a distinct name"
+    enrichment_src = Path("investment_engine/run_phases/enrichment.py").read_text(
+        encoding="utf-8"
     )
+    for source in (broker_src, enrichment_src):
+        assert not re.search(r"(?<![A-Za-z0-9_])_snap\s*=\s*analyst_consensus\(", source), (
+            "_snap is shadowed by the analyst-consensus lookup; use a distinct name"
+        )
 
 
 if __name__ == "__main__":

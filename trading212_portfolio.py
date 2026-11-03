@@ -10,8 +10,6 @@ from trading212.portfolio import (  # noqa: F401
     parse_position,
     get_live_fx_rates,
     INSTRUMENT_CURRENCY_OVERRIDES,
-    R1_DEPRECATED_ALIASES,
-    compute_legacy_r1,
 )
 
 if __name__ == "__main__":

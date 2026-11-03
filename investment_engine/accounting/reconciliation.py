@@ -10,9 +10,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from investment_engine.accounting.models import LedgerSummary
 from investment_engine.accounting.performance import PerformanceResult
-from investment_engine.accounting.lot_matching import MatchingResult
 
 
 @dataclass

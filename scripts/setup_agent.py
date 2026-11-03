@@ -14,7 +14,6 @@ Never overwrites user files. No network. No secrets printed.
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

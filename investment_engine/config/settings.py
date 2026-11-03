@@ -228,6 +228,9 @@ class EngineSettings:
     openrouter_grok_model: str = _env("OPENROUTER_GROK_MODEL", "x-ai/grok-3-mini")
     openrouter_context_tokens: int = _env_int("OPENROUTER_CONTEXT_TOKENS", 62000)
     openrouter_max_output_tokens: int = _env_int("OPENROUTER_MAX_OUTPUT_TOKENS", 8192)
+    gemini_max_output_tokens: int = _env_int("GEMINI_MAX_OUTPUT_TOKENS", 8192)
+    mistral_max_output_tokens: int = _env_int("MISTRAL_MAX_OUTPUT_TOKENS", 8192)
+    opencode_zen_max_output_tokens: int = _env_int("OPENCODE_ZEN_MAX_OUTPUT_TOKENS", 8192)
     
     # Gemini (Google) – free tier available
     gemini_api_key: str = _env("GEMINI_API_KEY", "")

@@ -78,14 +78,14 @@ def test_factory_wires_reasoning_effort_from_settings(monkeypatch):
 
 def test_generate_tracks_local_ai_attempt(monkeypatch):
     """LOCALS runs must not report local_ai_requests_sent=0."""
-    from investment_engine import main as main_mod
+    from investment_engine.providers import telemetry
 
     captured: dict = {}
     provider = _provider(monkeypatch, captured)
-    main_mod._reset_local_ai_tracker()
+    telemetry.reset_local_ai_tracker()
     try:
         assert provider.generate("hi", stage="summary", context={"max_output_tokens": 8}) == "local answer"
-        assert main_mod._LOCAL_AI_TRACKER["attempts"] == 1
-        assert main_mod._LOCAL_AI_TRACKER["requests_sent"] == 1
+        assert telemetry.LOCAL_AI_TRACKER["attempts"] == 1
+        assert telemetry.LOCAL_AI_TRACKER["requests_sent"] == 1
     finally:
-        main_mod._reset_local_ai_tracker()
+        telemetry.reset_local_ai_tracker()

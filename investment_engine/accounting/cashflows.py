@@ -20,13 +20,15 @@ Financial semantics (non-negotiable):
 
 from __future__ import annotations
 
+from investment_engine.utils.coerce import optional_float as _num
+
 import logging
 import re
 from datetime import date as _date
 from datetime import datetime as _dt
 from datetime import timezone as _tz
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -599,12 +601,6 @@ def build_account_performance(
     all trading costs, FX effects, dividends and fees — fees_eur is
     informational and is NEVER subtracted again).
     """
-    def _num(value):
-        try:
-            return float(value) if value is not None else None
-        except (TypeError, ValueError):
-            return None
-
     equity = _num(broker_total_equity_eur)
     free_cash = _num(reported_free_cash_eur)
     pie_cash = _num(pie_cash_eur)

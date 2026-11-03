@@ -14,7 +14,6 @@ Key rules:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -22,7 +21,6 @@ from investment_engine.accounting.models import (
     LedgerEvent,
     Lot,
     MatchedTrade,
-    EventType,
 )
 
 

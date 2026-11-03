@@ -1,8 +1,6 @@
 ﻿"""Ticker-mapping invariants."""
 import pathlib
-from investment_engine.portfolio import symbols as sym
 from investment_engine.portfolio.symbols import (
-    DISPLAY_OVERRIDES,
     SUPPORTED,
     SUPPORTED_YAHOO,
     UNRESOLVED,

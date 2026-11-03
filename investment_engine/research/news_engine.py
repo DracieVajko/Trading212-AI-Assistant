@@ -10,7 +10,6 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any
 from urllib.parse import quote_plus, urlparse
 
 import feedparser
@@ -395,7 +394,7 @@ class StrictNewsFetcher:
                 source = entry.get("source", {}).get("title", "unknown").strip()
 
                 if title and link:
-                    content_hash = hashlib.md5(f"{title}{link}".encode()).hexdigest()[:16]
+                    content_hash = hashlib.md5(f"{title}{link}".encode(), usedforsecurity=False).hexdigest()[:16]
                     items.append(
                         NewsItem(
                             title=title,
@@ -598,7 +597,7 @@ class StrictNewsFetcher:
                         published_dt=pub_dt,
                         published_str=pub_dt.strftime("%Y-%m-%d %H:%M"),
                         relevance_score=0,
-                        content_hash=hashlib.md5(f"{title}{link}".encode()).hexdigest()[:16],
+                        content_hash=hashlib.md5(f"{title}{link}".encode(), usedforsecurity=False).hexdigest()[:16],
                         query="slovak_news",
                     ))
                 except Exception:
@@ -638,7 +637,7 @@ class StrictNewsFetcher:
                         published_dt=pub_dt,
                         published_str=pub_dt.strftime("%Y-%m-%d %H:%M"),
                         relevance_score=0,
-                        content_hash=hashlib.md5(f"{title}{link}".encode()).hexdigest()[:16],
+                        content_hash=hashlib.md5(f"{title}{link}".encode(), usedforsecurity=False).hexdigest()[:16],
                         query=query,
                     ))
                 except Exception:
@@ -916,7 +915,7 @@ def symbol_sentiment_line(symbol, items):
     Example: Sentiment: POSITIVE 72 (5+/1-, topics: Blackwell, guidance).
     """
     norm = []
-    now = datetime.now(timezone.utc)
+    datetime.now(timezone.utc)
     for it in items or []:
         if isinstance(it, NewsItem):
             norm.append(it)

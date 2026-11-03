@@ -7,7 +7,6 @@ from email.utils import formatdate
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
-import pytest
 
 import investment_engine.research.news_engine as ne
 from investment_engine.research.news_engine import (
@@ -158,7 +157,7 @@ def test_macro_routes_through_fetch_market_news(monkeypatch):
 
     def _fake_market(queries, limit_per_query=3):
         calls["queries"] = list(queries)
-        now = datetime.now(timezone.utc)
+        datetime.now(timezone.utc)
         return {queries[0]: [_mkitem("S&P 500 Fed outlook", url="https://reuters.example/m",
                                      source="Reuters", hours_ago=2, relevance=80, key="m1")]}
     monkeypatch.setattr(f, "fetch_market_news", _fake_market)
@@ -229,7 +228,7 @@ def test_discovery_validated_caps_and_links(monkeypatch):
     from investment_engine.discovery.engine import DiscoveryEngine
 
     def _mkfetch(sym, name, limit=3):
-        now = datetime.now(timezone.utc)
+        datetime.now(timezone.utc)
         return [_mkitem(f"{sym} beats earnings {i}", url=f"https://reuters.example/{sym}{i}",
                         source="Reuters", hours_ago=2, relevance=80, key=f"{sym}{i}")
                 for i in range(3)]

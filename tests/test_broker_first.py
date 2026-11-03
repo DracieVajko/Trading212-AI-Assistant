@@ -18,7 +18,6 @@ from investment_engine.portfolio.broker_first import (
     build_diagnostic_rows,
     dedupe_key,
     deduplicate_positions,
-    diagnostic_summary,
     implied_rate_from_pnl,
     normalize_minor_unit,
     reconcile_snapshot,
@@ -196,7 +195,6 @@ def test_expected_positions_value_from_sample_numbers():
 
 
 def test_reconciliation_delta_is_detected_and_never_a_loss():
-    from investment_engine.portfolio.broker_first import CashBalance
     snap = AccountSnapshot(
         retrieved_at="t",
         cash=CashBalance(free_cash_eur=800.00, pie_cash_eur=1.00,
@@ -213,7 +211,6 @@ def test_reconciliation_delta_is_detected_and_never_a_loss():
 # --- 9. Sample transaction import test ---------------------------------------------------
 
 def test_sample_buys_import():
-    from investment_engine.portfolio.broker_first import BrokerTransaction
     txns = [BrokerTransaction(date="2026-01-15", flow_type="BUY", ticker=d, isin=i,
                               original_amount=a, original_currency="EUR",
                               amount_eur=a, fx_to_eur=1.0, verified=True)
@@ -248,7 +245,6 @@ def test_catalog_currency_beats_heuristic():
 
 
 def test_gbx_rate_lookup_uses_gbp():
-    from investment_engine.portfolio.broker_first import resolve_fx_rate
     rate, source = resolve_fx_rate("GBX", {"GBP": 1.1651, "USD": 0.86, "EUR": 1.0})
     assert rate == pytest.approx(1.1651)
     assert source == "live-fx"
@@ -275,7 +271,7 @@ def test_parse_position_gbx_uses_gbp_rate():
 
 
 def test_broker_internal_consistency_section():
-    from investment_engine.portfolio.broker_first import AccountSnapshot, CashBalance
+    from investment_engine.portfolio.broker_first import AccountSnapshot
     snap = AccountSnapshot(
         retrieved_at="t",
         cash=CashBalance(free_cash_eur=800.00, pie_cash_eur=1.00,
@@ -289,7 +285,7 @@ def test_broker_internal_consistency_section():
 
 
 def test_empty_snapshot_never_passes():
-    from investment_engine.portfolio.broker_first import AccountSnapshot, CashBalance
+    from investment_engine.portfolio.broker_first import AccountSnapshot
     snap = AccountSnapshot(retrieved_at="t", cash=CashBalance(), positions=[])
     recon = reconcile_snapshot(snap)
     assert recon.reconciliation_status == "UNKNOWN"
@@ -307,7 +303,6 @@ def test_catalog_isin_lookup():
 
 
 def test_diagnostic_csv_and_markdown(tmp_path):
-    from investment_engine.portfolio.broker_first import CashBalance
     snap = AccountSnapshot(
         retrieved_at="t",
         cash=CashBalance(free_cash_eur=800.00, pie_cash_eur=1.00,

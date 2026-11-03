@@ -23,14 +23,13 @@ Rules enforced here:
 from __future__ import annotations
 
 import csv
-import io
 import json
 import logging
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +137,6 @@ def ensure_instrument_catalog(
     returns ({}, meta) and callers must mark instruments accordingly.
     """
     import json as _json
-    from datetime import timedelta as _td
     meta: Dict[str, Any] = {"source": "cache"}
     try:
         payload = _json.loads(Path(path).read_text(encoding="utf-8"))
@@ -441,7 +439,6 @@ def get_live_fx_rates(
     if _live_fx_cache and (now - _live_fx_ts) < ttl_s:
         return {"rates": {k: v[0] for k, v in _live_fx_cache.items()},
                 "source": "live-fx-cache", "retrieved_at": _live_fx_ts, "stale": False}
-    rates: Dict[str, float] = {}
     try:
         import yfinance as yf
         for pair in pairs:
@@ -624,11 +621,8 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _safe_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value) if value is not None else default
-    except (TypeError, ValueError):
-        return default
+from investment_engine.utils.coerce import coerce_float as _safe_float
+from investment_engine.utils.coerce import coerce_float as _num
 
 
 def _display_of(ticker: str, known_clean=None) -> str:
@@ -1073,16 +1067,15 @@ def build_diagnostic_rows(
     for pos in snapshot.positions:
         ins = pos.instrument
         key = dedupe_key(account_id, ins.isin, ins.broker_instrument_id)
-        is_dup = f"{key[0]}:{key[1]}" in dup_keys and pos in duplicates
+        f"{key[0]}:{key[1]}" in dup_keys and pos in duplicates
         ext = (externals or {}).get(ins.display_symbol, {})
         ext_price, ext_ccy = ext.get("price"), ext.get("currency")
-        computed_ext, fx_used = None, ""
+        computed_ext, _fx_used = None, ""
         if ext_price is not None and pos.broker_market_value_eur:
             try:
                 rate, _src = resolve_fx_rate(str(ext_ccy or ins.currency or "EUR"),
                                              {ins.currency: 1.0} if ins.currency == ext_ccy else None)
                 if rate:
-                    fx_used = rate
                     computed_ext = round(float(pos.quantity) * float(ext_price) * float(rate), 2)
             except (TypeError, ValueError):
                 pass
@@ -1125,11 +1118,6 @@ def diagnostic_summary(
     materiality_pct: float = 5.0,
 ) -> Dict[str, Any]:
     """Aggregate totals + issue sections for the diagnostic report."""
-    def _num(v):
-        try:
-            return float(v) if v is not None and v != "" else 0.0
-        except (TypeError, ValueError):
-            return 0.0
     cash = snapshot.cash
     reported_cash = cash.total_reported_cash_eur
     expected = round(cash.broker_total_equity_eur - reported_cash, 2)
@@ -1209,7 +1197,7 @@ def write_diagnostic_markdown(rows: List[Dict[str, Any]], summary: Dict[str, Any
     """Full Markdown diagnostic: totals, per-section issue lists."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    money = lambda v: f"€{float(v):,.2f}" if isinstance(v, (int, float)) else str(v)
+    lambda v: f"€{float(v):,.2f}" if isinstance(v, (int, float)) else str(v)
     lines = ["# Reconciliation diagnostic", ""]
     for key in ("broker_total_equity_eur", "reported_free_cash_eur", "pie_cash_eur",
                 "total_reported_cash_eur", "expected_open_positions_value_eur",

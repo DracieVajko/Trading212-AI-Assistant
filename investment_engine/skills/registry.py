@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from investment_engine.skills import contracts
+from . import contracts
 
 SKILLS_DIR = Path(__file__).resolve().parent
 

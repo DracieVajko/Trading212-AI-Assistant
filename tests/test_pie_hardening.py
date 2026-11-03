@@ -1,5 +1,5 @@
 """Hardening tests for pie-aware exposure – provenance, matching, action restrictions."""
-from investment_engine.portfolio.pie_metadata import load_pie_universe, _normalize_base_symbol
+from investment_engine.portfolio.pie_metadata import load_pie_universe
 from investment_engine.portfolio.sidecar import load_sidecar_registry
 from investment_engine.portfolio.exposure import build_canonical_exposures, generate_actionability_view
 from trading212.portfolio import parse_position
@@ -194,7 +194,6 @@ def test_total_exposure_and_concentration_correct_for_multi_pie():
     # AAPL in 2 pies, total 2 shares @150 => value 276.6 EUR (150*0.922*2)
     raw = _fake_api_position("AAPL_US_EQ", quantity=2, pie_quantity=1.5, current_price=150, fx_ppl=1)
     parsed = parse_position(raw)
-    total_equity = 5000  # 276.6 /5000 =5.53% -> below 6% cap? Use 3000 to exceed
     exps = build_canonical_exposures([parsed], universe, sidecar, total_equity_eur=3000)
     aapl = next(e for e in exps if e.symbol == "AAPL_US_EQ")
     # Total remains exact regardless of split

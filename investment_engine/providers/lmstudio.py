@@ -397,8 +397,8 @@ class LMStudioProvider(BaseLLMProvider):
         # Track this as a local AI attempt (parity with Ollama/llama.cpp, so
         # LOCALS runs do not report local_ai_requests_sent=0 in the manifest).
         try:
-            import investment_engine.main as _main
-            _main._track_local_ai_attempt(blocked=False)
+            from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai
+            _track_local_ai(blocked=False)
         except Exception:
             pass
         requested_output_tokens = (context or {}).get("max_output_tokens", self.max_output_tokens)
@@ -498,10 +498,10 @@ class LMStudioProvider(BaseLLMProvider):
                     lines = lines[:-1]
                 content = '\n'.join(lines).strip()
             return content.strip() or f"[{stage}] LM Studio returned an empty response."
-        except requests.exceptions.HTTPError as exc:
+        except requests.exceptions.HTTPError:
             logger.exception("LM Studio generation failed at stage=%s", stage)
             raise
-        except Exception as exc:  # pragma: no cover - defensive fallback
+        except Exception:  # pragma: no cover - defensive fallback
             logger.exception("LM Studio generation failed at stage=%s", stage)
             raise
 
@@ -543,9 +543,9 @@ def unload_lmstudio_models(base_url: str, models: list[str]) -> dict[str, bool]:
     """Best-effort unload of several models. Never raises. Returns {model: ok}."""
     # Track unload attempts as local AI activity
     try:
-        import investment_engine.main as _main
+        from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai
         for _ in dict.fromkeys(models):
-            _main._track_local_ai_attempt(blocked=False)
+            _track_local_ai(blocked=False)
     except Exception:
         pass
     out: dict[str, bool] = {}

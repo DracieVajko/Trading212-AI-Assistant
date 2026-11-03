@@ -90,9 +90,9 @@ def extract_event(text: str, symbol: str, source: str, url: str, published_at: s
 def extract_events_from_item(item: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract all healthcare events from a corpus item."""
     title = str(item.get("title", "") or "")
-    extract = str(item.get("clean_extract", "") or "")
+    str(item.get("clean_extract", "") or "")
     text = f"{title} {item.get('raw_extract_if_available', '')}".strip()
-    symbol = str(item.get("ticker_tags", [""])[0] if item.get("ticker_tags") else "").upper()
+    str(item.get("ticker_tags", [""])[0] if item.get("ticker_tags") else "").upper()
 
     events = []
     for source_field in ("title", "clean_extract", "raw_extract_if_available"):

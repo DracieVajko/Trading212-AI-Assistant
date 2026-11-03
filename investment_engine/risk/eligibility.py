@@ -6,7 +6,6 @@ a TRIM plan skips cash/evidence gates but keeps mapping/caps.
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Any
 
 try:

@@ -14,6 +14,8 @@ Conventions:
 
 from __future__ import annotations
 
+from investment_engine.utils.coerce import optional_float as _num
+
 import math
 from datetime import date, datetime, timezone
 from typing import Any
@@ -416,12 +418,6 @@ def run_snapshot_selftests() -> dict:
 # snapshot builder (B5/B7)
 # --------------------------------------------------------------------------
 
-def _num(value: Any) -> float | None:
-    try:
-        v = float(value)
-    except (TypeError, ValueError):
-        return None
-    return v if v == v else None
 
 
 def _normalize_dates(values: Any) -> list[date]:
@@ -773,7 +769,7 @@ def build_snapshot(
     else:
         wregime = ""
         notes.append("weekly bars <40: no weekly regime classification")
-    w_rsi = _rsi_wilder(wcl)
+    _rsi_wilder(wcl)
     w_m, w_s, w_h = _macd(wcl)
     monthly = _resample_monthly(frame)
     mcl = monthly["close"].to_numpy(dtype=float)

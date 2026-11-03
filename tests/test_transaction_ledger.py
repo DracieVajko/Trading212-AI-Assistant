@@ -1,19 +1,16 @@
 """Tests for complete historical transaction ledger workflow."""
 
-import pytest
 from decimal import Decimal
 from pathlib import Path
 
 from investment_engine.accounting import (
     build_ledger,
-    Ledger,
     calculate_performance,
     match_sell_fifo,
     ManualAdjustments,
 )
 from investment_engine.accounting.importers.t212_csv import import_t212_activity_csv
-from investment_engine.accounting.models import LedgerEvent, EventType, LedgerSummary
-from investment_engine.accounting.lot_matching import MatchingResult
+from investment_engine.accounting.models import LedgerEvent, EventType
 
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "t212_transactions_sanitized.csv"
@@ -150,7 +147,6 @@ def test_unknown_event_causes_partial_status():
 
 def test_sell_without_inventory_causes_reconciliation_failure():
     """Sell without matching buy lots should be flagged."""
-    from investment_engine.accounting.models import LedgerEvent
     from datetime import datetime
     
     # Create a sell event without prior buy
@@ -242,7 +238,7 @@ def test_no_t212_http_calls():
 
 def test_no_secrets_in_output():
     """Output artifacts should not contain secrets."""
-    events = import_t212_activity_csv(FIXTURE_PATH)
+    import_t212_activity_csv(FIXTURE_PATH)
     default_fx = {"USD": Decimal("0.92"), "EUR": Decimal("1.0"), "GBP": Decimal("1.183")}
     
     ledger = build_ledger(activity_csv_path=FIXTURE_PATH, default_fx_rates=default_fx)

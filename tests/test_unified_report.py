@@ -229,7 +229,6 @@ def test_canonical_signal_identical_across_sections():
     pie = "- **NEE** — **BUY** — oversold bounce — support 80.75\n- **TTWO** — **SELL** — weak — support 1.0"
     fixed = _enforce_canonical_in_pie_section(pie, canon, KNOWN_CLEAN)
 
-    import re
     for disp, sig in by_disp.items():
         if disp in table:
             line = next(l for l in table.splitlines() if f"**{disp}**" in l)
@@ -314,7 +313,7 @@ def test_llm_summary_rejects_unowned_buy_claims():
 
     out = _ensure_consistent_summary(
         "## Summary\n- NVDA remains a BUY signal; META is on the watchlist.",
-        rows, [{"ticker": "NVDA"}, {"ticker": "META"}], [], t212, regime,
+        rows, regime, t212,
     )
 
     assert "NVDA" not in out
@@ -335,7 +334,7 @@ def test_llm_summary_replaced_by_deterministic_summary():
     regime = SimpleNamespace(regime="NEUTRAL", implications={"cash_target_pct": 10})
     summary = "## Summary\n- Portfolio remains HOLD; no trades executed."
 
-    out = _ensure_consistent_summary(summary, rows, [], [], t212, regime)
+    out = _ensure_consistent_summary(summary, rows, regime, t212)
 
     assert out != summary
     assert "Portfolio:" in out
@@ -498,19 +497,20 @@ def test_single_holdings_section():
 
 def test_provider_fallback_note_compact():
     from investment_engine.main import (
-        _FALLBACK_EVENTS,
         _methodology_block,
         _provider_fallback_note,
         _record_fallback,
     )
-    _FALLBACK_EVENTS.clear()
+    from investment_engine.run_state import FALLBACK_EVENTS
+
+    FALLBACK_EVENTS.clear()
     _record_fallback("summary", "local endpoints unavailable")
     note = _provider_fallback_note()
     assert "deterministic fallback" in note and "summary" in note
     assert "Traceback" not in note
     block = _methodology_block({}, Mock(name="Chain"))
     assert "Provider note" in block
-    _FALLBACK_EVENTS.clear()
+    FALLBACK_EVENTS.clear()
 
 
 def test_talib_gate_skips_without_capability():
@@ -698,7 +698,6 @@ def test_pipeline_helpers_never_call_bad_symbols(monkeypatch):
     import types
     from investment_engine.portfolio.symbols import to_display_symbol as _td, to_yahoo_symbol as _ty
     import investment_engine.main as main_mod
-    from investment_engine.research import market_data
 
     seen = []
     fake = types.ModuleType("yfinance")
@@ -717,7 +716,7 @@ def test_pipeline_helpers_never_call_bad_symbols(monkeypatch):
     monkeypatch.setitem(sys.modules, "yfinance", fake)
     raws = ["VERTIV", "QUALCOMM", "APPL", "NVIDIA", "INTE", "BROADCOM",
             "BTCUSD", "ETHUSD", "AAPL_US_EQ", "Apple Inc", "VRT", "AAPL"]
-    pairs = [(r, _ty(r, _td(r), None)) for r in raws]
+    [(r, _ty(r, _td(r), None)) for r in raws]
     main_mod._fetch_technicals_parallel([(d, y) for d, y in
                                          [(r, _ty(r, _td(r), None)) for r in raws] if y])
     main_mod._fetch_earnings_for_symbols({r: _ty(r, _td(r), None) for r in raws})
@@ -817,7 +816,9 @@ def test_finviz_disable_on_api_error():
 
 def test_earnings_fast_display_keys_no_company_names(monkeypatch):
     import investment_engine.main as main_mod
-    monkeypatch.setattr(main_mod, "recent_earnings_date", lambda y: "2026-10-29")
+    import investment_engine.research.earnings_fetch as fetch_mod
+
+    monkeypatch.setattr(fetch_mod, "recent_earnings_date", lambda y: "2026-10-29")
     assets = [
         {"ticker": "NVDA", "name": "Nvidia"},
         {"ticker": "VRT", "name": "Vertiv"},

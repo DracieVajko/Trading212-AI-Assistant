@@ -3,10 +3,10 @@ from __future__ import annotations
 import pytest
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
-from investment_engine.research.news_engine import StrictNewsFetcher, NewsItem, analyze_news_sentiment
-from investment_engine.research.peak_valley import PeakValleyDetector, PriceStructure, Extremum, KeyLevel
+from investment_engine.research.news_engine import NewsItem, analyze_news_sentiment
+from investment_engine.research.peak_valley import PeakValleyDetector, Extremum, KeyLevel
 from investment_engine.research.technical_analysis import TechnicalAnalyzer, IndicatorConfig, compute_derived_metrics
 
 

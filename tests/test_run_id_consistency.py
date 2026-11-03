@@ -109,20 +109,22 @@ def test_run_metadata_timestamps_catalog_and_fx():
 
 
 def test_engine_reuses_wrapper_run_id_source_shape():
-    src = pathlib.Path("investment_engine/main.py").read_text(encoding="utf-8")
+    src = pathlib.Path("investment_engine/run_engine.py").read_text(encoding="utf-8")
+    ai_src = pathlib.Path("investment_engine/run_phases/ai_context.py").read_text(
+        encoding="utf-8"
+    )
     # no fresh uuid for the ai-context run_id (primary or fallback path)
-    assert "run_id=str(_uuid.uuid4())[:8]" not in src
-    assert "run_id = str(_uuid.uuid4())[:8]" not in src
-    assert 'get("run_id", "") or "") or "UNKNOWN"' in src
+    assert "run_id=str(_uuid.uuid4())[:8]" not in src + ai_src
+    assert "run_id = str(_uuid.uuid4())[:8]" not in src + ai_src
+    assert 'get("run_id", "") or "") or "UNKNOWN"' in ai_src
     # news pipeline accepts the wrapper run_id explicitly ...
     import investment_engine.main as _main
 
     sig = inspect.signature(_main._fetch_all_news_parallel)
     assert "run_id" in sig.parameters
     # ... and the caller threads portfolio_context's run_id through it
-    call_at = src.find("_fetch_all_news_parallel(\n        settings_dict, all_active_assets,")
-    assert call_at != -1
-    assert 'get("run_id", "")' in src[call_at:call_at + 300]
+    news_src = pathlib.Path("investment_engine/run_phases/news.py").read_text(encoding="utf-8")
+    assert "run_id=str(portfolio_context.get(\"run_id\", \"\") or \"\")" in news_src
     # settings_dict fallback is kept only as a default inside the callee
     assert 'run_id = settings_dict.get("run_id", "")' not in src
 

@@ -62,7 +62,7 @@ def test_walkforward_oos_and_embargo(tmp_path):
     assert len(out["folds"]) == 2
     assert out["oos_bars"] > 0
     assert "cagr" in out["metrics_oos"]
-    cutoff = pd.Timestamp("2021-07-01", tz="utc") + pd.Timedelta(days=5)
+    pd.Timestamp("2021-07-01", tz="utc") + pd.Timedelta(days=5)
     # embargo respected for every OOS trade (vacuous when zero trades)
     assert out["oos_trades"] >= 0
     rep = Path("experimental/reports") / f"walkforward_{out['run_id']}.json"
