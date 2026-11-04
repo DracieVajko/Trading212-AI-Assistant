@@ -15,7 +15,7 @@ scipy==1.13.1  # required for scipy.signal.find_peaks in research/peak_valley.py
 # yfinance, and provider APIs instead.
 python-dotenv>=1.0.0,<2
 pydantic>=2.0.0,<3
-feedparser>=6.0.10,<7
+feedparser>=6.0.14,<7
 defusedxml>=0.7.1,<1.0  # hardened XML parsing for RSS/discovery feeds
 finvizfinance>=1.0.0,<2
 pyyaml>=6.0  # investor_profile.yaml / tax_facts.yaml parsing (setup_agent)
