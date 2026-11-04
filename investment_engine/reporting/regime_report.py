@@ -7,6 +7,7 @@ from typing import Any
 
 from investment_engine.research.market_regime import RegimeResult
 from investment_engine.portfolio import t212_view
+from investment_engine.portfolio.broker_first import AccountSnapshot, ReconciliationResult
 from investment_engine.research.peak_valley import PriceStructure
 from investment_engine.portfolio.symbols import (
     resolve_company_name,
