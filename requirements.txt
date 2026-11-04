@@ -40,7 +40,7 @@ tzdata>=2022.0,<2027  # Windows-safe zoneinfo database (Europe/Bratislava); no-o
 playwright>=1.40.0
 
 # --- Load-guard (provider busy detection): localhost metrics ---
-psutil>=5.9,<8  # optional; guard degrades to HTTP-only signals without it
+psutil>=7.2.2,<8  # optional; guard degrades to HTTP-only signals without it
 # --- Optional reference indicator engine (unsupported) ---
 # pandas-ta is archived and its 0.4.x metadata requires pandas>=2.3.2 /
 # numpy>=2.2.6, which conflicts with the pinned pandas 2.2.3 / numpy 1.26.4.
