@@ -31,7 +31,7 @@ if "%MODE%"=="apply" (
     echo Applying retention policy...
     py -3.12 -m scripts.cleanup_outputs --apply
 ) else (
-    echo Dry-run mode (no changes will be made)...
+    echo Dry-run mode - no changes will be made.
     echo Use --apply to execute the retention policy.
     echo.
     py -3.12 -m scripts.cleanup_outputs --dry-run

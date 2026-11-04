@@ -6,7 +6,8 @@
 #
 # --- Core (required; verify_environment.py fails without these) ---
 requests>=2.31.0,<3
-yfinance>=1.6.0,<1.8
+certifi>=2026.10.23,<2027  # security floor: compromised emSign CA bundle fix (GHSA-6q48-6c7w-9gw2)
+yfinance>=1.6.0,<1.9
 pandas==2.2.3
 numpy==1.26.4
 scipy==1.13.1  # required for scipy.signal.find_peaks in research/peak_valley.py (prominence + distance semantics)
@@ -18,6 +19,9 @@ feedparser>=6.0.10,<7
 defusedxml>=0.7.1,<1.0  # hardened XML parsing for RSS/discovery feeds
 finvizfinance>=1.0.0,<2
 pyyaml>=6.0  # investor_profile.yaml / tax_facts.yaml parsing (setup_agent)
+# Pillow is transitive via matplotlib; pin the security floor because the
+# bundled 12.x parser has multiple image-decoding CVEs (fixed in 13.0.0).
+pillow>=13.0.0
 # Plotting for the TA chart pack (Appendix B6). WARNING: install with the
 # pinned numpy intact — `pip install matplotlib` alone re-resolves and pulls
 # numpy 2.x (seen 2026-10-13: numpy 1.26.4 -> 2.5.4, rolled back). If numpy
@@ -36,7 +40,7 @@ tzdata>=2022.0,<2027  # Windows-safe zoneinfo database (Europe/Bratislava); no-o
 playwright>=1.40.0
 
 # --- Load-guard (provider busy detection): localhost metrics ---
-psutil>=5.9,<7  # optional; guard degrades to HTTP-only signals without it
+psutil>=5.9,<8  # optional; guard degrades to HTTP-only signals without it
 # --- Optional reference indicator engine (unsupported) ---
 # pandas-ta is archived and its 0.4.x metadata requires pandas>=2.3.2 /
 # numpy>=2.2.6, which conflicts with the pinned pandas 2.2.3 / numpy 1.26.4.

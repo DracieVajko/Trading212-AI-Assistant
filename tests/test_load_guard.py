@@ -86,6 +86,8 @@ def test_lmstudio_latency_requires_both_attempts_slow(monkeypatch):
     from investment_engine.providers import health
     monkeypatch.setattr(health, "psutil", None, raising=False)
     monkeypatch.setattr(health.shutil, "which", lambda exe: None)
+    # Unit test of the latency signal only: never probe a real local server.
+    monkeypatch.setattr(health, "_lmstudio_loading_state", lambda base, ev: None)
     v = health.probe_provider_busy("LM Studio", "http://127.0.0.1:1234/v1",
                                    _settings(), latencies=[0.05, 2.6])
     assert v.busy is False

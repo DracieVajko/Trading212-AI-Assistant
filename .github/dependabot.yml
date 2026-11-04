@@ -1,0 +1,33 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+    groups:
+      pip-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Deliberately pinned numeric stack. pandas 3.x / numpy 2.x change
+      # numeric behavior and break the frozen manual-v1 indicators; scipy,
+      # matplotlib, contourpy, numba and llvmlite are bounded by that stack.
+      # These upgrades require a deliberate re-baseline of the numeric test
+      # fixtures, not an automatic PR.
+      - dependency-name: "pandas"
+      - dependency-name: "numpy"
+      - dependency-name: "scipy"
+      - dependency-name: "matplotlib"
+      - dependency-name: "contourpy"
+      - dependency-name: "numba"
+      - dependency-name: "llvmlite"
+      - dependency-name: "pandas-ta"

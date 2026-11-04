@@ -131,9 +131,17 @@ def write_reports(
     # Phase 3: record which indicator engine + library versions produced the
     # technicals (cross-PC parity). Phase 4 adds per-stage provider attribution.
     try:
+        import importlib.metadata as _ilm
         import importlib.util as _ilu
 
-        _has_ta = _ilu.find_spec("pandas_ta") is not None
+        def _dist_version(name: str) -> str | None:
+            """Distribution version, or None when only a module/namespace exists."""
+            try:
+                return _ilm.version(name)
+            except Exception:
+                return None
+
+        _has_ta = _ilu.find_spec("pandas_ta") is not None and _dist_version("pandas_ta") is not None
         _has_talib = _ilu.find_spec("talib") is not None
         import pandas as _pd
         import numpy as _np
@@ -147,6 +155,8 @@ def write_reports(
         }
     except Exception:
         _has_ta, _has_talib, _versions = False, False, {}
+        _dist_version = lambda _name: None  # noqa: E731
+    _ta_version = _dist_version("pandas_ta") if _has_ta else None
     _context_file = str(result.get("context_file", "") or "")
     _context_run_id = ""
     try:
@@ -244,7 +254,7 @@ def write_reports(
         # --- Indicator backend ---
         "indicator_engine": "reference" if _has_ta else "manual",
         "pandas_ta_present": _has_ta,
-        "pandas_ta_version": __import__("importlib.metadata", fromlist=["metadata"]).version("pandas_ta") if _has_ta else None,
+        "pandas_ta_version": _ta_version,
         "talib_present": _has_talib,
         "versions": _versions,
         # --- Environment identifier (non-identifying) ---
