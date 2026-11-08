@@ -407,16 +407,20 @@ def main() -> int:
             logger.debug("Custom rules loading skipped: %s", type(_cr_exc).__name__)
 
         _did_day_trader = False
-        _day_trader_mode = "demo" if args.day_trader_allow_orders else None
-        if args.day_trader:
+        _day_trader_mode = None
+        if args.day_trader or (raw_settings.get("day_trader", {}) or {}).get("auto_run", False):
+            from investment_engine.day_trader import DayTraderConfig, run_premarket, write_day_trader_report
+            from investment_engine.day_trader.runner import run_tool
+            from investment_engine.day_trader.state import ensure_state_root
+            from investment_engine.history import runtime_mode
+            _dt_cfg = DayTraderConfig.from_mapping(raw_settings.get("day_trader", {}))
+            _day_trader_mode = "demo" if (args.day_trader_allow_orders or (_dt_cfg.execution.environment == "demo" and _dt_cfg.auto_run)) else "live"
             try:
-                from investment_engine.day_trader import DayTraderConfig, run_premarket, write_day_trader_report
-                from investment_engine.day_trader.runner import run_tool
-                from investment_engine.day_trader.state import ensure_state_root
-                from investment_engine.history import runtime_mode
-                _dt_cfg = DayTraderConfig.from_mapping(raw_settings.get("day_trader", {}))
                 _dt_cfg.validate()
-                if args.day_trader_allow_orders and _dt_cfg.execution.environment == "demo":
+                # Auto-enable demo execution when auto_run is set and environment is demo.
+                # Live execution stays disabled (no live_ack, T212_LIVE_ORDER_ENABLED=0).
+                demo_auto = bool(_dt_cfg.auto_run) and _dt_cfg.execution.environment == "demo"
+                if (args.day_trader_allow_orders or demo_auto) and _dt_cfg.execution.environment == "demo":
                     _dt_cfg.execution.enabled = True
                     _dt_cfg.execution.auto_approve = True
                 _state_root = ROOT / _dt_cfg.state_dir

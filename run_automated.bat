@@ -17,5 +17,5 @@ REM External values win (scheduled tasks may set their own).
 if not defined RUN_DEADLINE_SECONDS set RUN_DEADLINE_SECONDS=1800
 if not defined RUN_WATCHDOG_SECONDS set RUN_WATCHDOG_SECONDS=2100
 
-py -3.12 portfolio_ai_assistant.py --config portfolio_config.json --investment-engine --generate-full-report --execution-mode %MODE%
+py -3.12 portfolio_ai_assistant.py --config portfolio_config.json --investment-engine --generate-full-report --execution-mode %MODE% --day-trader --day-trader-allow-orders
 exit /b %ERRORLEVEL%
