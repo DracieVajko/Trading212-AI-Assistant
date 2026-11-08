@@ -7,7 +7,7 @@ No scraping of X/StockTwits/Instagram/Facebook without permitted access.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
 

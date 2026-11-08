@@ -6,9 +6,10 @@ Extracted from ``fetching.py`` to keep each module focused.
 from __future__ import annotations
 
 import logging
-from concurrent.futures import TimeoutError as FuturesTimeoutError, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeoutError
+from concurrent.futures import as_completed
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 from investment_engine.fetching import _symbol
 from investment_engine.research.market_data import recent_earnings_date
@@ -16,7 +17,7 @@ from investment_engine.research.news_engine import StrictNewsFetcher
 
 logger = logging.getLogger(__name__)
 
-def _fetch_earnings_fast(assets: List[Dict[str, Any]], timeout_per_symbol: float = 3.0) -> dict[str, str]:
+def _fetch_earnings_fast(assets: list[dict[str, Any]], timeout_per_symbol: float = 3.0) -> dict[str, str]:
     """Fast earnings fetch with timeout per symbol, keyed by DISPLAY ticker.
 
     Yahoo lookups go through the explicit mapping layer only; company names
@@ -26,7 +27,11 @@ def _fetch_earnings_fast(assets: List[Dict[str, Any]], timeout_per_symbol: float
     try:
         from investment_engine.portfolio.symbols import (
             is_earnings_supported,
+        )
+        from investment_engine.portfolio.symbols import (
             to_display_symbol as _td_e,
+        )
+        from investment_engine.portfolio.symbols import (
             to_yahoo_symbol as _ty_e,
         )
     except Exception:
@@ -219,9 +224,10 @@ def _fetch_technicals_parallel(symbols: list) -> dict[str, dict]:
     company names.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
     from investment_engine.research.market_data import fetch_technical_indicators
     pairs: list[tuple[str, str]] = []
-    for item in dict.fromkeys(map(lambda x: x if isinstance(x, tuple) else (x, x), symbols or [])):
+    for item in dict.fromkeys(x if isinstance(x, tuple) else (x, x) for x in symbols or []):
         disp, yahoo = item
         if yahoo and yahoo != "UNKNOWN":
             pairs.append((disp, yahoo))
@@ -286,6 +292,7 @@ def _fetch_earnings_for_symbols(yahoo_by_display: dict[str, str | None]) -> dict
     resolve to 'no_data'. Never queries company names.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
     from investment_engine.research.market_data import recent_earnings_date
     items = list((yahoo_by_display or {}).items())
     if not items:

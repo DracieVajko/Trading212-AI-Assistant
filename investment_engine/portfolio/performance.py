@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
+from investment_engine.portfolio import t212_view
 from investment_engine.schemas.context import T212Snapshot
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,7 @@ def _resolve_account_performance(t212_data: T212Snapshot | None, portfolio_conte
     blocked_cash = summary.get("cash_blocked", cash.get("blocked", 0))
 
     api_result: dict | None = None
-    if isinstance(t212_data, dict) and t212_data.get("status") == "ok":
+    if t212_view.status(t212_data) == "ok":
         try:
             from trading212.integration import create_integration
             _t212 = create_integration(config_file="api.env")

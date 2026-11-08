@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
+from investment_engine.portfolio import t212_view
 from investment_engine.reporting.sections import _build_monitoring_block
 from investment_engine.schemas.context import T212Snapshot
+
 
 def _canonical_decisions(ai_recs: dict | None) -> dict[str, str]:
     """Canonical display-ticker → action map (see regime_report.build_canonical_signals).
@@ -45,15 +47,11 @@ def _portfolio_tickers_for_priority(t212_data: dict | None, known_clean: set | N
     tickers: set[str] = set()
     if not isinstance(t212_data, dict):
         return tickers
-    summary = t212_data.get("account_summary", {}) or {}
+    summary = t212_view.account_summary(t212_data)
     # Authoritative first; fallback only when unavailable; never merged.
-    cands: list[dict] = list(summary.get("all_positions") or [])
-    if not cands:
-        cands = list(t212_data.get("all_positions") or [])
-    if not cands:
-        cands = list(t212_data.get("positions", []) or [])
-        if not cands and isinstance(summary.get("positions"), list):
-            cands = list(summary["positions"])
+    cands: list[dict] = t212_view.authoritative_positions(t212_data)
+    if not cands and isinstance(summary.get("positions"), list):
+        cands = list(summary["positions"])
     for p in cands:
         if isinstance(p, dict) and p.get("symbol"):
             try:
@@ -71,7 +69,8 @@ def _build_portfolio_names(all_active_assets, pie_blocks, t212_data: T212Snapsho
     """
     names: dict[str, str] = dict(known_names_base or {})
     try:
-        from investment_engine.portfolio.symbols import COMPANY_OVERRIDES, to_display_symbol as _td2
+        from investment_engine.portfolio.symbols import COMPANY_OVERRIDES
+        from investment_engine.portfolio.symbols import to_display_symbol as _td2
     except Exception:
         COMPANY_OVERRIDES = {}
         _td2 = lambda s, *_: str(s or "").strip().upper().split("_")[0]
@@ -98,10 +97,8 @@ def _build_portfolio_names(all_active_assets, pie_blocks, t212_data: T212Snapsho
     try:
         pools: list[dict] = []
         if isinstance(t212_data, dict):
-            _s = t212_data.get("account_summary", {}) or {}
-            pools.extend(_s.get("all_positions", []) or [])
-            pools.extend(t212_data.get("all_positions", []) or [])
-            pools.extend(t212_data.get("positions", []) or [])
+            pools.extend(t212_view.authoritative_positions(t212_data))
+            pools.extend(t212_view.account_summary(t212_data).get("positions", []) or [])
         for p in pools:
             if isinstance(p, dict) and p.get("symbol") and p.get("name"):
                 disp = _td2(str(p["symbol"]))

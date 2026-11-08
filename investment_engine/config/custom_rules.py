@@ -64,15 +64,37 @@ def apply_custom_rules_to_settings(settings, rules: dict) -> None:
     Only overrides fields that exist in EngineSettings. Never raises.
     """
     behavior = rules.get("script_behavior", {})
-    if not isinstance(behavior, dict):
-        return
-    for key, val in behavior.items():
-        if hasattr(settings, key):
-            try:
-                setattr(settings, key, val)
-                logger.debug("custom_rules: settings.%s = %r", key, val)
-            except Exception as exc:
-                logger.warning("custom_rules: could not set settings.%s: %s", key, type(exc).__name__)
+    if isinstance(behavior, dict):
+        for key, val in behavior.items():
+            if hasattr(settings, key):
+                try:
+                    setattr(settings, key, val)
+                    logger.debug("custom_rules: settings.%s = %r", key, val)
+                except Exception as exc:
+                    logger.warning("custom_rules: could not set settings.%s: %s", key, type(exc).__name__)
+
+    # investment_rules keys that map directly onto EngineSettings fields.
+    # Only explicit values are applied; a missing key keeps the default.
+    inv_rules = rules.get("investment_rules", {})
+    if isinstance(inv_rules, dict):
+        for key, val in inv_rules.items():
+            if hasattr(settings, key):
+                try:
+                    setattr(settings, key, val)
+                    logger.debug("custom_rules: settings.%s = %r", key, val)
+                except Exception as exc:
+                    logger.warning("custom_rules: could not set settings.%s: %s", key, type(exc).__name__)
+
+    # strategy_aggression → signal thresholds consumed by the LLM prompt.
+    aggression = rules.get("strategy_aggression", {})
+    if isinstance(aggression, dict):
+        for key, val in aggression.items():
+            if hasattr(settings, key):
+                try:
+                    setattr(settings, key, val)
+                    logger.debug("custom_rules: settings.%s = %r", key, val)
+                except Exception as exc:
+                    logger.warning("custom_rules: could not set settings.%s: %s", key, type(exc).__name__)
 
 
 def apply_custom_rules_to_policy(policy: dict, rules: dict) -> dict:

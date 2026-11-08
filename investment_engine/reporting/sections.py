@@ -11,6 +11,7 @@ from typing import Any
 from investment_engine.reporting.documents import _eur_level
 from investment_engine.run_state import FALLBACK_EVENTS as _FALLBACK_EVENTS
 
+
 def _provider_fallback_note() -> str:
     if not _FALLBACK_EVENTS:
         return ""

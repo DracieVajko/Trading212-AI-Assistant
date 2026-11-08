@@ -21,8 +21,6 @@ def _settings(**kw):
         finance_model="qwen3.8-9b-distill", thinking_model="openai/gpt-oss-20b",
         local_fallback_model="mistralai/ministral-3-3b",
         fallback_model="openrouter/free",
-        llamacpp_base_url="http://127.0.0.1:9/v1", llamacpp_model="qwen3.8-9b",
-        llamacpp_context_tokens=4096,
         ollama_base_url="http://127.0.0.1:9", ollama_model="qwen3.8-9b-pi",
         ollama_context_tokens=128000,
         gemini_api_key="", mistral_api_key="", openrouter_api_key="",
@@ -50,7 +48,7 @@ def test_public_chain_has_no_locals():
 
     chain = ProviderFactory.create(_settings(execution_mode="public"))
     names = chain.name if hasattr(chain, "name") else ""
-    assert "LM Studio" not in names and "llama.cpp" not in names and "Ollama" not in names
+    assert "LM Studio" not in names and "Ollama" not in names
     # no keys configured -> deterministic terminal link, never a probe
     assert "NoCloudKey" in names
 
@@ -62,18 +60,7 @@ def test_locals_chain_has_no_cloud():
                                              gemini_api_key="x", mistral_api_key="y"))
     names = chain.name if hasattr(chain, "name") else ""
     assert "Gemini" not in names and "Mistral" not in names
-    assert "Ollama" in names and "llama.cpp" in names  # LM Studio disabled here
-
-
-def test_build_chain_uses_settings_llamacpp_url_and_order():
-    from investment_engine.providers.factory import ProviderFactory
-
-    custom = "http://192.0.2.10:11435/v1"  # TEST-NET-1, never a private host
-    links = ProviderFactory._build_chain(_settings(llamacpp_base_url=custom))
-    by_name = {p.name: p for p in links}
-    assert by_name["llama.cpp"].base_url == custom  # was hardcoded before
-    order = [p.name for p in links]
-    assert order.index("llama.cpp") < order.index("Ollama")  # strongest Pi model first
+    assert "Ollama" in names
 
 
 def test_auto_chain_full_order_lmstudio_pi_cloud():
@@ -86,7 +73,7 @@ def test_auto_chain_full_order_lmstudio_pi_cloud():
         gemini_api_key="g", openrouter_api_key="o", mistral_api_key="m",
     ))
     order = [p.name for p in links]
-    assert order == ["LM Studio", "llama.cpp", "Ollama", "Gemini", "OpenRouter", "Mistral"]
+    assert order == ["LM Studio", "Ollama", "Gemini", "OpenRouter", "Mistral"]
 
 
 def test_auto_chain_skips_cloud_without_keys():
@@ -94,7 +81,7 @@ def test_auto_chain_skips_cloud_without_keys():
 
     links = ProviderFactory._build_chain(_settings(lmstudio_enabled=True))
     order = [p.name for p in links]
-    assert order == ["LM Studio", "llama.cpp", "Ollama"]
+    assert order == ["LM Studio", "Ollama"]
     assert "OpenRouter" not in order and "Gemini" not in order
 
 

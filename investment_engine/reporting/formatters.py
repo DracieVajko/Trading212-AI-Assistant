@@ -10,7 +10,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from investment_engine.portfolio import t212_view
-from investment_engine.reporting.sections import _derive_top_risks, _provider_fallback_note
+from investment_engine.reporting.sections import (
+    _derive_top_risks,
+    _provider_fallback_note,
+)
 
 
 def _deterministic_summary(
@@ -36,33 +39,48 @@ def _deterministic_summary(
     regime = str(getattr(regime_result, "regime", "NEUTRAL") or "NEUTRAL").upper()
     target = 10.0
     try:
-        target = float((getattr(regime_result, "implications", {}) or {}).get("cash_target_pct", 10.0) or 10.0)
+        _raw_target = (getattr(regime_result, "implications", {}) or {}).get("cash_target_pct")
+        if _raw_target is not None:
+            target = float(_raw_target)
     except (TypeError, ValueError):
         target = 10.0
 
     by_weight = sorted(rows, key=lambda r: -float(r.get("weight", 0) or 0))
     top = by_weight[:4]
     top_txt = ", ".join(
-        f"{str(r.get('display_symbol') or r.get('ticker') or '?')} "
+        f"{r.get('display_symbol') or r.get('ticker') or '?'!s} "
         f"{float(r.get('weight', 0) or 0):.1f}%"
         for r in top
     ) or "n/a"
     top_four = sum(float(r.get("weight", 0) or 0) for r in top)
     worst = sorted(rows, key=lambda r: float(r.get("pnl_pct", 0) or 0))[:3]
     worst_txt = ", ".join(
-        f"{str(r.get('display_symbol') or r.get('ticker') or '?')} "
+        f"{r.get('display_symbol') or r.get('ticker') or '?'!s} "
         f"{float(r.get('pnl_pct', 0) or 0):+.1f}%"
         for r in worst
     ) or "n/a"
 
+    try:
+        from investment_engine.reporting.regime_report import normalize_signal as _norm_sig
+        _signals = [_norm_sig(r.get("signal")) for r in rows]
+        _buys = _signals.count("BUY")
+        _sells = _signals.count("SELL")
+    except Exception:
+        _buys = _sells = 0
+    _stance = "BUY" if _buys else ("SELL" if _sells else "HOLD")
+
     return "\n".join([
         "## Summary",
-        f"- Portfolio: {len(rows)} positions; equity €{total_equity:,.2f}; "
-        f"free cash €{free_cash:,.2f}; total cash €{total_cash:,.2f} ({cash_pct:.2f}%).",
-        f"- Regime: {regime}; stance HOLD; 0 advisory orders, no execution.",
+        (f"- Portfolio: {len(rows)} positions; equity €{total_equity:,.2f}; "
+        f"free cash €{free_cash:,.2f}; total cash €{total_cash:,.2f} ({cash_pct:.2f}%)."),
+        f"- Regime: {regime}; stance {_stance}; {_buys} BUY / {_sells} SELL signals; no execution.",
         f"- Largest positions: {top_txt}; top four = {top_four:.1f}% of equity.",
         f"- Largest drawdowns: {worst_txt}.",
-        f"- Cash target: {target:.0f}% requires manual trims or deposits; no new deployment.",
+        (f"- Cash target: 0% (disabled by user); {_buys} BUY signal(s) require manual confirmation."
+         if target <= 0 and _buys else
+         (f"- Cash target: 0% (disabled by user); no validated BUY signals this run."
+          if target <= 0 else
+          f"- Cash target: {target:.0f}% requires manual trims or deposits; no new deployment.")),
     ])
 
 
@@ -84,7 +102,9 @@ def _ensure_consistent_summary(
 def _apply_fail_guards(ai_recs: dict | None, recon_status: str) -> dict:
     """Deterministic FAIL-state guards (delegates to regime_report)."""
     try:
-        from investment_engine.reporting.regime_report import apply_fail_guards as _guards
+        from investment_engine.reporting.regime_report import (
+            apply_fail_guards as _guards,
+        )
         return _guards(ai_recs, recon_status)
     except ImportError:
         return ai_recs or {}
@@ -173,7 +193,9 @@ def _format_cash_deployment(
     _status = str(recon_status or "").upper()
     if _status == "FAIL":
         try:
-            from investment_engine.reporting.regime_report import compute_reconciliation as _recon_fn2
+            from investment_engine.reporting.regime_report import (
+                compute_reconciliation as _recon_fn2,
+            )
             _recon2 = _recon_fn2(t212_data, portfolio_rows)
             _cash2 = _recon2.get("reported_cash", 0)
         except Exception:
@@ -184,7 +206,9 @@ def _format_cash_deployment(
         )
     if not _status:
         try:
-            from investment_engine.reporting.regime_report import compute_reconciliation as _recon_fn2
+            from investment_engine.reporting.regime_report import (
+                compute_reconciliation as _recon_fn2,
+            )
             _recon2 = _recon_fn2(t212_data, portfolio_rows)
             if _recon2.get("status") == "FAIL":
                 return (
@@ -212,10 +236,12 @@ def _format_cash_deployment(
         fc = float(free_cash or 0)
     except (TypeError, ValueError):
         return "Cash balance unavailable — no allocation recommendation generated."
-    # Cash target from regime (default 10%).
+    # Cash target from regime (default 10% only when the field is absent).
     cash_target_pct = 10.0
     try:
-        cash_target_pct = float((regime_result.implications or {}).get("cash_target_pct", 10.0) or 10.0)
+        _raw_target = (regime_result.implications or {}).get("cash_target_pct")
+        if _raw_target is not None:
+            cash_target_pct = float(_raw_target)
     except Exception:
         pass
     total_equity = 0.0
@@ -291,7 +317,10 @@ def _format_earnings_radar(
     unavailable (never reported as delisted).
     """
     try:
-        from investment_engine.reporting.regime_report import _normalize_earnings_rows, _render_earnings_radar
+        from investment_engine.reporting.regime_report import (
+            _normalize_earnings_rows,
+            _render_earnings_radar,
+        )
         rows = _normalize_earnings_rows(earnings_status, names)
         if not rows:
             base = "## Earnings Radar\n\n*No upcoming earnings found in Yahoo Finance.*"
@@ -306,8 +335,8 @@ def _format_earnings_radar(
     except Exception:
         pass
     # Minimal deterministic fallback (same format, no imports).
-    from datetime import date as _date
     import re as _re2
+    from datetime import date as _date
     norm: list[tuple[str, str, str, str]] = []
     seen: set[tuple[str, str]] = set()
     today = _date.today().isoformat()
@@ -362,7 +391,7 @@ def _methodology_block(t212_data: dict | None, provider, canonical: dict | None 
     if isinstance(canonical, dict) and str(canonical.get("status", "")).upper() in ("PASS", "FAIL", "UNKNOWN"):
         recon = f"{canonical.get('status')} (diff €{canonical.get('cash_delta', 0):,.2f})"
     elif isinstance(t212_data, dict):
-        s = t212_data.get("account_summary", {}) or {}
+        s = t212_view.account_summary(t212_data)
         _v2m = s.get("reconciliation_v2", {}) or {}
         if str(_v2m.get("reconciliation_status", "")).upper() in ("PASS", "FAIL"):
             recon = f"{_v2m.get('reconciliation_status')} (diff €{_v2m.get('reconciliation_delta_eur') or 0:,.2f})"

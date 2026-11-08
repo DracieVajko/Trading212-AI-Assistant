@@ -12,21 +12,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[2]
+
 from investment_engine import liveness as _lv
 from investment_engine.config.settings import EngineSettings
-from investment_engine.schemas.context import RunResult
-from investment_engine.providers.telemetry import LOCAL_AI_TRACKER as _LOCAL_AI_TRACKER
-from investment_engine.research.corpus import source_status as _srcstat
-from investment_engine.run_state import STAGE_ATTRIBUTION as _STAGE_ATTRIBUTION
+from investment_engine.portfolio import t212_view
 from investment_engine.portfolio.performance import resolve_account_performance
-from investment_engine.providers.generation import execution_mode_lines as _execution_mode_lines
+from investment_engine.providers.generation import (
+    execution_mode_lines as _execution_mode_lines,
+)
+from investment_engine.providers.telemetry import LOCAL_AI_TRACKER as _LOCAL_AI_TRACKER
 from investment_engine.reporting.formatters import format_cash_deployment
 from investment_engine.reporting.portfolio_view import (
     sanitized_settings,
     sanitized_t212_data,
 )
+from investment_engine.research.corpus import source_status as _srcstat
 from investment_engine.research.earnings_fetch import analyst_consensus_bundle
+from investment_engine.run_state import STAGE_ATTRIBUTION as _STAGE_ATTRIBUTION
 from investment_engine.run_state import build_run_budget
+from investment_engine.schemas.context import RunResult
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +94,7 @@ class ReportInputs:
     context_file: Any
 
 
-def build_report(inputs: ReportInputs) -> "RunResult":
+def build_report(inputs: ReportInputs) -> RunResult:
     """Render the decision brief, snapshot, deep dive, and result payload."""
     settings = inputs.settings
     settings_dict = inputs.settings_dict
@@ -155,9 +160,13 @@ def build_report(inputs: ReportInputs) -> "RunResult":
     from investment_engine.reporting.documents import (
         render_snapshot as _render_snapshot,
     )
-    from investment_engine.research.market_data import filter_earnings_window as _filter_7d
+    from investment_engine.research.market_data import (
+        filter_earnings_window as _filter_7d,
+    )
     from investment_engine.research.market_data import report_now_bta as _now_bta
-    from investment_engine.research.news_engine import filter_decision_news as _filter_news
+    from investment_engine.research.news_engine import (
+        filter_decision_news as _filter_news,
+    )
 
     report_dt = _now_bta()
     try:
@@ -177,7 +186,9 @@ def build_report(inputs: ReportInputs) -> "RunResult":
             if avg <= -5.0:
                 for s in matched:
                     try:
-                        from investment_engine.portfolio.symbols import to_display_symbol as _tdw
+                        from investment_engine.portfolio.symbols import (
+                            to_display_symbol as _tdw,
+                        )
                         pie_warnings[_tdw(s.get("slice", ""), known_clean)] = (
                             f"PIE {b.get('name')} aggregate {avg:+.1f}%")
                     except Exception:
@@ -261,7 +272,9 @@ def build_report(inputs: ReportInputs) -> "RunResult":
     # news titles per ticker. Never breaks the run; no signal changes.
     catalyst_radar: list = []
     try:
-        from investment_engine.research.news_engine import extract_catalysts as _extract_catalysts
+        from investment_engine.research.news_engine import (
+            extract_catalysts as _extract_catalysts,
+        )
         catalyst_radar = _extract_catalysts(decision_news, now=report_dt) or []
         if catalyst_radar:
             logger.info(
@@ -326,7 +339,7 @@ def build_report(inputs: ReportInputs) -> "RunResult":
     except Exception:
         _sell_plan_count = 0
 
-    if str((_recon.get("status") if isinstance(_recon, dict) else "")).upper() == "FAIL":
+    if str(_recon.get("status") if isinstance(_recon, dict) else "").upper() == "FAIL":
         cash_line = (f"€{_recon.get('reported_cash', 0):,.2f} reported cash — "
                      f"deployment withheld until account reconciliation passes.")
     else:
@@ -362,6 +375,8 @@ def build_report(inputs: ReportInputs) -> "RunResult":
             else:
                 from investment_engine.accounting.t212_statement import (
                     parse_t212_statement as _parse_stmt,
+                )
+                from investment_engine.accounting.t212_statement import (
                     reconcile_t212_statement as _reconcile_stmt,
                 )
                 _stmt = _parse_stmt(_stmt_path)
@@ -406,7 +421,7 @@ def build_report(inputs: ReportInputs) -> "RunResult":
     snapshot_md = _render_snapshot(
         generated_at=report_dt.strftime("%Y-%m-%d %H:%M %Z"),
         recon=_recon if isinstance(_recon, dict) else {},
-        cash=(t212_data.get("cash", {}) if isinstance(t212_data, dict) else {}),
+        cash=t212_view.cash(t212_data),
         rows=portfolio_rows, monitoring_by_display=monitoring_by_display,
         earnings_status=earnings_status, t212_data=t212_data,
         performance=account_performance, ledger_metadata=cashflow_metadata,
@@ -496,7 +511,9 @@ def build_report(inputs: ReportInputs) -> "RunResult":
     # Holdings must reflect the FULL broker portfolio (PIE constituents +
     # standalone + auto-discovered), not just the configured asset list.
     try:
-        from investment_engine.research.universe import build_research_universe as _build_universe
+        from investment_engine.research.universe import (
+            build_research_universe as _build_universe,
+        )
         _mr_symbol = ""
         try:
             _mr_symbol = str(getattr(getattr(settings, "market_regime", None), "symbol", "") or "")
@@ -524,8 +541,10 @@ def build_report(inputs: ReportInputs) -> "RunResult":
         logger.warning("Run budget exceeded: %.1fs > %.0fs budget", _run_duration_s, _run_budget_s)
     previous_run = None
     try:
-        from investment_engine.reporting.run_history import load_previous_run as _load_prev
-        _arch_dir = str((settings_dict or {}).get("archive_folder", "reports/archive") or "reports/archive")
+        from investment_engine.reporting.run_history import (
+            load_previous_run as _load_prev,
+        )
+        _arch_dir = str((settings_dict or {}).get("archive_folder", str(ROOT / "reports" / "archive")) or str(ROOT / "reports" / "archive"))
         previous_run = _load_prev(_arch_dir, str((portfolio_context or {}).get("run_id", "") or ""))
     except Exception as exc:
         logger.debug("Previous-run linkage skipped: %s", type(exc).__name__)
@@ -650,7 +669,7 @@ def build_report(inputs: ReportInputs) -> "RunResult":
         # Run status inputs for wrapper finalization
         "_run_status_inputs": {
             "degraded_stages": dict(_lv.degraded_stages()),
-            "broker_ok": (t212_data.get("status") == "ok" if isinstance(t212_data, dict) else False),
+            "broker_ok": t212_view.status(t212_data) == "ok",
             "deadline_exceeded": _lv.RUN_BUDGET.exceeded(),
             "run_id": run_id,
             "budget_remaining_s": _lv.RUN_BUDGET.remaining_seconds(),

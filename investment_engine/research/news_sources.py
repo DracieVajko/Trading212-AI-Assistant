@@ -791,7 +791,7 @@ class NewsContextBuilder:
 
         lines.append(f"# News Context — {ts}")
         lines.append(f"Run ID: `{run_id}`")
-        lines.append(f"Time window: last 48 hours")
+        lines.append("Time window: last 48 hours")
         lines.append("")
         lines.append("This file contains ALL news sources for AI decision-making.")
         lines.append("Each entry has: title, source, date, URL, and optional preview.")

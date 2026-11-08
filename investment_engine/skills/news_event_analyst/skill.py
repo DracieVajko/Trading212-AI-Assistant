@@ -100,7 +100,7 @@ def _deterministic_events(items: list[dict[str, Any]],
     for ticker, group in sorted(by_ticker.items()):
         pubs = {str(i.get("publisher", "")).lower() for i in group}
         state = "CONFIRMED" if len(pubs) >= 2 else "UNVERIFIED"
-        best = sorted(group, key=lambda i: (i.get("source_tier", 3), -(i.get("relevance_score", 0) or 0)))[0]
+        best = min(group, key=lambda i: (i.get("source_tier", 3), -(i.get("relevance_score", 0) or 0)))
         severities = {"EARNINGS": "high", "GUIDANCE": "high", "ANALYST": "medium",
                       "POLICY": "high", "MACRO": "medium", "CORPORATE": "medium"}
         etype = _classify_type(str(best.get("title", "")))

@@ -353,7 +353,9 @@ class StrictNewsFetcher:
         ]
         if sector:
             try:
-                from investment_engine.research.sector_templates import build_dynamic_search_queries
+                from investment_engine.research.sector_templates import (
+                    build_dynamic_search_queries,
+                )
                 base.extend(build_dynamic_search_queries(symbol, sector))
             except Exception as exc:
                 logger.debug("Dynamic sector queries unavailable for %s/%s: %s", symbol, sector, exc)
@@ -762,8 +764,8 @@ def analyze_news_sentiment(news_items):
 def extract_key_topics(news_items, max_topics=5):
     """Extract key topics from news headlines."""
     # Simple approach: find capitalized words/phrases that appear multiple times
-    from collections import Counter
     import re
+    from collections import Counter
 
     all_text = " ".join(item.title for item in news_items)
     # Find potential entities (capitalized words, 2-3 word phrases)
@@ -843,8 +845,7 @@ def _annotate_news_item(item, now=None):
     source = _item_source(item)
     try:
         domain = (urlparse(url).netloc or "").lower().strip()
-        if domain.startswith("www."):
-            domain = domain[4:]
+        domain = domain.removeprefix("www.")
         domain = domain or "unknown"
     except Exception:
         domain = "unknown"
@@ -939,7 +940,7 @@ def symbol_sentiment_line(symbol, items):
     topics = agg.get("key_topics", []) or []
     topics_s = ", ".join(topics) if topics else "n/a"
     try:
-        score_n = int(round(float(agg.get("score", 50))))
+        score_n = round(float(agg.get("score", 50)))
     except (TypeError, ValueError):
         score_n = 50
     return (
@@ -1343,7 +1344,7 @@ def filter_decision_news(
         elif len([t for t in r["links"] if t in held]) >= 2:
             why = f"Why it matters: broad-market development touching {linked} held positions."
         elif "MACRO" in r["links"]:
-            why = f"Why it matters: macro development relevant to portfolio positioning."
+            why = "Why it matters: macro development relevant to portfolio positioning."
         else:
             why = f"Why it matters: directly references {linked} held in the portfolio."
         out.append({"title": r["title"], "url": r["url"], "source": r["source"],

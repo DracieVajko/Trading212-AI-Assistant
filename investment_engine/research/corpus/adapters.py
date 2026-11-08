@@ -49,9 +49,7 @@ _NON_ENTITY_BUCKETS = frozenset({
 def is_entity_bucket(symbol_key: str) -> bool:
     """True when a corpus bucket key names an instrument (else a context)."""
     key = str(symbol_key or "").strip().upper()
-    if not key or key in _NON_ENTITY_BUCKETS:
-        return False
-    return True
+    return not (not key or key in _NON_ENTITY_BUCKETS)
 
 
 def _clean(text: Any, limit: int = 600) -> str:

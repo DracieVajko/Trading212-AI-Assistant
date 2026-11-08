@@ -23,10 +23,13 @@ import re
 import threading
 import time
 import uuid
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_RUN_DEADLINE_S = 900.0
 DEFAULT_ATTEMPT_MAX_S = 90.0
@@ -45,7 +48,7 @@ def emit_event(event: dict) -> None:
     """Append a run event to the JSONL log. Never raises."""
     try:
         from investment_engine.reporting.run_history import record_run_event
-        path = os.getenv("RUN_EVENTS_PATH", "reports/run_events.jsonl")
+        path = os.getenv("RUN_EVENTS_PATH", str(ROOT / "reports" / "run_events.jsonl"))
         record_run_event(path, dict(event))
     except Exception:
         pass

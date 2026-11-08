@@ -18,14 +18,13 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from investment_engine.accounting.models import (
-    LedgerEvent,
     EventType,
+    LedgerEvent,
     ParseStatus,
 )
-
 
 # Known T212 activity CSV column patterns (case-insensitive, flexible matching)
 ACTIVITY_COLUMN_MAP = {
@@ -112,7 +111,7 @@ def _normalize_header(header: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", header.strip().lower()).strip()
 
 
-def _detect_columns(fieldnames: List[str]) -> Dict[str, Optional[str]]:
+def _detect_columns(fieldnames: list[str]) -> dict[str, str | None]:
     """Map canonical column names to actual CSV fieldnames."""
     normalized_to_actual = {_normalize_header(fn): fn for fn in fieldnames}
     detected = {}
@@ -127,7 +126,7 @@ def _detect_columns(fieldnames: List[str]) -> Dict[str, Optional[str]]:
     return detected
 
 
-def _parse_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
+def _parse_decimal(value: Any, default: Decimal = Decimal(0)) -> Decimal:
     """Safely parse a value to Decimal."""
     if value is None:
         return default
@@ -142,7 +141,7 @@ def _parse_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
         return default
 
 
-def _parse_datetime(value: str) -> Optional[datetime]:
+def _parse_datetime(value: str) -> datetime | None:
     """Parse datetime from various T212 formats."""
     if not value:
         return None
@@ -227,14 +226,14 @@ def detect_csv_type(file_path: str | Path) -> str:
     return "activity"
 
 
-def import_t212_activity_csv(file_path: str | Path) -> List[LedgerEvent]:
+def import_t212_activity_csv(file_path: str | Path) -> list[LedgerEvent]:
     """Import Trading 212 transaction/activity CSV.
     
     Returns list of LedgerEvent objects. Unknown/unparseable rows become
     EventType.UNKNOWN with parse_status=WARNING.
     """
     path = Path(file_path)
-    events: List[LedgerEvent] = []
+    events: list[LedgerEvent] = []
     
     with path.open("r", encoding="utf-8-sig", newline="") as f:
         # Detect dialect
@@ -294,13 +293,13 @@ def import_t212_activity_csv(file_path: str | Path) -> List[LedgerEvent]:
                 # Amount column is typically 0 for these
                 if tax_amount != 0 and gross_amount == 0:
                     gross_amount = tax_amount
-                    tax_amount = Decimal("0")  # Will be re-categorized below
+                    tax_amount = Decimal(0)  # Will be re-categorized below
             
             # For FX conversion fee: the fee is in FX Fee column
             if event_type == EventType.FX_CONVERSION_FEE:
                 if fx_fee_amount != 0 and gross_amount == 0:
                     gross_amount = fx_fee_amount
-                    fx_fee_amount = Decimal("0")
+                    fx_fee_amount = Decimal(0)
             
             # Net amount (if not provided, calculate)
             # For tax/fee events, net = -gross (it's a cost)
@@ -329,25 +328,17 @@ def import_t212_activity_csv(file_path: str | Path) -> List[LedgerEvent]:
             final_tax_amount = tax_amount
             final_fx_fee_amount = fx_fee_amount
             
-            if event_type == EventType.STAMP_DUTY:
+            if event_type == EventType.STAMP_DUTY or event_type == EventType.FINANCIAL_TRANSACTION_TAX or event_type == EventType.DIVIDEND_WITHHOLDING_TAX:
                 final_tax_amount = gross_amount
-                final_fee_amount = Decimal("0")
-                gross_amount = Decimal("0")
-            elif event_type == EventType.FINANCIAL_TRANSACTION_TAX:
-                final_tax_amount = gross_amount
-                final_fee_amount = Decimal("0")
-                gross_amount = Decimal("0")
-            elif event_type == EventType.DIVIDEND_WITHHOLDING_TAX:
-                final_tax_amount = gross_amount
-                final_fee_amount = Decimal("0")
-                gross_amount = Decimal("0")
+                final_fee_amount = Decimal(0)
+                gross_amount = Decimal(0)
             elif event_type == EventType.FX_CONVERSION_FEE:
                 final_fx_fee_amount = gross_amount
-                final_fee_amount = Decimal("0")
-                gross_amount = Decimal("0")
+                final_fee_amount = Decimal(0)
+                gross_amount = Decimal(0)
             elif event_type == EventType.COMMISSION:
                 final_fee_amount = gross_amount
-                gross_amount = Decimal("0")
+                gross_amount = Decimal(0)
             
             event = LedgerEvent(
                 event_id=_generate_event_id(str(path), row_num, "act"),
@@ -379,14 +370,14 @@ def import_t212_activity_csv(file_path: str | Path) -> List[LedgerEvent]:
     return events
 
 
-def import_t212_cash_csv(file_path: str | Path) -> List[LedgerEvent]:
+def import_t212_cash_csv(file_path: str | Path) -> list[LedgerEvent]:
     """Import Trading 212 cash transaction CSV.
     
     Returns list of LedgerEvent objects for cash flows (deposits, withdrawals,
     interest, FX conversions).
     """
     path = Path(file_path)
-    events: List[LedgerEvent] = []
+    events: list[LedgerEvent] = []
     
     with path.open("r", encoding="utf-8-sig", newline="") as f:
         sample = f.read(4096)
@@ -454,10 +445,10 @@ def import_t212_cash_csv(file_path: str | Path) -> List[LedgerEvent]:
                 currency=currency,
                 gross_amount=gross_amount,
                 fee_amount=fee_amount,
-                tax_amount=Decimal("0"),
+                tax_amount=Decimal(0),
                 fx_fee_amount=fx_fee_amount,
                 net_amount=net_amount,
-                quantity=Decimal("0"),
+                quantity=Decimal(0),
                 price=None,
                 exchange_rate=exchange_rate,
                 parse_status=parse_status,

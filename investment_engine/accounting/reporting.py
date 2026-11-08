@@ -7,7 +7,7 @@ Clearly separates historical ledger from current portfolio account return.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from investment_engine.accounting.performance import PerformanceResult
 from investment_engine.accounting.reconciliation import ReconciliationResult
@@ -30,7 +30,7 @@ def format_decimal(value: Decimal, decimals: int = 2) -> str:
 
 def generate_historical_ledger_report(
     performance: PerformanceResult,
-    reconciliation: Optional[ReconciliationResult] = None,
+    reconciliation: ReconciliationResult | None = None,
     include_definitions: bool = True,
 ) -> str:
     """Generate complete historical ledger report in Markdown.
@@ -44,7 +44,7 @@ def generate_historical_ledger_report(
     6. Data Completeness and Reconciliation
     7. Important Limits
     """
-    lines: List[str] = []
+    lines: list[str] = []
     summary = performance.summary
     fee_breakdown = performance.fee_breakdown
     trade_stats = performance.trade_stats
@@ -112,10 +112,10 @@ def generate_historical_ledger_report(
     
     # Cost ratios
     if summary.gross_realized_pnl_eur != 0:
-        cost_pct_of_gross = fee_breakdown.total() / abs(summary.gross_realized_pnl_eur) * Decimal("100")
+        cost_pct_of_gross = fee_breakdown.total() / abs(summary.gross_realized_pnl_eur) * Decimal(100)
         lines.append(f"Costs as % of Gross Realized P/L: **{format_pct(cost_pct_of_gross)}**")
     if performance.gross_turnover_eur != 0:
-        cost_pct_of_turnover = fee_breakdown.total() / performance.gross_turnover_eur * Decimal("100")
+        cost_pct_of_turnover = fee_breakdown.total() / performance.gross_turnover_eur * Decimal(100)
         lines.append(f"Costs as % of Gross Turnover: **{format_pct(cost_pct_of_turnover)}**")
     if trade_stats.profitable_count + trade_stats.losing_count > 0:
         avg_cost_per_sale = fee_breakdown.total() / Decimal(str(trade_stats.profitable_count + trade_stats.losing_count))
@@ -223,7 +223,7 @@ def generate_historical_ledger_report(
     return "\n".join(lines)
 
 
-def generate_fee_analytics_summary(performance: PerformanceResult) -> Dict[str, Any]:
+def generate_fee_analytics_summary(performance: PerformanceResult) -> dict[str, Any]:
     """Generate structured fee analytics for programmatic use."""
     summary = performance.summary
     fee_breakdown = performance.fee_breakdown
@@ -235,10 +235,10 @@ def generate_fee_analytics_summary(performance: PerformanceResult) -> Dict[str, 
         "known_explicit_costs_eur": str(fee_breakdown.total()),
         "cost_breakdown_eur": fee_breakdown.to_dict(),
         "cost_as_pct_of_gross_realized": str(
-            fee_breakdown.total() / abs(summary.gross_realized_pnl_eur) * Decimal("100")
+            fee_breakdown.total() / abs(summary.gross_realized_pnl_eur) * Decimal(100)
         ) if summary.gross_realized_pnl_eur != 0 else None,
         "cost_as_pct_of_turnover": str(
-            fee_breakdown.total() / performance.gross_turnover_eur * Decimal("100")
+            fee_breakdown.total() / performance.gross_turnover_eur * Decimal(100)
         ) if performance.gross_turnover_eur != 0 else None,
         "avg_explicit_cost_per_sale_eur": str(
             fee_breakdown.total() / Decimal(str(trade_stats.profitable_count + trade_stats.losing_count))

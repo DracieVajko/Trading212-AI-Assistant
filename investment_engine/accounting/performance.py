@@ -8,20 +8,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from investment_engine.accounting.models import (
-    LedgerEvent,
-    MatchedTrade,
-    LedgerSummary,
-    EventType,
-)
 from investment_engine.accounting.fees import FeeBreakdown, aggregate_fees
 from investment_engine.accounting.lot_matching import MatchingResult
+from investment_engine.accounting.models import (
+    EventType,
+    LedgerEvent,
+    LedgerSummary,
+    MatchedTrade,
+)
 
 
-def _convert_to_eur(amount: Decimal, currency: str, exchange_rate: Optional[Decimal],
-                    default_fx_rates: Dict[str, Decimal]) -> Decimal:
+def _convert_to_eur(amount: Decimal, currency: str, exchange_rate: Decimal | None,
+                    default_fx_rates: dict[str, Decimal]) -> Decimal:
     """Convert amount to EUR using event's exchange rate or default rates."""
     if currency == "EUR":
         return amount
@@ -39,15 +39,15 @@ class TradeStatistics:
     profitable_count: int = 0
     losing_count: int = 0
     breakeven_count: int = 0
-    gross_profit_eur: Decimal = Decimal("0")
-    gross_loss_eur: Decimal = Decimal("0")
-    profit_factor: Optional[Decimal] = None
-    win_rate: Optional[Decimal] = None
-    avg_winner_eur: Optional[Decimal] = None
-    avg_loser_eur: Optional[Decimal] = None
-    expectancy_eur: Optional[Decimal] = None  # after known costs
+    gross_profit_eur: Decimal = Decimal(0)
+    gross_loss_eur: Decimal = Decimal(0)
+    profit_factor: Decimal | None = None
+    win_rate: Decimal | None = None
+    avg_winner_eur: Decimal | None = None
+    avg_loser_eur: Decimal | None = None
+    expectancy_eur: Decimal | None = None  # after known costs
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "profitable_count": self.profitable_count,
             "losing_count": self.losing_count,
@@ -68,12 +68,12 @@ class PerformanceResult:
     summary: LedgerSummary
     fee_breakdown: FeeBreakdown
     trade_stats: TradeStatistics
-    gross_turnover_eur: Decimal = Decimal("0")
-    cost_drag: Optional[Decimal] = None  # known_costs / max(|gross_realized|, epsilon)
-    completeness_warnings: List[str] = field(default_factory=list)
+    gross_turnover_eur: Decimal = Decimal(0)
+    cost_drag: Decimal | None = None  # known_costs / max(|gross_realized|, epsilon)
+    completeness_warnings: list[str] = field(default_factory=list)
     data_quality: str = "PARTIAL"  # RECONCILED | PARTIAL | UNAVAILABLE
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "summary": self.summary.to_dict(),
             "fee_breakdown": self.fee_breakdown.to_dict(),
@@ -85,7 +85,7 @@ class PerformanceResult:
         }
 
 
-def calculate_trade_statistics(matched_trades: List[MatchedTrade]) -> TradeStatistics:
+def calculate_trade_statistics(matched_trades: list[MatchedTrade]) -> TradeStatistics:
     """Calculate trade-level statistics from matched trades."""
     stats = TradeStatistics()
     pnls = []
@@ -104,7 +104,7 @@ def calculate_trade_statistics(matched_trades: List[MatchedTrade]) -> TradeStati
     
     total_closed = stats.profitable_count + stats.losing_count + stats.breakeven_count
     if total_closed > 0:
-        stats.win_rate = Decimal(str(stats.profitable_count)) / Decimal(str(total_closed)) * Decimal("100")
+        stats.win_rate = Decimal(str(stats.profitable_count)) / Decimal(str(total_closed)) * Decimal(100)
     
     if stats.gross_loss_eur > 0:
         stats.profit_factor = stats.gross_profit_eur / stats.gross_loss_eur
@@ -127,10 +127,10 @@ def calculate_trade_statistics(matched_trades: List[MatchedTrade]) -> TradeStati
 
 
 def calculate_performance(
-    events: List[LedgerEvent],
+    events: list[LedgerEvent],
     matching_result: MatchingResult,
-    manual_adjustments: Optional[Any] = None,  # ManualAdjustments type
-    default_fx_rates: Optional[Dict[str, Decimal]] = None,
+    manual_adjustments: Any | None = None,  # ManualAdjustments type
+    default_fx_rates: dict[str, Decimal] | None = None,
 ) -> PerformanceResult:
     """Calculate complete historical performance from ledger events.
     
@@ -151,7 +151,7 @@ def calculate_performance(
             if event.net_amount_eur is None and event.net_amount != 0:
                 event.net_amount_eur = _convert_to_eur(event.net_amount, event.currency, event.exchange_rate, default_fx_rates_str)
     
-    warnings: List[str] = []
+    warnings: list[str] = []
     
     # Aggregate fees from fee events
     fee_breakdown = aggregate_fees(events)
@@ -174,8 +174,8 @@ def calculate_performance(
     net_realized_pnl_after_known_costs_eur = gross_realized_pnl_eur - known_explicit_costs_eur
     
     # Dividends
-    dividends_gross_eur = Decimal("0")
-    dividend_withholding_tax_eur = Decimal("0")
+    dividends_gross_eur = Decimal(0)
+    dividend_withholding_tax_eur = Decimal(0)
     for event in events:
         if event.event_type == EventType.DIVIDEND:
             amt = event.gross_amount_eur if event.gross_amount_eur is not None else event.gross_amount
@@ -187,9 +187,9 @@ def calculate_performance(
     dividends_net_eur = dividends_gross_eur - dividend_withholding_tax_eur
     
     # Cash flows
-    deposits_eur = Decimal("0")
-    withdrawals_eur = Decimal("0")
-    cash_interest_eur = Decimal("0")
+    deposits_eur = Decimal(0)
+    withdrawals_eur = Decimal(0)
+    cash_interest_eur = Decimal(0)
     for event in events:
         if event.event_type == EventType.CASH_DEPOSIT:
             amt = event.net_amount_eur if event.net_amount_eur is not None else event.net_amount
@@ -204,14 +204,14 @@ def calculate_performance(
     net_deposits_eur = deposits_eur - withdrawals_eur
     
     # Open lot cost basis
-    open_lot_cost_basis_eur = Decimal("0")
+    open_lot_cost_basis_eur = Decimal(0)
     for lots in matching_result.open_lots.values():
         for lot in lots:
             if lot.cost_basis_eur_per_share is not None:
                 open_lot_cost_basis_eur += lot.cost_basis_eur_per_share * lot.remaining_quantity
     
     # Gross turnover (sum of absolute trade values)
-    gross_turnover_eur = Decimal("0")
+    gross_turnover_eur = Decimal(0)
     for trade in matching_result.matched_trades:
         if trade.sell_price_eur is not None:
             gross_turnover_eur += trade.sell_price_eur * trade.quantity_sold

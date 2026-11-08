@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[2]
+
 _SECRET_RE = re.compile(
     r"(?i)(api[_-]?key|authorization|bearer|access[_-]?token|secret)\s*[:=]?\s*[\"']?([A-Za-z0-9\-_./+]{12,})"
 )
@@ -189,9 +191,9 @@ def write_run_decisions(result: dict, run_id: str, log_dir: str | Path | None = 
                 "verdict": verdict,
                 "confidence": "medium",
                 "notes": [
-                    f"run {run_id}: {direction} {ticker} "
+                    (f"run {run_id}: {direction} {ticker} "
                     f"~EUR {float(plan.get('indicative_notional_eur', 0) or 0):,.2f} "
-                    f"({plan.get('binding_constraint', '')}); advisory only, not executed",
+                    f"({plan.get('binding_constraint', '')}); advisory only, not executed"),
                     f"basis: {', '.join(str(x) for x in (plan.get('rationale_ids', []) or [])[:4])}",
                     f"models: {', '.join(served[:3]) or 'deterministic'}",
                 ],

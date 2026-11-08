@@ -7,7 +7,7 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +22,14 @@ class EarningsEvent:
     company: str
     date: str  # ISO format
     time: str  # "bmo" | "amc" | "unknown"
-    eps_estimate: Optional[float] = None
-    eps_actual: Optional[float] = None
-    revenue_estimate: Optional[float] = None
-    revenue_actual: Optional[float] = None
-    market_cap: Optional[str] = None
-    eps_surprise_pct: Optional[str] = None
-    revenue_surprise_pct: Optional[str] = None
-    one_day_change_pct: Optional[str] = None
+    eps_estimate: float | None = None
+    eps_actual: float | None = None
+    revenue_estimate: float | None = None
+    revenue_actual: float | None = None
+    market_cap: str | None = None
+    eps_surprise_pct: str | None = None
+    revenue_surprise_pct: str | None = None
+    one_day_change_pct: str | None = None
     source: str = ""
     fetched_at: str = ""
 
@@ -43,8 +43,8 @@ class MarketMover:
     name: str
     price: float
     change_pct: float
-    volume: Optional[int] = None
-    market_cap: Optional[float] = None
+    volume: int | None = None
+    market_cap: float | None = None
     source: str = ""
     fetched_at: str = ""
 
@@ -57,16 +57,16 @@ class TradingViewSymbolData:
     """Complete data for a single symbol from TradingView."""
     symbol: str
     exchange: str
-    price: Optional[float] = None
-    change_pct: Optional[float] = None
-    key_facts_today: Optional[str] = None
-    technicals_rating: Optional[str] = None  # Strong sell, Sell, Neutral, Buy, Strong buy
-    analyst_rating: Optional[str] = None     # Strong sell, Sell, Neutral, Buy, Strong buy
+    price: float | None = None
+    change_pct: float | None = None
+    key_facts_today: str | None = None
+    technicals_rating: str | None = None  # Strong sell, Sell, Neutral, Buy, Strong buy
+    analyst_rating: str | None = None     # Strong sell, Sell, Neutral, Buy, Strong buy
     # Financials (4 quadrants)
-    financials_performance: Optional[dict] = None
-    financials_revenue_to_profit: Optional[dict] = None
-    financials_debt_coverage: Optional[dict] = None
-    financials_earnings: Optional[dict] = None
+    financials_performance: dict | None = None
+    financials_revenue_to_profit: dict | None = None
+    financials_debt_coverage: dict | None = None
+    financials_earnings: dict | None = None
     # Market movers categories
     source: str = ""
     fetched_at: str = ""
@@ -161,7 +161,7 @@ class WebResearcher:
     def _cache_path(self, name: str) -> Path:
         return self.cache_dir / f"{name}_{date.today().isoformat()}.json"
 
-    def _load_cache(self, name: str, max_age_hours: int = 6) -> Optional[list]:
+    def _load_cache(self, name: str, max_age_hours: int = 6) -> list | None:
         path = self._cache_path(name)
         if not path.exists():
             return None
@@ -219,7 +219,7 @@ class WebResearcher:
             except Exception as exc:
                 logger.debug("Popup dismissal failed: %s", type(exc).__name__)
 
-    def _parse_number(self, text: str) -> Optional[float]:
+    def _parse_number(self, text: str) -> float | None:
         """Parse number from text like '$321.93M', '-$0.05', '+4.35%'."""
         if not text:
             return None
@@ -564,7 +564,7 @@ class WebResearcher:
             finally:
                 await page.close()
 
-    async def _extract_financials_quadrant(self, page, quadrant_name: str) -> Optional[dict]:
+    async def _extract_financials_quadrant(self, page, quadrant_name: str) -> dict | None:
         """Extract data from one financial quadrant."""
         try:
             # Find quadrant by heading
@@ -767,7 +767,7 @@ class WebResearcher:
     def _generate_script_from_trace(self, trace_path: str, output_path: str) -> str:
         now = datetime.now().isoformat()
         script = '"""' + '\n'
-        script += f'Auto-generated Playwright script from recorded session.\n'
+        script += 'Auto-generated Playwright script from recorded session.\n'
         script += f'Trace: {trace_path}\n'
         script += f'Generated: {now}\n'
         script += '"""' + '\n\n'

@@ -9,6 +9,7 @@ from typing import Any
 
 from investment_engine import liveness as _lv
 from investment_engine.config.settings import EngineSettings
+from investment_engine.portfolio import t212_view
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ def fetch_broker_phase(
     )
     t212_data = fetch_t212_data(settings_dict)
 
-    if t212_data and t212_data.get("status") == "ok":
+    if t212_data and t212_view.status(t212_data) == "ok":
         try:
             from trading212.auth import dump_raw_t212_diagnostics
             from trading212.integration import create_integration
@@ -76,11 +77,11 @@ def fetch_broker_phase(
         except Exception as exc:
             logger.debug("Raw endpoint diagnostic skipped: %s", exc)
 
-    if t212_data and t212_data.get("status") == "ok":
-        summary = t212_data.get("account_summary", {}) or {}
+    if t212_data and t212_view.status(t212_data) == "ok":
+        summary = t212_view.account_summary(t212_data)
         auth_positions = (
             summary.get("all_positions")
-            or t212_data.get("all_positions")
+            or t212_view.authoritative_positions(t212_data)
             or summary.get("positions", [])
         )
         for pos in auth_positions:
@@ -114,20 +115,20 @@ def fetch_broker_phase(
     try:
         from investment_engine.portfolio.broker_first import (
             build_account_snapshot as _build_snap,
+        )
+        from investment_engine.portfolio.broker_first import (
             get_cached_catalog as _get_cat,
+        )
+        from investment_engine.portfolio.broker_first import (
             reconcile_snapshot as _reconcile_snap,
         )
         from trading212.portfolio import get_live_fx_rates as _live_fx
 
-        summary = (
-            t212_data.get("account_summary", {}) or {}
-            if isinstance(t212_data, dict)
-            else {}
-        )
+        summary = t212_view.account_summary(t212_data)
         positions = (
             summary.get("raw_positions")
             or summary.get("all_positions")
-            or (t212_data.get("all_positions", []) if isinstance(t212_data, dict) else [])
+            or t212_view.authoritative_positions(t212_data)
         )
         snapshot = _build_snap(
             {
@@ -150,7 +151,7 @@ def fetch_broker_phase(
         logger.debug("Snapshot build skipped: %s", exc)
 
     reconciliation_ok = True
-    if t212_data and t212_data.get("status") == "ok":
+    if t212_data and t212_view.status(t212_data) == "ok":
         logger.info(
             "T212 canonical: equity=EUR %.2f | reported_cash=EUR %.2f | expected=EUR %.2f | "
             "dedup=EUR %.2f | excluded=EUR %.2f | delta=EUR %+.2f (threshold EUR %.2f) -> %s",
@@ -180,7 +181,7 @@ def fetch_broker_phase(
         run_id,
         "broker",
         {
-            "t212_status": (t212_data.get("status") if isinstance(t212_data, dict) else "failed"),
+            "t212_status": t212_view.status(t212_data),
             "recon_status": recon.get("status", "UNKNOWN"),
             "total_equity": recon.get("total_equity", 0),
             "reported_cash": recon.get("reported_cash", 0),

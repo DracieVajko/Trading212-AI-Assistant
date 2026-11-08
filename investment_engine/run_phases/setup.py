@@ -16,6 +16,8 @@ from investment_engine.run_state import STAGE_ATTRIBUTION as _STAGE_ATTRIBUTION
 
 logger = logging.getLogger(__name__)
 
+ROOT = Path(__file__).resolve().parents[2]
+
 
 @dataclass
 class RunSetup:
@@ -58,7 +60,7 @@ def prepare_run(
     settings = settings or EngineSettings.from_defaults()
     context = dict(portfolio_context or {})
     run_id = str(context.get("run_id") or uuid.uuid4().hex[:8])
-    reports_dir = "reports"
+    reports_dir = ROOT / "reports"
     reset_run_budget()  # monotonic budget
     _lv.reset_degraded()
     try:

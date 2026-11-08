@@ -76,9 +76,13 @@ def build_decision_sections(inputs: DecisionInputs) -> DecisionSections:
         for pos in positions:
             symbol = pos["ticker"]
             try:
-                from investment_engine.portfolio.symbols import to_display_symbol
-                from investment_engine.portfolio.symbols import to_yahoo_symbol
-                from investment_engine.research.market_data import fetch_technical_indicators
+                from investment_engine.portfolio.symbols import (
+                    to_display_symbol,
+                    to_yahoo_symbol,
+                )
+                from investment_engine.research.market_data import (
+                    fetch_technical_indicators,
+                )
 
                 display = to_display_symbol(symbol)
                 yahoo = to_yahoo_symbol(symbol, display, None)

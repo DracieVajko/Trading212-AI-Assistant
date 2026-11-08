@@ -125,11 +125,11 @@ def should_use_finviz(yahoo_symbol: str | None) -> bool:
 
 # Try to import finvizfinance
 try:
+    from finvizfinance.group.overview import Overview as FinvizGroupOverview
+    from finvizfinance.insider import Insider as FinvizInsider
+    from finvizfinance.news import News as FinvizNews
     from finvizfinance.quote import finvizfinance
     from finvizfinance.screener.overview import Overview as FinvizOverview
-    from finvizfinance.group.overview import Overview as FinvizGroupOverview
-    from finvizfinance.news import News as FinvizNews
-    from finvizfinance.insider import Insider as FinvizInsider
     HAS_FINVIZ = True
 except ImportError:
     HAS_FINVIZ = False
@@ -178,9 +178,7 @@ class TechnicalAnalyzer:
             return False
         if (df["high"] < df["low"]).any():
             return False
-        if (df["close"] <= 0).any():
-            return False
-        return True
+        return not (df["close"] <= 0).any()
 
     def analyze(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -641,3 +639,183 @@ def compute_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
         df["BB_SQUEEZE"] = df["BB_BANDWIDTH"] < bb_width_ma * 0.8
 
     return df
+
+
+# ---------------------------------------------------------------------------
+# Relative strength vs benchmark (discovery engine helper)
+# ---------------------------------------------------------------------------
+
+def relative_strength(ticker_df: pd.DataFrame, benchmark_df: pd.DataFrame) -> dict[str, float]:
+    """Compute relative strength vs a benchmark over multiple horizons.
+
+    Returns dict with keys:
+      rs_20d, rs_60d, rs_120d - relative strength over 20/60/120 days
+      rs_trend - "IMPROVING"/"DECLINING"/"FLAT" based on recent RS slope
+    All values are None if insufficient data.
+    """
+    result: dict[str, float | str] = {
+        "rs_20d": None,
+        "rs_60d": None,
+        "rs_120d": None,
+        "rs_trend": None,
+    }
+
+    if ticker_df is None or benchmark_df is None:
+        return result
+    if len(ticker_df) < 2 or len(benchmark_df) < 2:
+        return result
+
+    t_close = ticker_df["close"].dropna()
+    b_close = benchmark_df["close"].dropna()
+    if len(t_close) < 2 or len(b_close) < 2:
+        return result
+
+    def _ret(series: pd.Series, n: int) -> float | None:
+        if len(series) < n + 1:
+            return None
+        start = series.iloc[-(n + 1)]
+        end = series.iloc[-1]
+        if start == 0 or pd.isna(start) or pd.isna(end):
+            return None
+        return (end / start - 1.0) * 100.0
+
+    result["rs_20d"] = _ret(t_close, 20) - _ret(b_close, 20)
+    result["rs_60d"] = _ret(t_close, 60) - _ret(b_close, 60)
+    result["rs_120d"] = _ret(t_close, 120) - _ret(b_close, 120)
+
+    # Trend of RS: compare last 20d RS vs previous 20d RS
+    if len(t_close) >= 41 and len(b_close) >= 41:
+        rs_now = _ret(t_close.iloc[-21:], 20) - _ret(b_close.iloc[-21:], 20)
+        rs_prev = _ret(t_close.iloc[-41:-20], 20) - _ret(b_close.iloc[-41:-20], 20)
+        if rs_now is not None and rs_prev is not None:
+            result["rs_trend"] = "IMPROVING" if rs_now > rs_prev + 0.5 else (
+                "DECLINING" if rs_now < rs_prev - 0.5 else "FLAT"
+            )
+
+    return result
+
+
+def pullback_in_uptrend(df: pd.DataFrame) -> dict[str, Any]:
+    """Detect pullback in uptrend.
+
+    Returns dict with:
+      status: "PULLBACK_CANDIDATE" / "NO_PULLBACK" / "INSUFFICIENT_DATA"
+      pullback_depth_pct: drawdown from recent high (%)
+      near_ma20: bool - price near MA20
+      near_ma50: bool - price near MA50
+    """
+    result: dict[str, Any] = {
+        "status": "INSUFFICIENT_DATA",
+        "pullback_depth_pct": None,
+        "near_ma20": False,
+        "near_ma50": False,
+    }
+
+    if df is None or len(df) < 50:
+        return result
+
+    close = df["close"].dropna()
+    if len(close) < 50:
+        return result
+
+    # Recent high over last 60 days (excluding current bar)
+    recent_high = close.iloc[-61:-1].max() if len(close) > 60 else close.iloc[:-1].max()
+    current = close.iloc[-1]
+
+    if pd.isna(recent_high) or recent_high <= 0:
+        return result
+
+    depth_pct = (recent_high - current) / recent_high * 100.0
+
+    # Near MA20 / MA50?
+    near_ma20 = False
+    near_ma50 = False
+    if "SMA_20" in df.columns:
+        sma20 = df["SMA_20"].iloc[-1]
+        if pd.notna(sma20) and sma20 > 0:
+            near_ma20 = abs(current - sma20) / sma20 < 0.03  # within 3%
+    if "SMA_50" in df.columns:
+        sma50 = df["SMA_50"].iloc[-1]
+        if pd.notna(sma50) and sma50 > 0:
+            near_ma50 = abs(current - sma50) / sma50 < 0.03  # within 3%
+
+    # Pullback = price declined >3% from recent high but not >15% (deep)
+    if depth_pct >= 3.0 and depth_pct <= 15.0:
+        result["status"] = "PULLBACK_CANDIDATE"
+    elif depth_pct < 3.0:
+        result["status"] = "NO_PULLBACK"
+    else:
+        result["status"] = "DEEP_PULLBACK"
+
+    result["pullback_depth_pct"] = round(depth_pct, 2)
+    result["near_ma20"] = near_ma20
+    result["near_ma50"] = near_ma50
+
+    return result
+
+
+def breakout_from_downtrend(df: pd.DataFrame) -> dict[str, Any]:
+    """Detect breakout from downtrend.
+
+    Returns dict with:
+      status: "BREAKOUT_CANDIDATE" / "NO_BREAKOUT" / "INSUFFICIENT_DATA"
+      breakout_strength: volume_ratio if volume available else None
+      above_ma20: bool - close above MA20
+      above_ma50: bool - close above MA50
+    """
+    result: dict[str, Any] = {
+        "status": "INSUFFICIENT_DATA",
+        "breakout_strength": None,
+        "above_ma20": False,
+        "above_ma50": False,
+    }
+
+    if df is None or len(df) < 50:
+        return result
+
+    close = df["close"].dropna()
+    if len(close) < 50:
+        return result
+
+    current = close.iloc[-1]
+    close.iloc[-2]
+
+    # Downtrend definition: price below MA50 and MA20 < MA50
+    sma20 = df["SMA_20"].iloc[-1] if "SMA_20" in df.columns else None
+    sma50 = df["SMA_50"].iloc[-1] if "SMA_50" in df.columns else None
+
+    in_downtrend = (
+        (sma20 is not None and pd.notna(sma20) and current < sma20)
+        or (sma50 is not None and pd.notna(sma50) and current < sma50)
+    ) and (
+        (sma20 is not None and pd.notna(sma20) and sma20 < sma50)
+        if sma20 is not None and pd.notna(sma20) and sma50 is not None and pd.notna(sma50)
+        else False
+    )
+
+    if not in_downtrend:
+        result["status"] = "NO_BREAKOUT"
+        return result
+
+    # Breakout: close above MA20 after being below
+    above_ma20 = sma20 is not None and pd.notna(sma20) and current > sma20
+    above_ma50 = sma50 is not None and pd.notna(sma50) and current > sma50
+
+    if not above_ma20:
+        result["status"] = "NO_BREAKOUT"
+        return result
+
+    # Volume confirmation (if available)
+    volume_ratio = None
+    if "volume" in df.columns and "volume" in df.columns:
+        vol_ma = df["volume"].rolling(20).mean().iloc[-1]
+        cur_vol = df["volume"].iloc[-1]
+        if pd.notna(vol_ma) and vol_ma > 0 and pd.notna(cur_vol):
+            volume_ratio = cur_vol / vol_ma
+
+    result["status"] = "BREAKOUT_CANDIDATE"
+    result["breakout_strength"] = round(volume_ratio, 2) if volume_ratio else None
+    result["above_ma20"] = above_ma20
+    result["above_ma50"] = above_ma50
+
+    return result

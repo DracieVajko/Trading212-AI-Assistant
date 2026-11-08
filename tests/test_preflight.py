@@ -12,7 +12,6 @@ def _live_settings(**kw):
     base = dict(
         lmstudio_enabled=True,
         lm_studio_base_url="http://127.0.0.1:9/v1",
-        llamacpp_base_url="http://127.0.0.1:9/v1",
         ollama_base_url="http://127.0.0.1:9",
         load_guard_enabled=False,
     )
@@ -31,7 +30,6 @@ def test_preflight_skips_all_dead_locals(monkeypatch):
         monkeypatch.setattr(requests, "get", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no route")))
         m._note_unreachable_local_providers(_live_settings())
         assert fb.is_skipped("LM Studio")
-        assert fb.is_skipped("llama.cpp")
         assert fb.is_skipped("Ollama")
     finally:
         fb.reset_circuit_breaker()
@@ -51,7 +49,6 @@ def test_preflight_keeps_reachable_locals(monkeypatch):
         monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp())
         m._note_unreachable_local_providers(_live_settings())
         assert not fb.is_skipped("LM Studio")
-        assert not fb.is_skipped("llama.cpp")
         assert not fb.is_skipped("Ollama")
     finally:
         fb.reset_circuit_breaker()

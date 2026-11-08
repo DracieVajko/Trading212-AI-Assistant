@@ -9,10 +9,10 @@ Hardened: per-pie allocation provenance prevents estimated splits from becoming 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from investment_engine.portfolio.pie_metadata import PieUniverse
-from investment_engine.portfolio.sidecar import PieSidecarRegistry, PieSidecarConfig
+from investment_engine.portfolio.sidecar import PieSidecarConfig, PieSidecarRegistry
 
 
 @dataclass
@@ -20,9 +20,9 @@ class PieExposure:
     pie_id: str
     quantity: float
     value_eur: float
-    weight_in_pie: Optional[float]  # None if unknown, never invented
+    weight_in_pie: float | None  # None if unknown, never invented
     source: str  # api_pie_quantity_split or csv_universe
-    display_name: Optional[str] = None
+    display_name: str | None = None
     # Provenance – prevents estimated allocations from becoming fake facts
     allocation_source: str = "unknown"  # api_exact | api_aggregate_single_pie | api_aggregate_estimated_split | csv_target_weight_estimate | unknown
     allocation_confidence: str = "low"  # high | medium | low
@@ -32,7 +32,7 @@ class PieExposure:
     match_method: str = "unmatched"  # instrument_id | exact_normalized_symbol | safe_base_symbol | unmatched
     match_confidence: str = "low"  # high | medium | low
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "pie_id": self.pie_id,
             "display_name": self.display_name or self.pie_id,
@@ -56,7 +56,7 @@ class StandaloneExposure:
     value_eur: float
     source: str  # api_standalone or none
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "quantity": round(self.quantity, 8),
             "value_eur": round(self.value_eur, 2),
@@ -71,7 +71,7 @@ class ExecutionCapabilities:
     can_buy_standalone: bool
     can_sell_standalone: bool
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "can_add_via_pie": self.can_add_via_pie,
             "can_reduce_via_pie": self.can_reduce_via_pie,
@@ -83,7 +83,7 @@ class ExecutionCapabilities:
 @dataclass
 class CanonicalExposure:
     symbol: str
-    pie_exposures: List[PieExposure] = field(default_factory=list)
+    pie_exposures: list[PieExposure] = field(default_factory=list)
     standalone_exposure: StandaloneExposure = field(default_factory=lambda: StandaloneExposure(0.0, 0.0, "none"))
     total_quantity: float = 0.0
     total_value_eur: float = 0.0
@@ -92,15 +92,15 @@ class CanonicalExposure:
     execution_capabilities: ExecutionCapabilities = field(default_factory=lambda: ExecutionCapabilities(False, False, False, False))
     default_action_scope: str = "mixed"  # pie | standalone | mixed
     concentration_status: str = "OK"  # OK | WARNING | UNKNOWN
-    concentration_cap_pct: Optional[float] = None
+    concentration_cap_pct: float | None = None
     data_validation_status: str = "PASS"
     data_validation_reason: str = ""
-    pies_involved: List[str] = field(default_factory=list)
-    horizon: Optional[str] = None
-    notes: List[str] = field(default_factory=list)
+    pies_involved: list[str] = field(default_factory=list)
+    horizon: str | None = None
+    notes: list[str] = field(default_factory=list)
     per_pie_breakdown_reliability: str = "unavailable"  # exact|inferred|estimated|unavailable for whole symbol
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "symbol": self.symbol,
             "pie_exposures": [p.to_dict() for p in self.pie_exposures],
@@ -122,7 +122,7 @@ class CanonicalExposure:
         }
 
 
-def _resolve_price_eur(api_position: Optional[Dict[str, Any]]) -> float:
+def _resolve_price_eur(api_position: dict[str, Any] | None) -> float:
     """Get current price in EUR from API position, 0 if not held."""
     if not api_position:
         return 0.0
@@ -133,7 +133,7 @@ def _get_sidecar_for_pie(pie_id: str, registry: PieSidecarRegistry) -> PieSideca
     return registry.get_for_pie(pie_id)
 
 
-def _has_per_pie_exact_data(api_pos: Dict[str, Any], pie_id: str) -> bool:
+def _has_per_pie_exact_data(api_pos: dict[str, Any], pie_id: str) -> bool:
     """Check if raw T212 data provides per-pie quantity/value (api_exact)."""
     # Future-proof: check for explicit per-pie breakdown dict
     # e.g., api_pos["pie_allocations"] = {pie_id: {"quantity":..., "value_eur":...}}
@@ -152,7 +152,7 @@ def _has_per_pie_exact_data(api_pos: Dict[str, Any], pie_id: str) -> bool:
     return False
 
 
-def _get_per_pie_exact_values(api_pos: Dict[str, Any], pie_id: str) -> tuple[Optional[float], Optional[float]]:
+def _get_per_pie_exact_values(api_pos: dict[str, Any], pie_id: str) -> tuple[float | None, float | None]:
     for key in ("pie_allocations", "per_pie_allocations", "pie_details", "per_pie_quantity"):
         val = api_pos.get(key)
         if isinstance(val, dict) and pie_id in val:
@@ -167,16 +167,16 @@ def _get_per_pie_exact_values(api_pos: Dict[str, Any], pie_id: str) -> tuple[Opt
 
 
 def build_canonical_exposures(
-    api_positions: List[Dict[str, Any]],
+    api_positions: list[dict[str, Any]],
     pie_universe: PieUniverse,
     sidecar_registry: PieSidecarRegistry,
     total_equity_eur: float,
-) -> List[CanonicalExposure]:
+) -> list[CanonicalExposure]:
     """
     Build canonical exposures for every instrument.
     Preserves exact total exposure; per-pie allocation is marked with provenance.
     """
-    api_by_symbol: Dict[str, Dict[str, Any]] = {}
+    api_by_symbol: dict[str, dict[str, Any]] = {}
     for pos in api_positions:
         sym = str(pos.get("symbol") or pos.get("ticker") or "").strip().upper()
         if not sym or sym == "UNKNOWN":
@@ -184,11 +184,11 @@ def build_canonical_exposures(
         if sym not in api_by_symbol:
             api_by_symbol[sym] = pos
 
-    pie_tickers = set(t.upper() for t in pie_universe.all_tickers)
+    pie_tickers = {t.upper() for t in pie_universe.all_tickers}
     api_tickers = set(api_by_symbol.keys())
     all_symbols = sorted(pie_tickers.union(api_tickers))
 
-    exposures: List[CanonicalExposure] = []
+    exposures: list[CanonicalExposure] = []
 
     for symbol in all_symbols:
         api_pos = api_by_symbol.get(symbol)
@@ -218,7 +218,7 @@ def build_canonical_exposures(
         # the above should have matched; if still empty but symbol originated from pie_tickers, ensure we include pies containing that raw ticker
         # This handles case where api_tickers set contains "AAPL_US_EQ" but pie_tickers contains "AAPL" – the matching above will find it, so fine.
 
-        pie_exposures: List[PieExposure] = []
+        pie_exposures: list[PieExposure] = []
         pies_involved = [p.pie_id for p in pies_for_symbol]
 
         # Determine allocation provenance for this symbol
@@ -346,9 +346,7 @@ def build_canonical_exposures(
             can_buy_standalone = bool(allows_add)
             can_sell_standalone = bool(allows_sell and standalone_quantity > 1e-9)
             scopes = [_get_sidecar_for_pie(p.pie_id, sidecar_registry).default_action_scope for p in pies_for_symbol]
-            if "mixed" in scopes:
-                default_scope = "mixed"
-            elif "standalone" in scopes and "pie" in scopes:
+            if "mixed" in scopes or "standalone" in scopes and "pie" in scopes:
                 default_scope = "mixed"
             elif "standalone" in scopes:
                 default_scope = "standalone"
@@ -432,10 +430,10 @@ def _base_match(csv_ticker: str, api_symbol: str) -> bool:
 
 
 def generate_exposure_view(
-    canonical_exposures: List[CanonicalExposure],
+    canonical_exposures: list[CanonicalExposure],
     total_equity_eur: float,
     group_by_pie: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Exposure view: aggregated pie+standalone by ticker with concentration warnings."""
     rows = []
     for exp in canonical_exposures:
@@ -472,7 +470,7 @@ def generate_exposure_view(
             }
         )
 
-    grouping: Dict[str, List[Dict[str, Any]]] = {}
+    grouping: dict[str, list[dict[str, Any]]] = {}
     if group_by_pie:
         for row in rows:
             key = ",".join(row["pies"]) if row["pies"] else "STANDALONE_ONLY"
@@ -515,8 +513,8 @@ def _map_standalone_action(exp: CanonicalExposure) -> str:
 
 
 def generate_actionability_view(
-    canonical_exposures: List[CanonicalExposure],
-) -> Dict[str, Any]:
+    canonical_exposures: list[CanonicalExposure],
+) -> dict[str, Any]:
     """Actionability view: what is operationally possible.
 
     Never labels a pie constituent simply SELL.
@@ -585,7 +583,7 @@ def evaluate_opportunistic_standalone_add(
     total_equity_eur: float,
     reconciliation_status: str,
     signal_validated: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Evaluate an opportunistic standalone add proposal.
 
     Requirements (all must be true):

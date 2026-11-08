@@ -6,6 +6,9 @@ Extracted from investment_engine/run_phases/enrichment.py to keep modules focuse
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -17,14 +20,16 @@ from investment_engine.portfolio.symbols import (
     to_yahoo_symbol,
 )
 from investment_engine.providers.generation import generate_with_fallback
-from investment_engine.research.corpus import source_status as _srcstat
-from investment_engine.research.corpus.builder import (
-    build_corpus_files as _build_corpus,
-    render_rejected_markdown as _render_rej,
-)
 from investment_engine.reporting.sections import (
     enforce_canonical_in_pie_section,
     headlines_block,
+)
+from investment_engine.research.corpus import source_status as _srcstat
+from investment_engine.research.corpus.builder import (
+    build_corpus_files as _build_corpus,
+)
+from investment_engine.research.corpus.builder import (
+    render_rejected_markdown as _render_rej,
 )
 from investment_engine.research.earnings_fetch import (
     fetch_earnings_for_symbols,
@@ -157,6 +162,7 @@ def enrich_pies(inputs: PieEnrichmentInputs) -> PieEnrichmentResult:
             "count": len(enriched),
             "matched_count": len(matched),
             "value_eur": total_v,
+            "holdings": enriched,
             "sample": sample,
         })
 
@@ -334,8 +340,7 @@ def enrich_pies(inputs: PieEnrichmentInputs) -> PieEnrichmentResult:
                      for k in ("total", "decision", "background", "undated",
                                "rejected")})
         try:
-            from pathlib import Path as _Path
-            _debug_dir = _Path("reports") / "debug" / _corpus_run_id
+            _debug_dir = ROOT / "reports" / "debug" / _corpus_run_id
             _debug_dir.mkdir(parents=True, exist_ok=True)
             _rej_path = _debug_dir / "undated_or_rejected_research.md"
             _rej_path.write_text(

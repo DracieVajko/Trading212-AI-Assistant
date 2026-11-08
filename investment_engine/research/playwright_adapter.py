@@ -11,10 +11,10 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Callable, Optional, Dict, List
 from functools import wraps
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def _is_cache_valid(cache_path: Path, ttl_hours: float = DEFAULT_CACHE_TTL_HOURS
         return False
 
 
-def _load_cache(symbol: str) -> Optional[Dict]:
+def _load_cache(symbol: str) -> dict | None:
     """Load cached data if valid."""
     cache_path = _cache_path(symbol)
     if _is_cache_valid(cache_path):
@@ -62,7 +62,7 @@ def _load_cache(symbol: str) -> Optional[Dict]:
     return None
 
 
-def _save_cache(symbol: str, data: Dict) -> None:
+def _save_cache(symbol: str, data: dict) -> None:
     """Save data to cache."""
     cache_path = _cache_path(symbol)
     try:
@@ -120,16 +120,16 @@ class PlaywrightMapper:
     def __init__(self, output_dir: Path = Path("reports/playwright_maps")):
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.recorded_steps: List[Dict] = []
+        self.recorded_steps: list[dict] = []
         
     def record_step(
         self,
         action: str,
         selector: str,
         url: str,
-        value: Optional[str] = None,
-        wait_for: Optional[str] = None,
-        metadata: Optional[Dict] = None,
+        value: str | None = None,
+        wait_for: str | None = None,
+        metadata: dict | None = None,
     ) -> None:
         """Record a step in the interaction sequence."""
         step = {
@@ -159,7 +159,7 @@ class PlaywrightMapper:
         return output_path
     
     @classmethod
-    def load_map(cls, path: Path) -> Dict:
+    def load_map(cls, path: Path) -> dict:
         """Load a previously saved selector map."""
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -171,7 +171,7 @@ def fetch_with_playwright(
     use_cache: bool = True,
     cache_ttl_hours: float = DEFAULT_CACHE_TTL_HOURS,
     max_retries: int = MAX_RETRIES,
-) -> Optional[Dict]:
+) -> dict | None:
     """High-level wrapper for Playwright scraping with cache and retry.
     
     Args:
@@ -194,6 +194,7 @@ def fetch_with_playwright(
     @retry_with_backoff(max_retries=max_retries)
     def _scrape():
         from playwright.sync_api import sync_playwright
+
         from investment_engine.config.settings import EngineSettings
         
         settings = EngineSettings.from_defaults()
@@ -304,7 +305,7 @@ def main():
             page.on("click", on_click)
             
             await page.goto(args.url, wait_until="domcontentloaded")
-            print(f"Recording started. Interact with the page, then press Ctrl+C to save.")
+            print("Recording started. Interact with the page, then press Ctrl+C to save.")
             try:
                 await asyncio.Event().wait()  # Wait forever
             except KeyboardInterrupt:

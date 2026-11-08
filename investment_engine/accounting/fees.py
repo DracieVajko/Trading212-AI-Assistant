@@ -9,9 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List
 
-from investment_engine.accounting.models import LedgerEvent, EventType
+from investment_engine.accounting.models import EventType, LedgerEvent
 
 
 class FeeCategory(str, Enum):
@@ -38,12 +37,12 @@ EVENT_TYPE_TO_FEE_CATEGORY = {
 @dataclass
 class FeeBreakdown:
     """Breakdown of fees by category in EUR."""
-    trading_commission_eur: Decimal = Decimal("0")
-    fx_conversion_eur: Decimal = Decimal("0")
-    stamp_duty_eur: Decimal = Decimal("0")
-    financial_transaction_tax_eur: Decimal = Decimal("0")
-    dividend_withholding_tax_eur: Decimal = Decimal("0")
-    other_eur: Decimal = Decimal("0")
+    trading_commission_eur: Decimal = Decimal(0)
+    fx_conversion_eur: Decimal = Decimal(0)
+    stamp_duty_eur: Decimal = Decimal(0)
+    financial_transaction_tax_eur: Decimal = Decimal(0)
+    dividend_withholding_tax_eur: Decimal = Decimal(0)
+    other_eur: Decimal = Decimal(0)
 
     def total(self) -> Decimal:
         return (
@@ -55,7 +54,7 @@ class FeeBreakdown:
             + self.other_eur
         )
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         return {
             "trading_commission_eur": str(self.trading_commission_eur),
             "fx_conversion_eur": str(self.fx_conversion_eur),
@@ -111,7 +110,7 @@ def categorize_fee_raw(event_type: EventType) -> FeeCategory:
     return EVENT_TYPE_TO_FEE_CATEGORY.get(event_type, FeeCategory.OTHER)
 
 
-def aggregate_fees(events: List[LedgerEvent]) -> FeeBreakdown:
+def aggregate_fees(events: list[LedgerEvent]) -> FeeBreakdown:
     """Aggregate all fee events into a FeeBreakdown in EUR."""
     breakdown = FeeBreakdown()
     for event in events:

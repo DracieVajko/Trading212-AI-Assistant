@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import json
 import time
-from defusedxml import ElementTree as ET
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from defusedxml import ElementTree as ET
 
 SEC_UA = "CHANGE-ME Your Name your@email.example"   # SEC requires a declared User-Agent
 SEC_SLEEP = 0.25                                    # SEC fair access: max 10 req/s

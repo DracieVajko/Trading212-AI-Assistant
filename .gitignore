@@ -139,3 +139,6 @@ OUTPUTExample/
 
 # User-specific rule overrides (example file is tracked)
 custom_rules.json
+
+# Permanent trading memory (personal; never deleted by cleanup, not committed)
+history/

@@ -10,7 +10,9 @@ from __future__ import annotations
 import logging
 import time
 
-from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai_attempt
+from investment_engine.providers.telemetry import (
+    track_local_ai_attempt as _track_local_ai_attempt,
+)
 from investment_engine.run_state import FALLBACK_EVENTS as _FALLBACK_EVENTS
 from investment_engine.run_state import STAGE_ATTRIBUTION as _STAGE_ATTRIBUTION
 
@@ -86,13 +88,13 @@ def _note_unreachable_local_providers(settings) -> None:
     except Exception:
         _public = bool(getattr(settings, "api_only", False))
     if _public:
-        _record_fallback("provider-chain", "API-only mode: LM Studio, llama.cpp, Ollama disabled, never probed")
+        _record_fallback("provider-chain", "API-only mode: LM Studio, Ollama disabled, never probed")
         _track_local_ai_attempt(blocked=True)
         return
     lm_enabled = bool(getattr(settings, "lmstudio_enabled", True))
     try:
-        from investment_engine.providers.fallback import skip_for_run as _skip
         from investment_engine.providers.fallback import PREFLIGHT_COOLDOWN_S as _CD
+        from investment_engine.providers.fallback import skip_for_run as _skip
     except Exception:
         _skip, _CD = None, 300.0
     try:
@@ -103,12 +105,10 @@ def _note_unreachable_local_providers(settings) -> None:
         _guard_cooldown = 120
     base_url_by_label = {
         "LM Studio": str(getattr(settings, "lm_studio_base_url", "") or ""),
-        "llama.cpp": str(getattr(settings, "llamacpp_base_url", "") or ""),
         "Ollama": str(getattr(settings, "ollama_base_url", "") or ""),
     }
     for label, url in (
         ("LM Studio", f"{str(getattr(settings, 'lm_studio_base_url', '')).rstrip('/')}/models"),
-        ("llama.cpp", f"{str(getattr(settings, 'llamacpp_base_url', '')).rstrip('/')}/models"),
         ("Ollama", f"{str(getattr(settings, 'ollama_base_url', '')).rstrip('/')}/api/tags"),
     ):
         if label == "LM Studio" and not lm_enabled:
@@ -183,7 +183,11 @@ def _model_for_stage(settings, stage: str) -> str:
     models except the direct LM Studio attempt below, which honors it.
     """
     try:
-        from investment_engine.providers.presets import FINANCE_STAGES, THINKING_STAGES, WRITER_STAGES
+        from investment_engine.providers.presets import (
+            FINANCE_STAGES,
+            THINKING_STAGES,
+            WRITER_STAGES,
+        )
     except Exception:
         FINANCE_STAGES, THINKING_STAGES, WRITER_STAGES = frozenset(), frozenset(), frozenset({"summary"})
     get = (lambda k, d=None: settings.get(k, d)) if isinstance(settings, dict) else (lambda k, d=None: getattr(settings, k, d))
@@ -220,17 +224,26 @@ def _revive_locals_if_due(provider, settings=None) -> None:
     link); never raises.
     """
     try:
+        import requests as _rq
+
         from investment_engine.providers.fallback import (
-            due_for_reprobe as _due,
-            revive as _revive,
-            skip_for_run as _skip,
             PREFLIGHT_COOLDOWN_S as _CD,
         )
-        from investment_engine.providers.fallback import ChainedFallbackProvider as _Chain
-        from investment_engine.providers.lmstudio import LMStudioProvider as _LM
+        from investment_engine.providers.fallback import (
+            ChainedFallbackProvider as _Chain,
+        )
+        from investment_engine.providers.fallback import (
+            due_for_reprobe as _due,
+        )
+        from investment_engine.providers.fallback import (
+            revive as _revive,
+        )
+        from investment_engine.providers.fallback import (
+            skip_for_run as _skip,
+        )
         from investment_engine.providers.llamacpp import LlamaCppProvider as _LC
+        from investment_engine.providers.lmstudio import LMStudioProvider as _LM
         from investment_engine.providers.ollama import OllamaProvider as _OL
-        import requests as _rq
     except Exception:
         return
     try:
@@ -260,7 +273,9 @@ def _revive_locals_if_due(provider, settings=None) -> None:
                         name, base, settings)
                     if _revive_probe.busy:
                         # Host still busy / model cold: skip revival, apply cooldown.
-                        from investment_engine.providers.fallback import skip_for_run as _skip_revive
+                        from investment_engine.providers.fallback import (
+                            skip_for_run as _skip_revive,
+                        )
                         _skip_revive(name, _revive_probe.reason, 120)
                         logger.info("Preflight: %s is back (HTTP 200) but host busy (%s) — kept skipped ~120s", name, _revive_probe.reason)
                         continue
@@ -291,7 +306,11 @@ def _try_lmstudio_stage(provider, prompt, *, settings, stage, tokens):
     try:
         if not bool(_cfg_get(settings, "lmstudio_enabled", False)):
             return None, None
-        from investment_engine.providers.presets import FINANCE_STAGES, THINKING_STAGES, WRITER_STAGES
+        from investment_engine.providers.presets import (
+            FINANCE_STAGES,
+            THINKING_STAGES,
+            WRITER_STAGES,
+        )
         if stage not in (FINANCE_STAGES | THINKING_STAGES | WRITER_STAGES):
             return None, None
         stage_model = _model_for_stage(settings, stage)
@@ -305,8 +324,8 @@ def _try_lmstudio_stage(provider, prompt, *, settings, stage, tokens):
                 return None, None
         except Exception:
             pass
-        from investment_engine.providers.lmstudio import LMStudioProvider
         from investment_engine.providers.fallback import ChainedFallbackProvider
+        from investment_engine.providers.lmstudio import LMStudioProvider
         link = None
         if isinstance(provider, LMStudioProvider):
             link = provider
@@ -374,6 +393,10 @@ def _generate_with_fallback(provider, prompt, settings, tokens=800, stage="decis
     except Exception:
         pass
     try:
+        logger.debug(
+            "LLM stage=%s prompt_chars=%d est_tokens~%d output_tokens=%d",
+            stage, len(prompt), len(prompt) // 4, tokens,
+        )
         result = provider.generate(prompt, stage=stage, context={"model": model, "max_output_tokens": tokens})
         duration = _time.time() - start
         if result and not result.startswith(f"[{stage}]") and "error" not in result.lower():

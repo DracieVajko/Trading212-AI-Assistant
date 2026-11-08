@@ -9,9 +9,15 @@ from typing import Any
 import pandas as pd
 import yfinance as yf
 
-from investment_engine.research.news_engine import StrictNewsFetcher, analyze_news_sentiment
-from investment_engine.research.technical_analysis import TechnicalAnalyzer, FinVizEnrichment
+from investment_engine.research.news_engine import (
+    StrictNewsFetcher,
+    analyze_news_sentiment,
+)
 from investment_engine.research.peak_valley import PeakValleyDetector, PriceStructure
+from investment_engine.research.technical_analysis import (
+    FinVizEnrichment,
+    TechnicalAnalyzer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -312,9 +318,7 @@ class EXI2RegimeAnalyzer:
             return False
         if (df["high"] < df["low"]).any():
             return False
-        if (df["close"] <= 0).any():
-            return False
-        return True
+        return not (df["close"] <= 0).any()
 
     def _classify_regime(
         self,
@@ -501,7 +505,7 @@ class EXI2RegimeAnalyzer:
     def _count_agreeing_timeframes(self, tf_analysis: dict, regime: str) -> int:
         """Count timeframes agreeing with regime."""
         count = 0
-        for tf_name, tf_data in tf_analysis.items():
+        for tf_data in tf_analysis.values():
             trend = tf_data.get("trend", "")
             momentum = tf_data.get("momentum", "")
 

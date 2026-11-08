@@ -7,8 +7,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 _VALID_HORIZONS = {"short_term", "long_term"}
 _VALID_EXECUTION_MODES = {"pie_only", "mixed"}
@@ -31,12 +30,12 @@ class PieSidecarConfig:
     rebalance_mode: str
     analysis_mode: str  # aggregate_pie_and_standalone
     default_action_scope: str  # pie | standalone | mixed
-    target_weights: Optional[Dict[str, float]] = None  # None = unknown, never invented
-    raw_path: Optional[str] = None
+    target_weights: dict[str, float] | None = None  # None = unknown, never invented
+    raw_path: str | None = None
     source: str = "sidecar"
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], raw_path: Optional[str] = None) -> "PieSidecarConfig":
+    def from_dict(cls, data: dict[str, Any], raw_path: str | None = None) -> PieSidecarConfig:
         # Required fields validation
         pie_id = str(data.get("pie_id") or data.get("pieId") or "").strip()
         if not pie_id:
@@ -68,7 +67,7 @@ class PieSidecarConfig:
 
         # target_weights: explicit None = unknown, never invented
         raw_tw = data.get("target_weights")
-        target_weights: Optional[Dict[str, float]] = None
+        target_weights: dict[str, float] | None = None
         if raw_tw is not None:
             if not isinstance(raw_tw, dict):
                 raise ValueError(f"target_weights must be dict or null for {pie_id}")
@@ -96,7 +95,7 @@ class PieSidecarConfig:
             source="sidecar",
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "pie_id": self.pie_id,
             "display_name": self.display_name,
@@ -119,9 +118,9 @@ class PieSidecarConfig:
 @dataclass
 class PieSidecarRegistry:
     """Registry of all sidecar configs keyed by pie_id."""
-    configs: Dict[str, PieSidecarConfig] = field(default_factory=dict)
+    configs: dict[str, PieSidecarConfig] = field(default_factory=dict)
 
-    def get(self, pie_id: str) -> Optional[PieSidecarConfig]:
+    def get(self, pie_id: str) -> PieSidecarConfig | None:
         return self.configs.get(pie_id) or self.configs.get(pie_id.lower()) or self.configs.get(pie_id.upper())
 
     def get_for_pie(self, pie_id: str) -> PieSidecarConfig:
@@ -148,7 +147,7 @@ class PieSidecarRegistry:
             source="default",
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {k: v.to_dict() for k, v in self.configs.items()}
 
 

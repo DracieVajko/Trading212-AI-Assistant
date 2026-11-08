@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+
 import requests
 
 from .base import BaseLLMProvider
@@ -47,6 +48,11 @@ class MistralProvider(BaseLLMProvider):
 
         try:
             resp = requests.post(f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=(10, 60))
+            if resp.status_code == 429:
+                # Rate limited: back off briefly and retry once.
+                import time as _t
+                _t.sleep(5)
+                resp = requests.post(f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=(10, 60))
             resp.raise_for_status()
             data = resp.json()
             choices = data.get("choices") or []

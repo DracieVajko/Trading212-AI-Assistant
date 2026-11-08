@@ -5,15 +5,17 @@ from datetime import date as _date
 from datetime import datetime, timezone
 from typing import Any
 
-from investment_engine.research.market_regime import RegimeResult
 from investment_engine.portfolio import t212_view
-from investment_engine.portfolio.broker_first import AccountSnapshot, ReconciliationResult
-from investment_engine.research.peak_valley import PriceStructure
+from investment_engine.portfolio.broker_first import (
+    AccountSnapshot,
+    ReconciliationResult,
+)
 from investment_engine.portfolio.symbols import (
     resolve_company_name,
     to_display_symbol,
 )
-
+from investment_engine.research.market_regime import RegimeResult
+from investment_engine.research.peak_valley import PriceStructure
 
 # ---------------------------------------------------------------------------
 # Signal normalization (single source of truth for portfolio vs actions)
@@ -449,19 +451,9 @@ def build_unified_portfolio_rows(
     if not isinstance(t212_data, dict):
         return []
     summary = t212_view.account_summary(t212_data)
-    # Authoritative source first; fallback only when unavailable.
-    raw_positions: list[dict] = []
-    source = "positions"
-    if isinstance(summary.get("all_positions"), list) and summary["all_positions"]:
-        raw_positions = summary["all_positions"]
-        source = "all_positions"
-    elif isinstance(t212_data.get("all_positions"), list) and t212_data["all_positions"]:
-        raw_positions = t212_data["all_positions"]
-        source = "all_positions"
-    else:
-        raw_positions = list(t212_data.get("positions", []) or [])
-        if not raw_positions and isinstance(summary.get("positions"), list):
-            raw_positions = summary["positions"]
+    # Authoritative source: single canonical function handles all precedence.
+    raw_positions: list[dict] = t212_view.authoritative_positions(t212_data)
+    source = "all_positions" if raw_positions else "none"
 
     # Deduplicate ISIN-first (same identity as broker_first.reconcile_snapshot):
     # (ISIN + lot) when known, else (broker ID). Same-ISIN rows merge only on
@@ -558,7 +550,9 @@ def build_unified_portfolio_rows(
             fx_rates = {}
     if _need_fx and not fx_rates:
         try:
-            from investment_engine.portfolio.broker_first import get_live_fx_rates as _live_fx
+            from investment_engine.portfolio.broker_first import (
+                get_live_fx_rates as _live_fx,
+            )
             fx_rates = (_live_fx().get("rates", {}) or {})
         except Exception:
             fx_rates = {}
@@ -620,7 +614,9 @@ def build_unified_portfolio_rows(
             support_eur, resistance_eur, sr_fx_status = None, None, ""
         else:
             try:
-                from investment_engine.portfolio.broker_first import anchor_levels_to_eur as _anchor
+                from investment_engine.portfolio.broker_first import (
+                    anchor_levels_to_eur as _anchor,
+                )
                 support_eur, resistance_eur, sr_fx_status = _anchor(
                     support, resistance, tech_ccy or "EUR", cur_price_eur, fx_rates)
             except Exception:
@@ -635,7 +631,9 @@ def build_unified_portfolio_rows(
             _tech_price = (tech or {}).get("price") if isinstance(tech, dict) else None
             if ((support is not None or resistance is not None)
                     and _tech_price is not None and cur_price_eur > 0):
-                from investment_engine.portfolio.broker_first import convert_to_eur as _c2e
+                from investment_engine.portfolio.broker_first import (
+                    convert_to_eur as _c2e,
+                )
                 _tp_eur, _tp_st = _c2e(_tech_price, tech_ccy or "EUR", fx_rates)
                 if _tp_eur:
                     _ratio = float(_tp_eur) / float(cur_price_eur)
@@ -1229,7 +1227,9 @@ def _normalize_earnings_rows(earnings: dict | None, names: dict | None = None) -
         base = _base_symbol(ticker)
         if st not in ("confirmed", "estimated"):
             try:
-                from investment_engine.research.market_data import classify_earnings_status as _cls
+                from investment_engine.research.market_data import (
+                    classify_earnings_status as _cls,
+                )
                 st = _cls(ticker, d)
             except Exception:
                 st = "estimated"
@@ -1290,8 +1290,8 @@ class AIContextBuilder:
     def __init__(self):
         pass
     
-    def build_context_file(self, result: RegimeResult, t212_data: dict = None, 
-                           news_items: list = None, earnings_data: dict = None) -> str:
+    def build_context_file(self, result: RegimeResult, t212_data: dict | None = None, 
+                           news_items: list | None = None, earnings_data: dict | None = None) -> str:
         """Build comprehensive context file for AI (not shown in main report)."""
         sections = [
             "# AI Context File - Detailed Market Data",
@@ -1353,7 +1353,7 @@ class AIContextBuilder:
                 sections.append("  ⚠️ Account performance unreconciled — derived return withheld.")
                 sections.append("  (FAIL = broker total differs from positions + cash; individual positions are OK.)")
             sections.append("  Legenda: SYMBOL: qty @ avg_cena = hodnota (P&L %) [validation: kontrola qty vs. hodnota]")
-            for pos in t212_data.get("positions", [])[:20]:
+            for pos in t212_view.authoritative_positions(t212_data)[:20]:
                 val_eur = pos.get('value_eur', pos.get('value', 0))
                 avg_price_eur = pos.get('average_price_eur', pos.get('avg_price', 0))
                 pnl_pct = pos.get('pnl_pct', 0)
@@ -1524,8 +1524,8 @@ class AIContextReportBuilder:
         now = datetime.now(timezone.utc).isoformat()
         account_ts = ""
         positions_ts = ""
-        if t212_data and isinstance(t212_data.get("account_summary"), dict):
-            summary = t212_data["account_summary"]
+        if t212_data and t212_view.account_summary(t212_data):
+            summary = t212_view.account_summary(t212_data)
             # account_summary carries "timestamp" (not "retrieved_at") —
             # without this fallback both fields rendered "unavailable".
             account_ts = summary.get("retrieved_at") or summary.get("timestamp") or ""
@@ -1740,7 +1740,7 @@ class AIContextReportBuilder:
     def _infer_quote_currency_and_venue(self, symbol: str) -> tuple[str, str]:
         """Infer quote currency and venue from Yahoo symbol."""
         sym = symbol.upper()
-        if sym.endswith(".DE") or sym.endswith(".F") or sym.endswith(".MU") or sym.endswith(".HM"):
+        if sym.endswith((".DE", ".F", ".MU", ".HM")):
             return "EUR", "XETRA"
         if sym.endswith(".L"):
             return "GBX", "LSE"
@@ -1926,8 +1926,8 @@ class AIContextReportBuilder:
         lines = ["# Snapshot consistency validation", ""]
 
         timestamps = []
-        if t212_data and isinstance(t212_data.get("account_summary"), dict):
-            summary = t212_data["account_summary"]
+        if t212_data and t212_view.account_summary(t212_data):
+            summary = t212_view.account_summary(t212_data)
             # account_summary carries "timestamp" (not "retrieved_at") — without
             # this fallback the section always degraded to "insufficient".
             ts = summary.get("retrieved_at") or summary.get("timestamp")
@@ -2001,15 +2001,17 @@ class AIContextReportBuilder:
         lines = [
             "# MODEL ATTRIBUTION & SOURCES",
             "",
-            "Which AI served each stage in THIS run (provider / served model / "
-            "local-vs-API / fallback depth). Deterministic rows are Python.",
+            ("Which AI served each stage in THIS run (provider / served model / "
+            "local-vs-API / fallback depth). Deterministic rows are Python."),
             "",
         ]
         stages = stage_attribution or {}
         if stages:
             lines.append("## Per-Stage Winners (this run)")
             try:
-                from investment_engine.providers.attribution import format_stage_line as _fmt
+                from investment_engine.providers.attribution import (
+                    format_stage_line as _fmt,
+                )
             except Exception:
                 _fmt = None
             for stage in sorted(stages):
@@ -2062,8 +2064,8 @@ class AIContextReportBuilder:
 
 def generate_regime_markdown(
     result: RegimeResult,
-    t212_data: dict = None,
-    ai_recs: dict = None,
+    t212_data: dict | None = None,
+    ai_recs: dict | None = None,
     earnings: dict | None = None,
     technicals: dict | None = None,
     names: dict | None = None,

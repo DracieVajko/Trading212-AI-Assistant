@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from investment_engine.accounting.performance import PerformanceResult
 
@@ -17,25 +17,25 @@ from investment_engine.accounting.performance import PerformanceResult
 class ReconciliationResult:
     """Result of comparing ledger with broker data."""
     # Deposit reconciliation
-    ledger_net_deposits_eur: Decimal = Decimal("0")
-    broker_net_deposits_eur: Optional[Decimal] = None
-    deposit_difference_eur: Optional[Decimal] = None
+    ledger_net_deposits_eur: Decimal = Decimal(0)
+    broker_net_deposits_eur: Decimal | None = None
+    deposit_difference_eur: Decimal | None = None
     deposit_reconciled: bool = False
     
     # Position reconciliation (diagnostic only)
-    ledger_open_lots_cost_basis_eur: Decimal = Decimal("0")
-    broker_positions_value_eur: Optional[Decimal] = None
-    position_difference_eur: Optional[Decimal] = None
+    ledger_open_lots_cost_basis_eur: Decimal = Decimal(0)
+    broker_positions_value_eur: Decimal | None = None
+    position_difference_eur: Decimal | None = None
     
     # Performance reconciliation (diagnostic only)
-    ledger_net_realized_pnl_eur: Decimal = Decimal("0")
-    broker_account_return_eur: Optional[Decimal] = None
-    performance_difference_eur: Optional[Decimal] = None
+    ledger_net_realized_pnl_eur: Decimal = Decimal(0)
+    broker_account_return_eur: Decimal | None = None
+    performance_difference_eur: Decimal | None = None
     
     # Overall
     status: str = "NO_BROKER_DATA"  # RECONCILED | PARTIAL | FAILED | NO_BROKER_DATA
-    warnings: List[str] = None
-    notes: List[str] = None
+    warnings: list[str] = None
+    notes: list[str] = None
     
     def __post_init__(self):
         if self.warnings is None:
@@ -43,7 +43,7 @@ class ReconciliationResult:
         if self.notes is None:
             self.notes = []
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "ledger_net_deposits_eur": str(self.ledger_net_deposits_eur),
             "broker_net_deposits_eur": str(self.broker_net_deposits_eur) if self.broker_net_deposits_eur else None,
@@ -63,9 +63,9 @@ class ReconciliationResult:
 
 def reconcile_ledger(
     performance: PerformanceResult,
-    broker_net_deposits_eur: Optional[Decimal] = None,
-    broker_positions_value_eur: Optional[Decimal] = None,
-    broker_account_return_eur: Optional[Decimal] = None,
+    broker_net_deposits_eur: Decimal | None = None,
+    broker_positions_value_eur: Decimal | None = None,
+    broker_account_return_eur: Decimal | None = None,
     deposit_tolerance_eur: Decimal = Decimal("10.0"),  # €10 tolerance
     position_tolerance_pct: Decimal = Decimal("5.0"),  # 5% tolerance
 ) -> ReconciliationResult:
@@ -119,7 +119,7 @@ def reconcile_ledger(
         # This is a diagnostic comparison only
         if performance.summary.open_lot_cost_basis_eur > 0:
             result.position_difference_eur = broker_positions_value_eur - performance.summary.open_lots_cost_basis_eur
-            pct_diff = abs(result.position_difference_eur) / performance.summary.open_lot_cost_basis_eur * Decimal("100")
+            pct_diff = abs(result.position_difference_eur) / performance.summary.open_lot_cost_basis_eur * Decimal(100)
             if pct_diff > position_tolerance_pct:
                 result.warnings.append(
                     f"Position value vs cost basis difference: {pct_diff:.1f}% "

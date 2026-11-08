@@ -15,9 +15,11 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+
 logger = logging.getLogger(__name__)
 
-DEFAULT_DB_PATH = "data/portfolio_signals.db"
+DEFAULT_DB_PATH = str(ROOT / "data" / "portfolio_signals.db")
 
 
 def _connect(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:

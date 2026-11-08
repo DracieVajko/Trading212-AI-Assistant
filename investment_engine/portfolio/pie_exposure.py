@@ -17,7 +17,6 @@ import csv
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +39,14 @@ class PieExposure:
         return self.standalone_qty > 0
 
 
-def load_pie_quantities(pies_dir: str | Path = "PIEs") -> Dict[str, float]:
+def load_pie_quantities(pies_dir: str | Path = "PIEs") -> dict[str, float]:
     """Load {ticker: total_pie_qty} from all PIE CSV exports.
 
     Reads every *.csv in *pies_dir* (and subdirs), sums 'Owned quantity'
     per ticker. Returns empty dict if no CSVs found (graceful degradation).
     """
     pies_path = Path(pies_dir)
-    result: Dict[str, float] = {}
+    result: dict[str, float] = {}
     if not pies_path.exists():
         logger.debug("pie_exposure: no PIEs dir at %s; all positions standalone", pies_path)
         return result
@@ -81,14 +80,14 @@ def load_pie_quantities(pies_dir: str | Path = "PIEs") -> Dict[str, float]:
 def detect_standalone_holdings(
     portfolio_rows: list[dict],
     pies_dir: str | Path = "PIEs",
-) -> Dict[str, PieExposure]:
+) -> dict[str, PieExposure]:
     """For each portfolio row, compute pie_qty vs total_qty.
 
     Returns {ticker: PieExposure} with standalone_qty = total_qty - pie_qty.
     If total_qty <= pie_qty, standalone_qty = 0 (all held in PIE).
     """
     pie_qty_map = load_pie_quantities(pies_dir)
-    exposures: Dict[str, PieExposure] = {}
+    exposures: dict[str, PieExposure] = {}
 
     for row in (portfolio_rows or []):
         ticker = str(row.get("ticker") or row.get("display") or "").strip().upper()
@@ -107,7 +106,7 @@ def detect_standalone_holdings(
     return exposures
 
 
-def standalone_summary(exposures: Dict[str, PieExposure]) -> str:
+def standalone_summary(exposures: dict[str, PieExposure]) -> str:
     """Human-readable summary of standalone holdings (for report inclusion)."""
     lines = []
     for t, e in exposures.items():

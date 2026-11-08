@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -28,6 +29,16 @@ from investment_engine.notifications import notify_urgent, notify_summary
 
 
 ROOT = Path(__file__).resolve().parent
+
+
+def ensure_project_cwd() -> None:
+    """Pin the working directory to the project root.
+
+    Reports, logs, data and PIE config all use project-relative paths. Callers
+    may start the CLI from any directory (Task Scheduler, shortcuts, IDEs);
+    without this, outputs land beside the project instead of inside it.
+    """
+    os.chdir(ROOT)
 
 logger = logging.getLogger(__name__)
 
@@ -276,6 +287,11 @@ def write_reports(
 
 def main() -> int:
     check_python_version()
+    # All output paths (reports/, logs/, data/, PIEs/) are project-relative.
+    # Pin the working directory to this file's folder so a scheduled task,
+    # shortcut, or shell started elsewhere can never scatter outputs into a
+    # sibling directory with a different path casing.
+    ensure_project_cwd()
     parser = argparse.ArgumentParser(description="Generate a portfolio analysis report.")
     parser.add_argument("--config", default="portfolio_config.json", help="Path to the JSON configuration file.")
     parser.add_argument("--investment-engine", action="store_true", help="Run the modular investment engine.")
@@ -295,6 +311,20 @@ def main() -> int:
                         default=False, help="Keep quantity columns from CSV/XLSX input (default False: tickers only).")
     parser.add_argument("--rotation-plan", choices=["none", "average-down", "short-rotation", "cash-apy"],
                         default="none", help="Advisory rotation strategy (default: none; writes reports/current/rotation_plan.md).")
+    parser.add_argument("--day-trader", action="store_true",
+                        help="Run the day-trader premarket read-only pack and write reports/current/day_trader_brief.md.")
+    parser.add_argument("--day-trader-plan", action="store_true",
+                        help="Run the day-trader planning pack (entry/exit/time-machine/budget/risk/ticket) and write day_trader_plan.json.")
+    parser.add_argument("--day-trader-mirror-demo", action="store_true",
+                        help="Compute (and optionally execute) a mirror of the live account into the demo account.")
+    parser.add_argument("--execute", action="store_true",
+                        help="With --day-trader-mirror-demo: actually place demo orders (default dry-run).")
+    parser.add_argument("--day-trader-allow-orders", action="store_true",
+                        help="Allow the day-trader execution layer to attempt orders (still gated by config/env/kill-switch).")
+    parser.add_argument("--history", action="store_true",
+                        help="Print recent trade and decision history (permanent memory) and exit.")
+    parser.add_argument("--history-mode", choices=["demo", "live", "all"], default="all",
+                        help="Filter --history by mode (default: all).")
     args = parser.parse_args()
 
     config_path = (ROOT / args.config).resolve() if not Path(args.config).is_absolute() else Path(args.config)
@@ -303,9 +333,46 @@ def main() -> int:
         return 2
     config = json.loads(config_path.read_text(encoding="utf-8"))
     raw_settings = config.get("settings", {})
-    log_folder = ROOT / raw_settings.get("log_folder", "logs")
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(ROOT / "api.env")
+    except Exception:
+        pass
+    from investment_engine.history import runtime_mode
+    import os as _os_mode
+    if args.day_trader_mirror_demo:
+        _mode = "demo"
+    elif args.day_trader or args.day_trader_plan:
+        _mode = "demo" if (args.day_trader_allow_orders or _os_mode.getenv("T212_ORDER_ENV") == "demo") else "live"
+    else:
+        _mode = "live"
+    try:
+        from investment_engine.history import ensure_history_readme
+        ensure_history_readme()
+    except Exception:
+        pass
+    log_folder = ROOT / raw_settings.get("log_folder", "logs") / _mode
     run_log = setup_logging(log_folder)
     logger = logging.getLogger(__name__)
+
+    if args.history:
+        from investment_engine.history import query_decisions, query_trades
+        _hist_mode = None if args.history_mode == "all" else args.history_mode
+        trades = query_trades(mode=_hist_mode, limit=20)
+        decisions = query_decisions(mode=_hist_mode, limit=20)
+        print("=== Recent trades ===")
+        if not trades:
+            print("  (none)")
+        for t in trades:
+            print(f"  {t['ts']} [{t['mode']}] {t['side']} {t['quantity']} {t['symbol']} "
+                  f"price={t.get('price')} status={t.get('status')} reason={t.get('reason', '')[:80]}")
+        print("\n=== Recent decisions ===")
+        if not decisions:
+            print("  (none)")
+        for d in decisions:
+            print(f"  {d['ts']} [{d['mode']}] {d['action']} {d['symbol']} "
+                  f"conf={d.get('confidence')} reason={d.get('reason', '')[:80]}")
+        return 0
 
     # Setup debug layer with run_id
     import uuid as _uuid
@@ -338,6 +405,112 @@ def main() -> int:
                     raw_settings.setdefault("include_quantities", _rot.get("include_quantities", raw_settings.get("include_quantities", False)))
         except Exception as _cr_exc:
             logger.debug("Custom rules loading skipped: %s", type(_cr_exc).__name__)
+
+        _did_day_trader = False
+        _day_trader_mode = "demo" if args.day_trader_allow_orders else None
+        if args.day_trader:
+            try:
+                from investment_engine.day_trader import DayTraderConfig, run_premarket, write_day_trader_report
+                from investment_engine.day_trader.runner import run_tool
+                from investment_engine.day_trader.state import ensure_state_root
+                from investment_engine.history import runtime_mode
+                _dt_cfg = DayTraderConfig.from_mapping(raw_settings.get("day_trader", {}))
+                _dt_cfg.validate()
+                if args.day_trader_allow_orders and _dt_cfg.execution.environment == "demo":
+                    _dt_cfg.execution.enabled = True
+                    _dt_cfg.execution.auto_approve = True
+                _state_root = ROOT / _dt_cfg.state_dir
+                ensure_state_root(_state_root)
+                _portfolio_symbols = []
+                try:
+                    import os as _os
+                    from dotenv import load_dotenv as _ld
+                    _ld(str(ROOT / "api.env"))
+                    from investment_engine.day_trader.broker.t212_orders import T212OrderClient
+                    _lc = T212OrderClient("live", _os.getenv("TRADING212_API_KEY"), _os.getenv("TRADING212_API_SECRET"))
+                    _positions = _lc.get_positions()
+                    if isinstance(_positions, list):
+                        _portfolio_symbols = [
+                            (p.get("instrument") or {}).get("ticker")
+                            for p in _positions
+                            if isinstance(p, dict) and (p.get("instrument") or {}).get("ticker")
+                        ]
+                except Exception:
+                    _portfolio_symbols = []
+                _payload = run_premarket(
+                    _dt_cfg, runner=run_tool, state_root=_state_root,
+                    portfolio_symbols=_portfolio_symbols,
+                )
+                _mode = runtime_mode(_day_trader_mode)
+                _out = write_day_trader_report(
+                    _state_root, _payload, ROOT / "reports" / "day_trader" / _mode
+                )
+                print(f"Day trader brief written: {_out}")
+                _u = _payload.get("universe", 0)
+                print(f"Universe symbols: {_u if isinstance(_u, int) else len(_u)}")
+                _did_day_trader = True
+            except Exception as _dt_exc:
+                print(f"ERROR: day-trader pack failed: {_dt_exc}", file=sys.stderr)
+                return 1
+        if args.day_trader_plan:
+            try:
+                from investment_engine.day_trader import DayTraderConfig, run_planning, run_premarket
+                from investment_engine.day_trader.runner import run_tool
+                from investment_engine.day_trader.state import ensure_state_root
+                from investment_engine.history import runtime_mode
+                _dt_cfg = DayTraderConfig.from_mapping(raw_settings.get("day_trader", {}))
+                _dt_cfg.validate()
+                _state_root = ROOT / _dt_cfg.state_dir
+                ensure_state_root(_state_root)
+                if not (_state_root / "trader" / "watchlist.json").is_file():
+                    run_premarket(_dt_cfg, runner=run_tool, state_root=_state_root)
+                _payload = run_planning(_dt_cfg, runner=run_tool, state_root=_state_root)
+                print(f"Day trader plan: {_payload.get('plan_status')} symbol={_payload.get('plan_symbol')} status={_payload.get('status')}")
+                print(f"Plan file: {_state_root / 'planning.json'}")
+                _did_day_trader = True
+            except Exception as _dt_exc:
+                print(f"ERROR: day-trader planning failed: {_dt_exc}", file=sys.stderr)
+                return 1
+        if args.day_trader_mirror_demo:
+            try:
+                import os as _os
+                from dotenv import load_dotenv as _ld
+                _ld(str(ROOT / "api.env"))
+                from investment_engine.day_trader import DayTraderConfig, mirror_to_demo
+                from investment_engine.day_trader.broker.t212_orders import T212OrderClient
+                _live_key = _os.getenv("TRADING212_API_KEY")
+                _live_secret = _os.getenv("TRADING212_API_SECRET")
+                _demo_key = _os.getenv("T212_DEMO_API_KEY")
+                _demo_secret = _os.getenv("T212_DEMO_API_SECRET")
+                if not (_live_key and _live_secret and _demo_key and _demo_secret):
+                    print("ERROR: missing live or demo T212 credentials in api.env", file=sys.stderr)
+                    return 1
+                _live_client = T212OrderClient("live", _live_key, _live_secret)
+                _demo_client = T212OrderClient("demo", _demo_key, _demo_secret)
+                _cfg = DayTraderConfig.from_mapping(raw_settings.get("day_trader", {}))
+                _cfg.validate()
+                _result = mirror_to_demo(
+                    _live_client,
+                    _demo_client,
+                    _cfg,
+                    execute=bool(args.execute),
+                    db_path=str(ROOT / "data" / "day_trader" / "audit.db"),
+                    kill_switch_path=str(ROOT / "data" / "day_trader" / "KILL_SWITCH"),
+                )
+                print(f"Mirror mode: {_result['mode']}")
+                print(f"Actions: {len(_result['actions'])}")
+                for a in _result["actions"]:
+                    print(f"  {a['side']} {a['quantity']} {a['ticker']} (live={a['live_qty']}, demo={a['demo_qty']})")
+                if _result.get("blocked"):
+                    print(f"Blocked: {len(_result['blocked'])}")
+                if _result.get("executed"):
+                    print(f"Executed: {len(_result['executed'])}")
+                return 0
+            except Exception as _dt_exc:
+                print(f"ERROR: day-trader mirror failed: {_dt_exc}", file=sys.stderr)
+                return 1
+        if _did_day_trader:
+            return 0
         # Rotation + toggle overrides (advisory only; never executes orders)
         include_quantities = args.include_quantities
         rotation_plan = args.rotation_plan

@@ -34,7 +34,7 @@ CRYPTO_SYMBOLS = {
     "NEAR", "NEAR-USD", "FTM", "FTM-USD", "ALGO", "ALGO-USD",
     "VET", "VET-USD", "HBAR", "HBAR-USD", "EGLD", "EGLD-USD",
     "THETA", "THETA-USD", "FIL", "FIL-USD", "ICP", "ICP-USD",
-    "AAVE", "AAVE-USD", "UNI", "UNI-USD", "CRV", "CRV-USD",
+    "AAVE", "AAVE-USD", "CRV", "CRV-USD",
     "MKR", "MKR-USD", "COMP", "COMP-USD", "SNX", "SNX-USD",
     "YFI", "YFI-USD", "SUSHI", "SUSHI-USD", "1INCH", "1INCH-USD",
     "DOGE", "DOGE-USD", "SHIB", "SHIB-USD",

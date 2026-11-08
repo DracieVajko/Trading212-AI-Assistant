@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 try:
     from investment_engine.research.news_engine import validate_idea_with_news
 except Exception:

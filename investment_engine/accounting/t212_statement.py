@@ -21,13 +21,14 @@ from __future__ import annotations
 import csv
 import re
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-ZERO = Decimal("0")
+ZERO = Decimal(0)
 CENT = Decimal("0.01")
 DEFAULT_TOLERANCE_EUR = Decimal("0.05")
 
@@ -561,46 +562,46 @@ def render_reconciliation_markdown(reconciliation: dict[str, Any] | T212Statemen
     lines = [
         "### Broker Statement Reconciliation",
         "",
-        f"**Status: {status}** - {stmt.get('source_file', 'statement')} "
+        (f"**Status: {status}** - {stmt.get('source_file', 'statement')} "
         f"({stmt.get('period_start', '?')[:10]} → {stmt.get('period_end', '?')[:10]}, "
-        f"{stmt.get('row_count', 0):,} rows).",
+        f"{stmt.get('row_count', 0):,} rows)."),
         "",
         "| Metric | Statement raw | Bridge | API / broker | Delta |",
         "|---|---:|---:|---:|---:|",
-        f"| Deposits | €{dep_raw:,.2f} | €{dep_api - dep_raw:+,.2f} "
-        f"| €{dep_api:,.2f} | €{dep_delta:+,.2f} |",
-        f"| Withdrawals / card debits | €{wd_raw:,.2f} | €{wd_api - wd_raw:+,.2f} "
-        f"| €{wd_api:,.2f} | €{wd_delta:+,.2f} |",
-        f"| Net deposits | €{net_raw:,.2f} | €{net_api - net_raw:+,.2f} "
-        f"| €{net_api:,.2f} | €{net_delta:+,.2f} |",
-        f"| Net P&L | €{pnl_stmt:,.2f} | €{pnl_api - pnl_stmt:+,.2f} "
-        f"| €{pnl_api:,.2f} | €{pnl_delta:+,.2f} |",
+        (f"| Deposits | €{dep_raw:,.2f} | €{dep_api - dep_raw:+,.2f} "
+        f"| €{dep_api:,.2f} | €{dep_delta:+,.2f} |"),
+        (f"| Withdrawals / card debits | €{wd_raw:,.2f} | €{wd_api - wd_raw:+,.2f} "
+        f"| €{wd_api:,.2f} | €{wd_delta:+,.2f} |"),
+        (f"| Net deposits | €{net_raw:,.2f} | €{net_api - net_raw:+,.2f} "
+        f"| €{net_api:,.2f} | €{net_delta:+,.2f} |"),
+        (f"| Net P&L | €{pnl_stmt:,.2f} | €{pnl_api - pnl_stmt:+,.2f} "
+        f"| €{pnl_api:,.2f} | €{pnl_delta:+,.2f} |"),
         "",
-        "**Basis:** statement net capital (deposits minus card debits) is "
+        ("**Basis:** statement net capital (deposits minus card debits) is "
         f"€{net_raw:,.2f}; API net deposits include cashback/card credits and the "
-        "deposit-fee gross-up. The bridge is exact.",
+        "deposit-fee gross-up. The bridge is exact."),
         "",
-        "**P&L bridge:** "
+        ("**P&L bridge:** "
         f"realised €{pnl.get('realized_pnl_eur', 0):,.2f} + "
         f"dividends €{pnl.get('dividends_eur', 0):,.2f} + "
         f"interest €{pnl.get('interest_eur', 0):,.2f} − "
         f"explicit costs €{pnl.get('explicit_costs_eur', 0):,.2f} + "
         f"unrealised €{pnl.get('unrealized_pnl_eur', 0):,.2f} = "
-        f"€{pnl.get('expected_net_pnl_eur', 0):,.2f}.",
+        f"€{pnl.get('expected_net_pnl_eur', 0):,.2f}."),
         "",
-        "**Explicit costs:** "
+        ("**Explicit costs:** "
         f"FX conversion €{pnl.get('fx_conversion_fees_eur', 0):,.2f}, "
         f"stamp duty €{pnl.get('stamp_duty_eur', 0):,.2f}, "
         f"French FTT €{pnl.get('french_transaction_tax_eur', 0):,.2f}, "
         f"deposit fees €{pnl.get('deposit_fees_eur', 0):,.2f}. "
         "API `fees_eur` covers the deposit fee only; FX conversion, stamp duty "
-        "and FTT are embedded in trade totals.",
+        "and FTT are embedded in trade totals."),
         "",
-        "**Deposit bridge:** "
+        ("**Deposit bridge:** "
         f"statement deposits €{bridge.get('statement_deposits_eur', 0):,.2f} + "
         f"cashback/credits €{bridge.get('statement_cashback_positive_eur', 0) + bridge.get('statement_card_credits_eur', 0):,.2f} + "
         f"deposit-fee gross-up €{bridge.get('statement_deposit_fees_eur', 0):,.2f} = "
-        f"API deposits €{bridge.get('api_deposits_eur', 0):,.2f}.",
+        f"API deposits €{bridge.get('api_deposits_eur', 0):,.2f}."),
     ]
     if reasons:
         lines += ["", "**Notes:** " + "; ".join(reasons) + "."]

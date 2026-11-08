@@ -101,7 +101,7 @@ def decide(*, thesis: str = "uncertain", valuation: str = "fair",
     else:
         allowed -= {"HOLD", "ADD", "TRIM", "SELL"}
         if default not in allowed:
-            default = "WATCH" if "WATCH" in allowed else sorted(allowed)[0]
+            default = "WATCH" if "WATCH" in allowed else min(allowed)
     if not allowed:
         allowed = {"HOLD"} if held else {"WATCH"}
         default = next(iter(allowed))

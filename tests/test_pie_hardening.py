@@ -21,7 +21,7 @@ def _fake_api_position(ticker: str, quantity: float, pie_quantity: float, curren
 
 
 def test_aapl_multi_pie_is_low_confidence_estimated():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     # AAPL appears in TechPieShort and DailyDivPieLongShort (2 pies)
     pies = universe.pies_for_ticker("AAPL_US_EQ")
@@ -45,7 +45,7 @@ def test_aapl_multi_pie_is_low_confidence_estimated():
 
 
 def test_aapl_multi_pie_receives_review_pie_allocation_never_add_reduce():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     raw = _fake_api_position("AAPL_US_EQ", quantity=2, pie_quantity=1.5, current_price=150, fx_ppl=1)
     parsed = parse_position(raw)
@@ -61,7 +61,7 @@ def test_aapl_multi_pie_receives_review_pie_allocation_never_add_reduce():
 
 
 def test_single_pie_is_medium_inferred_not_estimated():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     # NVDA is only in TechPieShort (single pie)
     pies = universe.pies_for_ticker("NVDA_US_EQ")
@@ -86,7 +86,7 @@ def test_single_pie_is_medium_inferred_not_estimated():
 
 
 def test_exact_per_pie_api_overrides_estimate():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     # Simulate API providing per-pie exact breakdown for AAPL (belongs to 2 pies)
     raw = _fake_api_position(
@@ -122,7 +122,7 @@ def test_exact_per_pie_api_overrides_estimate():
 
 
 def test_o_matches_exact_and_coin_orcl_oxy_do_not_match_o():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     # O should match
     pies_o = universe.pies_for_ticker("O_US_EQ")
     assert any(p.pie_id == "DailyDivPieLongShort" for p in pies_o)
@@ -184,12 +184,12 @@ def test_ambiguous_mapping_remains_unmatched():
     # Ticker ABA should match neither (no exact), should be unmatched
     assert len(universe.pies_for_ticker("ABA_US_EQ")) == 0
     # Ensure with our real universe, an unknown ticker remains unmatched
-    real_universe = load_pie_universe("PIEs")
+    real_universe = load_pie_universe("PIEs/examples")
     assert len(real_universe.pies_for_ticker("FAKE_UNKNOWN_TICKER_XYZ_US_EQ")) == 0
 
 
 def test_total_exposure_and_concentration_correct_for_multi_pie():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     # AAPL in 2 pies, total 2 shares @150 => value 276.6 EUR (150*0.922*2)
     raw = _fake_api_position("AAPL_US_EQ", quantity=2, pie_quantity=1.5, current_price=150, fx_ppl=1)
@@ -215,7 +215,7 @@ def test_existing_reconciliation_behavior_stays_unchanged():
     assert "PIEs" not in src
     assert "PieLoader" not in src
     # Also ensure pie exposure does not alter reconciliation
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     raws = [
         _fake_api_position("AAPL_US_EQ", quantity=1, pie_quantity=0.5, current_price=150, fx_ppl=1),

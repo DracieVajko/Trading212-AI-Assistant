@@ -21,6 +21,14 @@ def test_python_gate_accepts_312():
     assert entry.check_python_version((3, 12)) == (3, 12)
 
 
+def test_entrypoint_pins_cwd_to_project_root(tmp_path, monkeypatch):
+    import portfolio_ai_assistant as entry
+
+    monkeypatch.chdir(tmp_path)
+    entry.ensure_project_cwd()
+    assert Path.cwd() == entry.ROOT
+
+
 def test_python_gate_rejects_other_minors():
     import portfolio_ai_assistant as entry
 

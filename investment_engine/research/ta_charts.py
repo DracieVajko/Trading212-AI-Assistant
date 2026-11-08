@@ -18,12 +18,12 @@ from typing import Any
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.dates as mdates  # noqa: E402
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
-from investment_engine.research.ta_snapshot import (  # noqa: E402
+from investment_engine.research.ta_snapshot import (
     _macd,
     _rsi_wilder,
     _sma,

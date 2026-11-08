@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[2]
+
 from investment_engine.config.settings import EngineSettings
 from investment_engine.reporting.context_archive import save_ai_context
 from investment_engine.research.earnings_fetch import tech_summary_line
@@ -68,7 +70,7 @@ def save_ai_context_phase(inputs: AIContextInputs) -> AIContextPhase:
 
     # AI context file – full archive for machines: verbose per-ticker analysis,
     # all technicals and all headlines (human report stays curated).
-    output_dir = Path("reports")
+    output_dir = ROOT / "reports"
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
         "\n".join(
@@ -76,7 +78,9 @@ def save_ai_context_phase(inputs: AIContextInputs) -> AIContextPhase:
         )
         [e for entries in list(news_by_symbol.values()) + list(extra_news.values()) for e in entries]
         try:
-            from investment_engine.reporting.regime_report import unresolved_market_data as _unresolved_md
+            from investment_engine.reporting.regime_report import (
+                unresolved_market_data as _unresolved_md,
+            )
             _unresolved_syms = _unresolved_md(portfolio_rows)
         except Exception:
             _unresolved_syms = []
@@ -118,7 +122,8 @@ def save_ai_context_phase(inputs: AIContextInputs) -> AIContextPhase:
                 _age_days = None
                 if _fetched_at:
                     try:
-                        from datetime import datetime as _dt, timezone as _tz
+                        from datetime import datetime as _dt
+                        from datetime import timezone as _tz
                         _fetched_dt = _dt.fromisoformat(_fetched_at.replace("Z", "+00:00"))
                         if _fetched_dt.tzinfo is None:
                             _fetched_dt = _fetched_dt.replace(tzinfo=_tz.utc)
@@ -143,9 +148,11 @@ def save_ai_context_phase(inputs: AIContextInputs) -> AIContextPhase:
         if ai_recs:
             # Extract watchlist ideas from candidate section
             try:
-                from investment_engine.reporting.documents import extract_validated_ideas as _extract_ideas
                 from investment_engine.portfolio.symbols import support_state as _ssw
                 from investment_engine.portfolio.symbols import to_yahoo_symbol as _tyw
+                from investment_engine.reporting.documents import (
+                    extract_validated_ideas as _extract_ideas,
+                )
                 def _idea_supported(ticker: str) -> bool:
                     try:
                         return _ssw(_tyw(ticker, ticker, {}), "market_data") == "SUPPORTED"

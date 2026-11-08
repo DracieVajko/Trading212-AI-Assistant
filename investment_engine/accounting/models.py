@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class EventType(str, Enum):
@@ -55,9 +55,9 @@ class LedgerEvent:
 
     # Instrument identification
     broker_symbol: str
-    normalized_symbol: Optional[str] = None
-    instrument_id: Optional[str] = None
-    isin: Optional[str] = None
+    normalized_symbol: str | None = None
+    instrument_id: str | None = None
+    isin: str | None = None
 
     # Event classification
     event_type: EventType = EventType.UNKNOWN
@@ -67,34 +67,34 @@ class LedgerEvent:
     currency: str = "EUR"
 
     # Amounts in original currency
-    gross_amount: Decimal = Decimal("0")
-    fee_amount: Decimal = Decimal("0")
-    tax_amount: Decimal = Decimal("0")
-    fx_fee_amount: Decimal = Decimal("0")
-    net_amount: Decimal = Decimal("0")
+    gross_amount: Decimal = Decimal(0)
+    fee_amount: Decimal = Decimal(0)
+    tax_amount: Decimal = Decimal(0)
+    fx_fee_amount: Decimal = Decimal(0)
+    net_amount: Decimal = Decimal(0)
 
     # Trade-specific
-    quantity: Decimal = Decimal("0")
-    price: Optional[Decimal] = None
+    quantity: Decimal = Decimal(0)
+    price: Decimal | None = None
 
     # FX
-    exchange_rate: Optional[Decimal] = None  # original_currency -> EUR
+    exchange_rate: Decimal | None = None  # original_currency -> EUR
 
     # EUR-converted amounts (calculated at import)
-    gross_amount_eur: Optional[Decimal] = None
-    fee_amount_eur: Optional[Decimal] = None
-    tax_amount_eur: Optional[Decimal] = None
-    fx_fee_amount_eur: Optional[Decimal] = None
-    net_amount_eur: Optional[Decimal] = None
+    gross_amount_eur: Decimal | None = None
+    fee_amount_eur: Decimal | None = None
+    tax_amount_eur: Decimal | None = None
+    fx_fee_amount_eur: Decimal | None = None
+    net_amount_eur: Decimal | None = None
 
     # Parsing metadata
     parse_status: ParseStatus = ParseStatus.OK
-    parse_warning: Optional[str] = None
+    parse_warning: str | None = None
 
     # Raw row preserved for diagnostics (not serialized to user-facing reports)
-    _raw_row: Dict[str, Any] = field(default_factory=dict, repr=False)
+    _raw_row: dict[str, Any] = field(default_factory=dict, repr=False)
 
-    def to_dict(self, include_raw: bool = False) -> Dict[str, Any]:
+    def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
         """Serialize to dict. Raw row excluded by default for privacy."""
         d = {
             "event_id": self.event_id,
@@ -173,12 +173,12 @@ class Lot:
     quantity: Decimal
     remaining_quantity: Decimal
     cost_basis_per_share: Decimal  # in original currency
-    cost_basis_eur_per_share: Optional[Decimal] = None
+    cost_basis_eur_per_share: Decimal | None = None
     currency: str = "EUR"
-    fees_allocated: Decimal = Decimal("0")  # fees allocated to this lot
-    fees_allocated_eur: Optional[Decimal] = None
+    fees_allocated: Decimal = Decimal(0)  # fees allocated to this lot
+    fees_allocated_eur: Decimal | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "symbol": self.symbol,
             "buy_event_id": self.buy_event_id,
@@ -201,14 +201,14 @@ class MatchedTrade:
     symbol: str
     quantity_sold: Decimal
     sell_price: Decimal
-    sell_price_eur: Optional[Decimal]
+    sell_price_eur: Decimal | None
     proceeds_eur: Decimal
-    matched_lots: List[Dict[str, Any]]  # list of {lot_id, quantity, cost_basis_eur, fees_eur}
+    matched_lots: list[dict[str, Any]]  # list of {lot_id, quantity, cost_basis_eur, fees_eur}
     realized_pnl_eur: Decimal
     fees_eur: Decimal
-    short_quantity: Decimal = Decimal("0")  # >0 if sell exceeds available lots
+    short_quantity: Decimal = Decimal(0)  # >0 if sell exceeds available lots
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "sell_event_id": self.sell_event_id,
             "sell_timestamp": self.sell_timestamp.isoformat(),
@@ -228,31 +228,31 @@ class MatchedTrade:
 class LedgerSummary:
     """Aggregated summary of the historical ledger."""
     # Realized P&L
-    gross_realized_pnl_eur: Decimal = Decimal("0")
-    realized_trading_fees_eur: Decimal = Decimal("0")
-    fx_conversion_fees_eur: Decimal = Decimal("0")
-    stamp_duty_eur: Decimal = Decimal("0")
-    financial_transaction_tax_eur: Decimal = Decimal("0")
-    commissions_eur: Decimal = Decimal("0")
-    other_known_fees_eur: Decimal = Decimal("0")
+    gross_realized_pnl_eur: Decimal = Decimal(0)
+    realized_trading_fees_eur: Decimal = Decimal(0)
+    fx_conversion_fees_eur: Decimal = Decimal(0)
+    stamp_duty_eur: Decimal = Decimal(0)
+    financial_transaction_tax_eur: Decimal = Decimal(0)
+    commissions_eur: Decimal = Decimal(0)
+    other_known_fees_eur: Decimal = Decimal(0)
 
     # Derived
-    known_explicit_costs_eur: Decimal = Decimal("0")
-    net_realized_pnl_after_known_costs_eur: Decimal = Decimal("0")
+    known_explicit_costs_eur: Decimal = Decimal(0)
+    net_realized_pnl_after_known_costs_eur: Decimal = Decimal(0)
 
     # Dividends
-    dividends_gross_eur: Decimal = Decimal("0")
-    dividend_withholding_tax_eur: Decimal = Decimal("0")
-    dividends_net_eur: Decimal = Decimal("0")
+    dividends_gross_eur: Decimal = Decimal(0)
+    dividend_withholding_tax_eur: Decimal = Decimal(0)
+    dividends_net_eur: Decimal = Decimal(0)
 
     # Cash flows
-    cash_interest_eur: Decimal = Decimal("0")
-    deposits_eur: Decimal = Decimal("0")
-    withdrawals_eur: Decimal = Decimal("0")
-    net_deposits_eur: Decimal = Decimal("0")
+    cash_interest_eur: Decimal = Decimal(0)
+    deposits_eur: Decimal = Decimal(0)
+    withdrawals_eur: Decimal = Decimal(0)
+    net_deposits_eur: Decimal = Decimal(0)
 
     # Open positions
-    open_lot_cost_basis_eur: Decimal = Decimal("0")
+    open_lot_cost_basis_eur: Decimal = Decimal(0)
 
     # Data quality
     unmatched_sell_count: int = 0
@@ -260,11 +260,11 @@ class LedgerSummary:
     accounting_status: str = "PARTIAL"  # RECONCILED | PARTIAL | UNAVAILABLE
 
     # Metadata
-    first_event_date: Optional[datetime] = None
-    last_event_date: Optional[datetime] = None
+    first_event_date: datetime | None = None
+    last_event_date: datetime | None = None
     total_events: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "gross_realized_pnl_eur": str(self.gross_realized_pnl_eur),
             "realized_trading_fees_eur": str(self.realized_trading_fees_eur),
@@ -300,13 +300,13 @@ class ManualAdjustments:
     This is a configuration template – users should copy to a local ignored
     file and populate with their actual data. Never committed to Git.
     """
-    starting_cash_eur: Optional[Decimal] = None
-    historical_fee_adjustments: List[Dict[str, Any]] = field(default_factory=list)
-    external_deposits: List[Dict[str, Any]] = field(default_factory=list)
-    external_withdrawals: List[Dict[str, Any]] = field(default_factory=list)
+    starting_cash_eur: Decimal | None = None
+    historical_fee_adjustments: list[dict[str, Any]] = field(default_factory=list)
+    external_deposits: list[dict[str, Any]] = field(default_factory=list)
+    external_withdrawals: list[dict[str, Any]] = field(default_factory=list)
     notes: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "starting_cash_eur": str(self.starting_cash_eur) if self.starting_cash_eur is not None else None,
             "historical_fee_adjustments": self.historical_fee_adjustments,

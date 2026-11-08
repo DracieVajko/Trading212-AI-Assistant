@@ -1,20 +1,24 @@
 from __future__ import annotations
 
 import logging
+
 import requests
 
 from investment_engine.config.settings import EngineSettings
 from investment_engine.providers.base import BaseLLMProvider
-from investment_engine.providers.lmstudio import LMStudioProvider
-from investment_engine.providers.openrouter import OpenRouterProvider
-from investment_engine.providers.ollama import OllamaProvider
-from investment_engine.providers.llamacpp import LlamaCppProvider
-from investment_engine.providers.fallback import FallbackProvider, ChainedFallbackProvider
-from investment_engine.providers.gemini import GeminiProvider
-from investment_engine.providers.mistral import MistralProvider
-from investment_engine.providers.opencode_zen import OpenCodeZenProvider
-from investment_engine.providers.permissions import API_ONLY_DISABLED
 from investment_engine.providers.config import CloudProviderSpec
+from investment_engine.providers.fallback import (
+    ChainedFallbackProvider,
+    FallbackProvider,
+)
+from investment_engine.providers.gemini import GeminiProvider
+from investment_engine.providers.llamacpp import LlamaCppProvider
+from investment_engine.providers.lmstudio import LMStudioProvider
+from investment_engine.providers.mistral import MistralProvider
+from investment_engine.providers.ollama import OllamaProvider
+from investment_engine.providers.opencode_zen import OpenCodeZenProvider
+from investment_engine.providers.openrouter import OpenRouterProvider
+from investment_engine.providers.permissions import API_ONLY_DISABLED
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +86,11 @@ class ProviderFactory:
 
     @staticmethod
     def locals_chain(settings: EngineSettings) -> BaseLLMProvider:
-        """Locals only: LM Studio -> llama.cpp (Pi) -> Ollama (Pi) -> deterministic.
+        """Locals only: LM Studio -> Ollama (Pi) -> deterministic.
 
-        Cloud keys are never consulted here. Order note: llama.cpp holds the
-        strongest fine-tuned model so it precedes Ollama; over-budget prompts
-        (>85% of its n_ctx=4096) skip it via the context guard and fall to
-        Ollama (big context) instead of dying on the small-context link.
+        llama.cpp was retired (the Pi endpoint no longer exists). The Ollama
+        link is kept as a small-context last resort; over-budget prompts fall
+        through to the deterministic fallback.
         """
         chain: list[BaseLLMProvider] = []
         if bool(getattr(settings, "lmstudio_enabled", True)):
@@ -106,15 +109,6 @@ class ProviderFactory:
                 pass
         else:
             logger.info("ProviderFactory: LM Studio disabled by policy (LMSTUDIO_ENABLED=0)")
-        try:
-            chain.append(LlamaCppProvider(
-                base_url=getattr(settings, "llamacpp_base_url", "http://127.0.0.1:11435/v1"),
-                model=getattr(settings, "llamacpp_model", "qwen3.8-9b"),
-                max_context_tokens=getattr(settings, "llamacpp_context_tokens", 4096),
-                max_output_tokens=settings.lm_studio_max_output_tokens,
-            ))
-        except Exception:
-            pass
         try:
             chain.append(OllamaProvider(
                 base_url=settings.ollama_base_url,
@@ -160,7 +154,9 @@ class ProviderFactory:
                     mode, getattr(settings, "api_only", False), getattr(settings, "provider", "auto"))
         if mode == "public":
             # API_ONLY mode: verify no local providers are constructed
-            from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai
+            from investment_engine.providers.telemetry import (
+                track_local_ai_attempt as _track_local_ai,
+            )
             _track_local_ai(blocked=True)
             return ProviderFactory.api_only_chain(settings)
         if mode == "locals":
@@ -215,25 +211,10 @@ class ProviderFactory:
         else:
             logger.info("ProviderFactory: LM Studio disabled by policy (LMSTUDIO_ENABLED=0)")
 
-        # 2. llama.cpp (Raspberry Pi 5, Tailscale IP) – strongest fine-tuned
-        # model on the Pi, so it precedes Ollama. Endpoint comes from settings
-        # (LLAMACPP_BASE_URL), never hardcoded.
-        # NOTE: the Pi server runs n_ctx=4096 (probed 2026-09-27); the provider
-        # skips over-budget prompts with a chain-visible error (see llamacpp.py)
-        # so long prompts fall through to Ollama/cloud instead of dying here.
-        try:
-            llama = LlamaCppProvider(
-                base_url=getattr(settings, "llamacpp_base_url", "http://127.0.0.1:11435/v1"),
-                model=getattr(settings, "llamacpp_model", "qwen3.8-9b"),
-                max_context_tokens=getattr(settings, "llamacpp_context_tokens", 4096),
-                max_output_tokens=settings.lm_studio_max_output_tokens,
-            )
-            chain.append(llama)
-        except Exception:
-            pass
-
-        # 3. Ollama (Raspberry Pi 5, Tailscale) – big-context safety net
-        # behind llama.cpp. Models on Pi (probed): qwen3.8-9b-pi:latest, qwen3-4b-pi:latest, noema-2b.
+        # 2. Ollama (Raspberry Pi 5, Tailscale) – small-context last resort.
+        # Models on Pi (probed): ministral-3b-top (3.8B, 16k effective),
+        # moondream (vision, 2k). The full portfolio prompt usually exceeds this
+        # window; LM Studio is the primary link.
         try:
             ollama = OllamaProvider(
                 base_url=settings.ollama_base_url,
@@ -275,9 +256,7 @@ class ProviderFactory:
         # Filter only key-based providers when key missing; keep local providers (LMStudio/llama.cpp/Ollama) even if not currently reachable
         filtered: list[BaseLLMProvider] = []
         for p in chain:
-            if isinstance(p, (LMStudioProvider, LlamaCppProvider, OllamaProvider)):
-                filtered.append(p)
-            elif ProviderFactory._is_available(p):
+            if isinstance(p, (LMStudioProvider, LlamaCppProvider, OllamaProvider)) or ProviderFactory._is_available(p):
                 filtered.append(p)
             else:
                 logger.debug("ProviderFactory: skipping unavailable %s (no API key)", p.name)

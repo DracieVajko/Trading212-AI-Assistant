@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import logging
-from defusedxml import ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus
 
 import requests
-
+from defusedxml import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +216,7 @@ def reset_market_data_registry() -> None:
 def _check_supported(symbol: str, purpose: str) -> str | None:
     """Return the symbol when a yfinance request is allowed, else None."""
     try:
-        from investment_engine.portfolio.symbols import support_state, SUPPORTED
+        from investment_engine.portfolio.symbols import SUPPORTED, support_state
     except ImportError:
         return symbol
     s = _assert_resolved_yahoo(symbol)
@@ -398,7 +397,9 @@ def fetch_technical_indicators(symbol: str, period: str = "3mo", interval: str =
         settings = EngineSettings.from_defaults()
         if getattr(settings, "use_playwright_fallback", True):
             logger.info("Falling back to Playwright scraper for %s", symbol)
-            from investment_engine.research.playwright_adapter import fetch_with_playwright
+            from investment_engine.research.playwright_adapter import (
+                fetch_with_playwright,
+            )
             
             def _tv_scraper(page, symbol):
                 """Extract technical indicators from TradingView page."""
@@ -467,8 +468,8 @@ def fetch_technical_indicators(symbol: str, period: str = "3mo", interval: str =
 
 def _fetch_technical_yfinance(symbol: str, period: str = "3mo", interval: str = "1d") -> dict | None:
     """Fetch technical indicators using yfinance (original implementation)."""
-    import yfinance as yf
     import pandas as pd
+    import yfinance as yf
     
     ticker = yf.Ticker(symbol)
     hist = ticker.history(period=period, interval=interval)
@@ -565,6 +566,7 @@ def _fetch_technical_playwright(symbol: str) -> dict | None:
     """
     try:
         from playwright.sync_api import sync_playwright
+
         from investment_engine.config.settings import EngineSettings
         
         settings = EngineSettings.from_defaults()
@@ -731,7 +733,7 @@ def fetch_dividend_summary(symbol: str) -> dict | None:
             "ttm_per_share": ttm,
             "yield_pct": round(ttm / price * 100.0, 2) if price > 0 else None,
             "last_ex_date": last_ex,
-            "payments_12m": int(len(recent)),
+            "payments_12m": len(recent),
         }
     except Exception as exc:
         logger.debug("Dividend summary unavailable for %s: %s", symbol, exc)

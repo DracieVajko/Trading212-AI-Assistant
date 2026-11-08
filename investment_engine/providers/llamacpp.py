@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 import requests
 
 from .base import BaseLLMProvider
@@ -31,7 +30,9 @@ class LlamaCppProvider(BaseLLMProvider):
     def generate(self, prompt: str, *, stage: str, context: dict | None = None) -> str:
         # Track this as a local AI attempt (direct call to llama.cpp provider)
         try:
-            from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai
+            from investment_engine.providers.telemetry import (
+                track_local_ai_attempt as _track_local_ai,
+            )
             _track_local_ai(blocked=False)
         except Exception:
             pass

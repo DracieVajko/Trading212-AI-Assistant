@@ -20,15 +20,19 @@ Financial semantics (non-negotiable):
 
 from __future__ import annotations
 
-from investment_engine.utils.coerce import optional_float as _num
-
 import logging
 import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime as _dt
 from datetime import timezone as _tz
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
+
+from investment_engine.utils.coerce import optional_float as _num
 
 logger = logging.getLogger(__name__)
 

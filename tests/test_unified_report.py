@@ -318,9 +318,9 @@ def test_llm_summary_rejects_unowned_buy_claims():
 
     assert "NVDA" not in out
     assert "META" not in out
-    assert "BUY" not in out
+    assert "NVDA remains a BUY" not in out
     assert "positions" in out
-    assert "0 advisory orders" in out
+    assert "0 BUY / 0 SELL signals; no execution." in out
 
 
 def test_llm_summary_replaced_by_deterministic_summary():
@@ -338,7 +338,7 @@ def test_llm_summary_replaced_by_deterministic_summary():
 
     assert out != summary
     assert "Portfolio:" in out
-    assert "0 advisory orders" in out
+    assert "0 BUY / 0 SELL signals; no execution." in out
 
 
 def test_deterministic_summary_uses_canonical_rows():
@@ -360,7 +360,7 @@ def test_deterministic_summary_uses_canonical_rows():
     assert "2 positions" in out
     assert "TTWO 12.5%" in out
     assert "C7A0 -28.0%" in out
-    assert "0 advisory orders" in out
+    assert "0 BUY / 0 SELL signals; no execution." in out
     assert "10% requires manual trims or deposits" in out
 
 

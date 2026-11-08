@@ -8,11 +8,10 @@ rates and percentiles are computed only over the years actually present.
 
 from __future__ import annotations
 
-from investment_engine.utils.coerce import optional_float as _num
-
-
 import numpy as np
 import pandas as pd
+
+from investment_engine.utils.coerce import optional_float as _num
 
 # yfinance row-label aliases -> canonical metric.
 ALIASES: dict[str, tuple[str, ...]] = {
@@ -368,7 +367,7 @@ def reverse_dcf(*, ev: float, fcf_ttm: float,
     out["inputs"] = {"ev": target, "fcf_ttm": fcf,
                      "discount_range": [lo_r, hi_r], "years": years,
                      "terminal_growth": min(float(terminal_growth), 0.03)}
-    steps = max(1, int(round((hi_r - lo_r) / 0.01)))
+    steps = max(1, round((hi_r - lo_r) / 0.01))
     rates = sorted({round(lo_r + i * (hi_r - lo_r) / steps, 4)
                     for i in range(steps + 1)})
 

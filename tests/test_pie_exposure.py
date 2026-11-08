@@ -27,7 +27,7 @@ def _fake_api_position(ticker: str, quantity: float, pie_quantity: float, curren
 def test_csv_zero_placeholders_never_affect_account_calculations():
     """PIEs/*.csv zero placeholders must not be used for account P/L/value/quantity/reconciliation."""
     # DailyDivPie has all zeros for Invested value, Value, Owned quantity
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     # Ensure TechPieShort and DailyDiv are loaded
     tech = next((p for p in universe.pies if p.pie_id == "TechPieShort"), None)
     daily = next((p for p in universe.pies if p.pie_id == "DailyDivPieLongShort"), None)
@@ -56,7 +56,7 @@ def test_csv_zero_placeholders_never_affect_account_calculations():
 
 
 def test_pie_and_standalone_quantities_aggregate_correctly():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     # NVDA example from spec: 0.60 inside pie, 0.15 standalone => total 0.75
     # Simulate API: quantity 0.75, pie_quantity 0.60
@@ -72,7 +72,7 @@ def test_pie_and_standalone_quantities_aggregate_correctly():
 
 
 def test_pie_and_standalone_value_aggregate_correctly():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     raw = _fake_api_position("NVDA_US_EQ", quantity=0.75, pie_quantity=0.60, current_price=200, ppl=10, fx_ppl=2)
     parsed = parse_position(raw)
@@ -88,7 +88,7 @@ def test_pie_and_standalone_value_aggregate_correctly():
 
 
 def test_standalone_buy_blocked_when_total_cap_exceeded():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     # Use TechPieShort cap 7% of account, standalone max 3%
     tech_sidecar = sidecar.get_for_pie("TechPieShort")
@@ -122,7 +122,7 @@ def test_standalone_buy_blocked_when_total_cap_exceeded():
 
 
 def test_pie_constituent_never_rendered_as_individual_sell():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     sidecar = load_sidecar_registry("PIEs/config")
     raw = _fake_api_position("NVDA_US_EQ", quantity=0.60, pie_quantity=0.60, current_price=180, ppl=0, fx_ppl=1)
     parsed = parse_position(raw)
@@ -147,7 +147,7 @@ def test_daily_div_ignores_daily_ticker_trading_signal_by_default():
     assert daily_cfg.default_execution_mode == "pie_only"
     assert daily_cfg.default_action_scope == "pie"
 
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     # Build exposure for a DailyDiv constituent, e.g., O_US_EQ (Realty Income)
     raw = _fake_api_position("O_US_EQ", quantity=5, pie_quantity=5, current_price=60, ppl=0, fx_ppl=1)
     parsed = parse_position(raw)
@@ -171,7 +171,7 @@ def test_daily_div_ignores_daily_ticker_trading_signal_by_default():
 
 
 def test_unknown_target_weights_do_not_produce_fake_rebalance():
-    universe = load_pie_universe("PIEs")
+    universe = load_pie_universe("PIEs/examples")
     # TechPieShort has no weight column -> has_target_weights False
     tech = next(p for p in universe.pies if p.pie_id == "TechPieShort")
     assert tech.has_target_weights is False

@@ -9,42 +9,42 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from investment_engine.accounting.importers.t212_csv import (
+    detect_csv_type,
+    import_t212_activity_csv,
+    import_t212_cash_csv,
+)
+from investment_engine.accounting.lot_matching import (
+    MatchingResult,
+    match_sell_fifo,
+)
 from investment_engine.accounting.models import (
     LedgerEvent,
     LedgerSummary,
     ManualAdjustments,
 )
-from investment_engine.accounting.importers.t212_csv import (
-    import_t212_activity_csv,
-    import_t212_cash_csv,
-    detect_csv_type,
-)
-from investment_engine.accounting.lot_matching import (
-    match_sell_fifo,
-    MatchingResult,
-)
 from investment_engine.accounting.performance import (
-    calculate_performance,
     PerformanceResult,
+    calculate_performance,
 )
 from investment_engine.accounting.reconciliation import (
-    reconcile_ledger,
     ReconciliationResult,
+    reconcile_ledger,
 )
 
 
 @dataclass
 class Ledger:
     """Complete historical ledger with all derived calculations."""
-    events: List[LedgerEvent]
+    events: list[LedgerEvent]
     matching_result: MatchingResult
     performance: PerformanceResult
-    reconciliation: Optional[ReconciliationResult] = None
-    manual_adjustments: Optional[ManualAdjustments] = None
+    reconciliation: ReconciliationResult | None = None
+    manual_adjustments: ManualAdjustments | None = None
     
-    def to_dict(self, include_raw: bool = False) -> Dict[str, Any]:
+    def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
         return {
             "events": [e.to_dict(include_raw=include_raw) for e in self.events],
             "matching": self.matching_result.to_dict(),
@@ -53,7 +53,7 @@ class Ledger:
             "manual_adjustments": self.manual_adjustments.to_dict() if self.manual_adjustments else None,
         }
     
-    def get_summary_report(self) -> Dict[str, Any]:
+    def get_summary_report(self) -> dict[str, Any]:
         """Generate a summary report for user-facing output."""
         return {
             "historical_ledger_summary": self.performance.summary.to_dict(),
@@ -68,13 +68,13 @@ class Ledger:
 
 
 def build_ledger(
-    activity_csv_path: Optional[str | Path] = None,
-    cash_csv_path: Optional[str | Path] = None,
-    manual_adjustments: Optional[ManualAdjustments] = None,
-    default_fx_rates: Optional[Dict[str, Decimal]] = None,
-    broker_net_deposits_eur: Optional[Decimal] = None,
-    broker_positions_value_eur: Optional[Decimal] = None,
-    broker_account_return_eur: Optional[Decimal] = None,
+    activity_csv_path: str | Path | None = None,
+    cash_csv_path: str | Path | None = None,
+    manual_adjustments: ManualAdjustments | None = None,
+    default_fx_rates: dict[str, Decimal] | None = None,
+    broker_net_deposits_eur: Decimal | None = None,
+    broker_positions_value_eur: Decimal | None = None,
+    broker_account_return_eur: Decimal | None = None,
 ) -> Ledger:
     """Build complete historical ledger from CSV files.
     
@@ -92,7 +92,7 @@ def build_ledger(
     Returns:
         Ledger with all events, matching, performance, and reconciliation.
     """
-    all_events: List[LedgerEvent] = []
+    all_events: list[LedgerEvent] = []
     
     # Import activity CSV
     if activity_csv_path:
@@ -106,9 +106,12 @@ def build_ledger(
     
     # If neither provided, return empty ledger
     if not all_events:
-        from investment_engine.accounting.performance import PerformanceResult, TradeStatistics
         from investment_engine.accounting.fees import FeeBreakdown
         from investment_engine.accounting.lot_matching import MatchingResult
+        from investment_engine.accounting.performance import (
+            PerformanceResult,
+            TradeStatistics,
+        )
         
         empty_performance = PerformanceResult(
             summary=LedgerSummary(accounting_status="UNAVAILABLE", total_events=0),
@@ -168,8 +171,8 @@ def build_ledger(
     )
 
 
-def _convert_to_eur(amount: Decimal, currency: str, exchange_rate: Optional[Decimal],
-                    default_fx_rates: Dict[str, Decimal]) -> Decimal:
+def _convert_to_eur(amount: Decimal, currency: str, exchange_rate: Decimal | None,
+                    default_fx_rates: dict[str, Decimal]) -> Decimal:
     """Convert amount to EUR using event's exchange rate or default rates."""
     if currency == "EUR":
         return amount
@@ -181,7 +184,7 @@ def _convert_to_eur(amount: Decimal, currency: str, exchange_rate: Optional[Deci
     return amount  # No conversion available
 
 
-def preview_csv(file_path: str | Path, max_rows: int = 5) -> Dict[str, Any]:
+def preview_csv(file_path: str | Path, max_rows: int = 5) -> dict[str, Any]:
     """Preview a CSV file to verify column mapping before import."""
     path = Path(file_path)
     with path.open("r", encoding="utf-8-sig", newline="") as f:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+
 import requests
 
 from .base import BaseLLMProvider
@@ -42,7 +43,7 @@ class GeminiProvider(BaseLLMProvider):
         }
 
         try:
-            resp = requests.post(url, json=payload, timeout=30)
+            resp = requests.post(url, json=payload, timeout=(10, 120))
             resp.raise_for_status()
             data = resp.json()
             # Gemini response structure: candidates[0].content.parts[0].text

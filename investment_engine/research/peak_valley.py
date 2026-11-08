@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+
 # scipy.signal.find_peaks is a deliberate dependency: its prominence and
 # distance semantics are the reference behavior for support/resistance
 # detection, and reimplementing them locally would risk numerical drift.

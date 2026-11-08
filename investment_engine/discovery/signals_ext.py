@@ -107,7 +107,7 @@ HYPE_PATTERNS = {
                r"join (our|the) (group|community)",
     "returns": r"\d{2,3}\s?% (weekly|monthly|per month|a week|per week)",
 }
-_HYPE_RE = {k: re.compile(v, re.I) for k, v in HYPE_PATTERNS.items()}
+_HYPE_RE = {k: re.compile(v, re.IGNORECASE) for k, v in HYPE_PATTERNS.items()}
 
 
 def hype_flags(text: str) -> dict:

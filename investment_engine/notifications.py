@@ -20,9 +20,8 @@ from __future__ import annotations
 import logging
 import os
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional
+from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ def _ntfy_available() -> bool:
     return bool(_cfg("NOTIFY_NTFY_TOPIC"))
 
 
-def send_email(subject: str, body: str, to: Optional[str] = None) -> bool:
+def send_email(subject: str, body: str, to: str | None = None) -> bool:
     """Send email via SMTP (Gmail default). Returns True on success."""
     sender = _cfg("NOTIFY_EMAIL")
     password = _cfg("NOTIFY_EMAIL_PASSWORD")

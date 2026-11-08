@@ -11,10 +11,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
 
 from investment_engine.research.news_engine import NewsItem, StrictNewsFetcher
-from investment_engine.research.news_sources import EnhancedNewsFetcher, NewsContextBuilder
+from investment_engine.research.news_sources import (
+    EnhancedNewsFetcher,
+    NewsContextBuilder,
+)
 from investment_engine.schemas.context import T212Snapshot
 
 logger = logging.getLogger(__name__)
@@ -29,8 +34,10 @@ def _fetch_t212_data(settings_dict: dict) -> T212Snapshot | None:
         return None
     try:
         import time
+        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import TimeoutError as FuturesTimeoutError
+
         from trading212.integration import create_integration
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
         
         logger.info("Fetching T212 account summary...")
         t212 = create_integration(config_file="api.env")
@@ -108,7 +115,7 @@ class NewsFetchResult:
     news_context_path: str | None
 
 
-def _fetch_all_news_parallel(settings_dict: dict, assets: List[Dict[str, Any]], max_workers: int = 8, run_id: str = "") -> NewsFetchResult:
+def _fetch_all_news_parallel(settings_dict: dict, assets: list[dict[str, Any]], max_workers: int = 8, run_id: str = "") -> NewsFetchResult:
     """Fetch news for assets in parallel - all enabled assets, not just top 10.
 
     Returns a NewsFetchResult with named fields so callers never unpack a
@@ -295,7 +302,7 @@ def _is_us_symbol(symbol: str) -> bool:
     return not any(symbol.endswith(suf) for suf in non_us_suffixes)
 
 
-def _load_symbol_aliases(portfolio_context: Dict[str, Any] | None) -> Dict[str, str]:
+def _load_symbol_aliases(portfolio_context: dict[str, Any] | None) -> dict[str, str]:
     """Load T212 -> Yahoo symbol aliases from the JSON config (symbol_aliases)."""
     try:
         cfg_path = (portfolio_context or {}).get("config_path")
@@ -309,14 +316,17 @@ def _load_symbol_aliases(portfolio_context: Dict[str, Any] | None) -> Dict[str, 
         return {}
 
 
-def _t212_yahoo_symbol(t212_symbol: str, aliases: Dict[str, str]) -> str | None:
+def _t212_yahoo_symbol(t212_symbol: str, aliases: dict[str, str]) -> str | None:
     """Map a Trading212 internal ID to a Yahoo Finance ticker (or None).
 
     Single mapping layer (see investment_engine.portfolio.symbols). Never
     returns company names. Kept for backward compatibility.
     """
     try:
-        from investment_engine.portfolio.symbols import to_display_symbol, to_yahoo_symbol
+        from investment_engine.portfolio.symbols import (
+            to_display_symbol,
+            to_yahoo_symbol,
+        )
         disp = to_display_symbol(t212_symbol)
         return to_yahoo_symbol(t212_symbol, disp, aliases)
     except Exception:

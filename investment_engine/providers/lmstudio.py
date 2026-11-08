@@ -6,12 +6,15 @@ import time
 
 import requests
 
+from investment_engine.providers.presets import merge_sampling, preset_for
+
 from .base import BaseLLMProvider
 from .context_budget import (
     context_is_sufficient as _context_is_sufficient,
+)
+from .context_budget import (
     context_target as _context_target,
 )
-from investment_engine.providers.presets import merge_sampling, preset_for
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +82,7 @@ def reset_v1_models_cache() -> None:
 def _root_url(base_url: str) -> str:
     """Server root without the /v1 suffix."""
     base = (base_url or "").rstrip("/")
-    if base.endswith("/v1"):
-        base = base[: -len("/v1")]
+    base = base.removesuffix("/v1")
     return base.rstrip("/")
 
 
@@ -377,8 +379,7 @@ class LMStudioProvider(BaseLLMProvider):
     def _server_root(self) -> str:
         """Server root without the /v1 suffix (for management endpoints)."""
         root = self.base_url.rstrip("/")
-        if root.endswith("/v1"):
-            root = root[: -len("/v1")]
+        root = root.removesuffix("/v1")
         return root.rstrip("/")
 
     def unload_model(self, model: str) -> bool:
@@ -397,7 +398,9 @@ class LMStudioProvider(BaseLLMProvider):
         # Track this as a local AI attempt (parity with Ollama/llama.cpp, so
         # LOCALS runs do not report local_ai_requests_sent=0 in the manifest).
         try:
-            from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai
+            from investment_engine.providers.telemetry import (
+                track_local_ai_attempt as _track_local_ai,
+            )
             _track_local_ai(blocked=False)
         except Exception:
             pass
@@ -543,7 +546,9 @@ def unload_lmstudio_models(base_url: str, models: list[str]) -> dict[str, bool]:
     """Best-effort unload of several models. Never raises. Returns {model: ok}."""
     # Track unload attempts as local AI activity
     try:
-        from investment_engine.providers.telemetry import track_local_ai_attempt as _track_local_ai
+        from investment_engine.providers.telemetry import (
+            track_local_ai_attempt as _track_local_ai,
+        )
         for _ in dict.fromkeys(models):
             _track_local_ai(blocked=False)
     except Exception:

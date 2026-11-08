@@ -152,7 +152,7 @@ def plan_retention(
     logs_dir = repo_root / "logs"
     if logs_dir.is_dir():
         cutoff = now - (policy.logs_retention_days * 86400)
-        for log_file in logs_dir.glob("*.log"):
+        for log_file in logs_dir.rglob("*.log"):
             if not is_within_repo(log_file, repo_root):
                 plan.errors.append(f"Refusing to delete out-of-root path: {log_file}")
                 continue

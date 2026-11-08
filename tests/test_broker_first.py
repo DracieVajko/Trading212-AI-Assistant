@@ -256,6 +256,28 @@ def test_gbx_rate_lookup_uses_gbp():
     assert rate3 is None
 
 
+def test_broker_implied_rate_preferred_when_live_fx_missing():
+    # Broker-implied USD rate within 20% of the static anchor -> use it so the
+    # position total matches the broker's own EUR P&L.
+    rate, source = resolve_fx_rate("USD", {}, implied_rate=0.90)
+    assert rate == pytest.approx(0.90)
+    assert source == "broker-implied"
+
+
+def test_noisy_implied_rate_falls_back_to_static():
+    # Implied rates far from the static anchor come from tiny price moves and
+    # must not distort reconciliation.
+    rate, source = resolve_fx_rate("USD", {}, implied_rate=0.50)
+    assert rate == pytest.approx(0.922)
+    assert source == "static-fallback"
+
+
+def test_live_fx_still_wins_over_implied_rate():
+    rate, source = resolve_fx_rate("USD", {"USD": 0.87}, implied_rate=0.90)
+    assert rate == pytest.approx(0.87)
+    assert source == "live-fx"
+
+
 def test_parse_position_gbx_uses_gbp_rate():
     from trading212.portfolio import parse_position
     catalog = {"EGTl_EQ": {"isin": "GB00BPVG5407", "currencyCode": "GBX"}}

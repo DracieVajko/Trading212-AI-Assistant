@@ -6,6 +6,11 @@ Reliable Investment Monitoring System with local AI models (Ollama/LM Studio).
 
 - **T212 Integration** - Read-only portfolio sync via Trading 212 API
 - **Technical Analysis** - RSI, MA crossovers, momentum, trend detection
+- **Forecast Engine** - Scenario-based price projections (pessimistic/base/optimistic) over 1/5/20/60-day horizons
+- **Signal Recording** - Every recommendation stored in SQLite for later backtesting
+- **Day Trader Pack** - Vendored 11-skill day-trading toolkit with read-only premarket pack and demo execution layer
+- **Multi-market universe** - S&P 500 + Nasdaq-100 + your portfolio + configurable EU/China/ETF symbols (EXI2.DE, VWCE.DE, etc.)
+- **Permanent history** - `history/` stores every trade and AI decision (demo/live separated); cleanup never deletes it
 - **Signal Generation** - BUY/SELL/HOLD with probabilities
 - **Per-Asset News** - 48h filtered news with sentiment analysis
 - **Local AI** - Works with Ollama or LM Studio (Fin-R1, Gemma, GPT-OSS)
@@ -267,6 +272,18 @@ py -3.12 scripts/verify_environment.py   :: preflight incl. matplotlib + pip-che
   `%TEMP%\opencode` (Windows) or `$TMPDIR/opencode` (macOS/Linux).
   Scripts default to writing under `agent_data/{scratch,charts,decision_log}/`;
   reports/logs go to the gitignored `reports/` and `logs/`.
+- **Single output root:** the CLI pins its working directory to the project
+  folder (`portfolio_ai_assistant.py`'s directory), so Task Scheduler entries,
+  shortcuts, or shells started elsewhere always write into this folder.
+- **Excel export:** every full run writes `reports/current/holdings.xlsx` with
+  standalone vs PIE-grouped holdings (ticker, company, quantity, avg/current
+  price, value, P&L, weight).
+- **Permanent memory:** `history/history.db` + `history/live/` + `history/demo/`
+  keep buys, sells and AI decisions with reasons. `cleanup.bat` and
+  `purge_outputs.bat` only touch `reports/` and `logs/`, never `history/`.
+  Query with `py -3.12 portfolio_ai_assistant.py --history`.
+- **Mode separation:** logs go to `logs/live/` or `logs/demo/`; day-trader
+  reports go to `reports/day_trader/live/` or `reports/day_trader/demo/`.
 
 ## AI Models (LM Studio, per-stage routing)
 

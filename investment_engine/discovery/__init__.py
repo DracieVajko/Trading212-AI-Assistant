@@ -9,9 +9,9 @@ Modules:
 """
 from __future__ import annotations
 
-from .universe import build_universe
-from .screener import run_screener
 from .discovery import run_discovery, score_candidate
 from .discovery_report import write_discovery_report
+from .screener import run_screener
+from .universe import build_universe
 
-__all__ = ["build_universe", "run_screener", "run_discovery", "score_candidate", "write_discovery_report"]
+__all__ = ["build_universe", "run_discovery", "run_screener", "score_candidate", "write_discovery_report"]

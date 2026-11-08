@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Mapping, Any
+from collections.abc import Mapping
+from typing import Any
 
 
 def score_asset(asset: Mapping[str, Any], portfolio_context: Mapping[str, Any] | None = None) -> float:

@@ -8,6 +8,17 @@ import copy
 
 import pandas as pd
 
+# Relative strength and pullback/breakout detection (technical_analysis.py)
+from investment_engine.research.technical_analysis import (
+    breakout_from_downtrend as _breakout_from_downtrend,
+)
+from investment_engine.research.technical_analysis import (
+    pullback_in_uptrend as _pullback_in_uptrend,
+)
+from investment_engine.research.technical_analysis import (
+    relative_strength as _relative_strength,
+)
+
 from . import signals_ext as sx
 from . import tip_screen as ts
 from . import trackers as tr
@@ -105,6 +116,22 @@ def score_candidate(ticker: str, daily: pd.DataFrame, regime: dict, info: dict |
     ext_total = max(-cfg["ext_cap"], min(cfg["ext_cap"],
                     e.get("cramer", 0.0) + e.get("investors", 0.0) + e.get("insider", 0.0)))
 
+    # --- Relative strength vs benchmark + pullback/breakout detection ---
+    rs_result = _relative_strength(daily, info.get("benchmark_daily"))
+    pullback_result = _pullback_in_uptrend(daily)
+    breakout_result = _breakout_from_downtrend(daily)
+    # Merge relative strength components into comp (safe: None -> 0.0)
+    for rs_key in ("rs_20d", "rs_60d", "rs_120d"):
+        val = rs_result.get(rs_key)
+        if val is not None:
+            comp[f"rs_{rs_key}"] = float(val)
+    comp["rs_trend"] = 1.0 if rs_result.get("rs_trend") == "IMPROVING" else (
+        -1.0 if rs_result.get("rs_trend") == "DECLINING" else 0.0)
+    # Add pullback/breakout flags to components
+    comp["pullback_candidate"] = 1.0 if pullback_result.get("status") == "PULLBACK_CANDIDATE" else 0.0
+    comp["breakout_candidate"] = 1.0 if breakout_result.get("status") == "BREAKOUT_CANDIDATE" else 0.0
+    base = sum(comp.values())
+
     reject, cap_watch = [], []
     if pump["high_risk"]:
         reject += [f"pump_risk:{f}" for f in pump["flags"]]
@@ -120,6 +147,11 @@ def score_candidate(ticker: str, daily: pd.DataFrame, regime: dict, info: dict |
         out["flags"].append("bollinger_squeeze_breakout")
     if sc.get("ok") and sc["golden_cross_recent"]:
         out["flags"].append("sma50_200_golden_cross_recent")
+    # Add pullback/breakout flags to output
+    if pullback_result.get("status") == "PULLBACK_CANDIDATE":
+        out["flags"].append("pullback_candidate")
+    if breakout_result.get("status") == "BREAKOUT_CANDIDATE":
+        out["flags"].append("breakout_candidate")
 
     status, why = _decide(base, ext_total, reject, cap_watch, cfg)
     out.update({"status": status, "score": round(base + ext_total, 2), "base": round(base, 2),

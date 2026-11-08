@@ -6,20 +6,20 @@ and historical transaction ledger sections. Advisory only - no live trading.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from investment_engine.portfolio.exposure import (
-    CanonicalExposure,
-    generate_exposure_view,
-    generate_actionability_view,
-)
-from investment_engine.accounting.reporting import generate_historical_ledger_report
 from investment_engine.accounting import PerformanceResult
 from investment_engine.accounting.reconciliation import ReconciliationResult
+from investment_engine.accounting.reporting import generate_historical_ledger_report
+from investment_engine.portfolio.exposure import (
+    CanonicalExposure,
+    generate_actionability_view,
+    generate_exposure_view,
+)
 
 
 def generate_portfolio_exposure_section(
-    canonical_exposures: List[CanonicalExposure],
+    canonical_exposures: list[CanonicalExposure],
     total_equity_eur: float,
 ) -> str:
     """Generate Portfolio Exposure section for the report."""
@@ -71,7 +71,7 @@ def generate_portfolio_exposure_section(
 
 
 def generate_actionability_section(
-    canonical_exposures: List[CanonicalExposure],
+    canonical_exposures: list[CanonicalExposure],
 ) -> str:
     """Generate Actionability section for the report."""
     action_view = generate_actionability_view(canonical_exposures)
@@ -116,8 +116,8 @@ def generate_actionability_section(
 
 
 def generate_historical_ledger_section(
-    performance: Optional[PerformanceResult],
-    reconciliation: Optional[ReconciliationResult] = None,
+    performance: PerformanceResult | None,
+    reconciliation: ReconciliationResult | None = None,
 ) -> str:
     """Generate Historical Trading Ledger section for the report."""
     lines = ["## 📜 Historical Trading Ledger", ""]
@@ -145,18 +145,18 @@ def generate_historical_ledger_section(
 
 def generate_full_integrated_report(
     regime_result: Any,
-    t212_data: Optional[Dict[str, Any]] = None,
-    ai_recs: Optional[Dict[str, Any]] = None,
-    canonical_exposures: Optional[List[CanonicalExposure]] = None,
-    total_equity_eur: Optional[float] = None,
-    historical_performance: Optional[PerformanceResult] = None,
-    historical_reconciliation: Optional[ReconciliationResult] = None,
-    earnings: Optional[Dict[str, Any]] = None,
-    technicals: Optional[Dict[str, Any]] = None,
-    names: Optional[Dict[str, str]] = None,
-    known_clean: Optional[set] = None,
-    canonical: Optional[Dict[str, Any]] = None,
-    yahoo_map: Optional[Dict[str, Any]] = None,
+    t212_data: dict[str, Any] | None = None,
+    ai_recs: dict[str, Any] | None = None,
+    canonical_exposures: list[CanonicalExposure] | None = None,
+    total_equity_eur: float | None = None,
+    historical_performance: PerformanceResult | None = None,
+    historical_reconciliation: ReconciliationResult | None = None,
+    earnings: dict[str, Any] | None = None,
+    technicals: dict[str, Any] | None = None,
+    names: dict[str, str] | None = None,
+    known_clean: set | None = None,
+    canonical: dict[str, Any] | None = None,
+    yahoo_map: dict[str, Any] | None = None,
 ) -> str:
     """Generate complete integrated report with all sections.
     

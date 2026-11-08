@@ -4,11 +4,14 @@ import logging
 import os
 import re
 import time
+from pathlib import Path
 
-from .base import BaseLLMProvider
+ROOT = Path(__file__).resolve().parents[3]
 
 from investment_engine import liveness as _lv
 from investment_engine.reporting.run_history import record_run_event
+
+from .base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +19,7 @@ logger = logging.getLogger(__name__)
 def _record_event(event: dict) -> None:
     """Append a run event. Never raises; uses run_history with sanitization."""
     try:
-        path = os.getenv("RUN_EVENTS_PATH", "reports/run_events.jsonl")
+        path = os.getenv("RUN_EVENTS_PATH", str(ROOT / "reports" / "run_events.jsonl"))
         record_run_event(path, event)
     except Exception as exc:
         logger.debug("run event record failed: %s", type(exc).__name__)

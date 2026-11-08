@@ -14,14 +14,14 @@ Conventions:
 
 from __future__ import annotations
 
-from investment_engine.utils.coerce import optional_float as _num
-
 import math
 from datetime import date, datetime, timezone
 from typing import Any
 
 import numpy as np
 import pandas as pd
+
+from investment_engine.utils.coerce import optional_float as _num
 
 SCHEMA_VERSION = 1
 
@@ -36,7 +36,7 @@ RETURN_WINDOWS = {"equity": (21, 63, 126, 252), "fund": (21, 63, 126, 252),
 
 def _sma(values: np.ndarray, n: int) -> np.ndarray:
     out = np.full_like(values, np.nan, dtype=float)
-    if len(values) >= n and n > 0:
+    if len(values) >= n > 0:
         out[n - 1:] = np.convolve(values, np.ones(n) / n, mode="valid")
     return out
 
@@ -44,7 +44,7 @@ def _sma(values: np.ndarray, n: int) -> np.ndarray:
 def _ema(values: np.ndarray, n: int) -> np.ndarray:
     """EMA with alpha=2/(n+1), seeded by the SMA of the first n closes."""
     out = np.full_like(values, np.nan, dtype=float)
-    if len(values) >= n and n > 0:
+    if len(values) >= n > 0:
         alpha = 2.0 / (n + 1)
         out[n - 1] = float(np.mean(values[:n]))
         for t in range(n, len(values)):
@@ -365,7 +365,7 @@ def classify_regime(close: float, s50: float, s200: float, slope200: float) -> s
         return "TRANSITION_OR_RANGE"
     if any(v != v for v in vals):
         return "TRANSITION_OR_RANGE"
-    if close > s50 and s50 > s200 and slope200 > 0:
+    if close > s50 > s200 and slope200 > 0:
         return "STRONG_UPTREND"
     if s50 > s200 and slope200 > 0 and close <= s50 and close > s200:
         return "UPTREND_PULLBACK"
@@ -396,7 +396,7 @@ def run_snapshot_selftests() -> dict:
             failed.append("rsi-flat")
         if bool(np.any(_atr_wilder(flat, flat, flat)[14:] < 0)):
             failed.append("atr-nonneg")
-        cu, cl_, _, bw, _ = _bollinger(np.arange(1.0, 301.0))
+        cu, cl_, _, _bw, _ = _bollinger(np.arange(1.0, 301.0))
         if not (bool(np.all(cu[19:] >= cl_[19:]))):
             failed.append("bollinger-order")
         dd = _drawdown_series(np.arange(1.0, 501.0))

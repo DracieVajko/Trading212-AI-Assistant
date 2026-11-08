@@ -7,15 +7,13 @@ deterministically from canonical rows — no LLM prose enters either document.
 
 from __future__ import annotations
 
-from investment_engine.utils.coerce import coerce_float as _num
-from investment_engine.portfolio import t212_view
-
 import re
 from datetime import date as _date
 from typing import Any
 
+from investment_engine.portfolio import t212_view
 from investment_engine.reporting.regime_report import normalize_signal, signal_emoji
-
+from investment_engine.utils.coerce import coerce_float as _num
 
 # Urgency weights (higher = more urgent). No hard item cap: every triggered
 # position is listed, sorted by urgency descending.
@@ -166,8 +164,10 @@ def build_monitoring_items(
         # Only compare if mapping is VERIFIED and currencies match.
         # Pence-scale codes (broker GBX vs Yahoo GBp->GBX) are equivalent:
         # both feeds quote London listings in pence, so natives compare 1:1.
-        from investment_engine.portfolio.broker_first import normalize_quote_currency as _norm_ccy
         from investment_engine.portfolio.broker_first import convert_to_eur as _to_eur
+        from investment_engine.portfolio.broker_first import (
+            normalize_quote_currency as _norm_ccy,
+        )
         ext_mapping_status = str(r.get("external_mapping_status", r.get("market_data_state", ""))).upper()
         broker_quote_ccy = _norm_ccy(r.get("quote_currency", r.get("broker_quote_currency", "")))
         ext_quote_ccy = _norm_ccy(r.get("external_quote_currency", ""))
@@ -237,7 +237,7 @@ def build_monitoring_items(
             presentation = "SELL"
             action = (f"Risk-reduction review: consider trimming {disp} per stop discipline; "
                       f"no quantity in brief." if not fail else
-                      f"Risk-reduction candidate under FAIL: manual review only, no automatic action.")
+                      "Risk-reduction candidate under FAIL: manual review only, no automatic action.")
         elif fail:
             presentation = "REVIEW"
             action = "Review only; no transaction authorized."
@@ -290,7 +290,7 @@ def extract_validated_ideas(
     Confidence high with ≥2 evidences, else medium.
     """
     headlines: list[tuple[str, str, str]] = []
-    for _sym, entries in (news_by_symbol or {}).items():
+    for entries in (news_by_symbol or {}).values():
         for e in entries or []:
             if isinstance(e, dict) and e.get("title") and e.get("url"):
                 headlines.append((str(e["title"]), str(e["url"])))
@@ -346,7 +346,7 @@ _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
 def _mday(date_iso: str) -> str:
     """YYYY-MM-DD -> 'MMM DD' without locale dependence."""
     try:
-        y, m, d = date_iso[:10].split("-")
+        _y, m, d = date_iso[:10].split("-")
         return f"{_MONTHS[int(m) - 1]} {int(d):02d}"
     except (ValueError, TypeError, IndexError):
         return date_iso
@@ -422,7 +422,8 @@ def build_intelligence_brief(result: dict) -> str:
     snapshot_age = "unknown"
     if t212_ts:
         try:
-            from datetime import datetime as _dt, timezone as _tz
+            from datetime import datetime as _dt
+            from datetime import timezone as _tz
             _ts = _dt.fromisoformat(t212_ts.replace("Z", "+00:00"))
             _age_min = (_dt.now(_tz.utc) - _ts).total_seconds() / 60.0
             snapshot_age = f"{int(_age_min)} min ago" if _age_min < 90 else f"{_age_min / 60.0:.1f}h ago"
@@ -539,7 +540,8 @@ def build_intelligence_brief(result: dict) -> str:
                     meta_parts.append(source)
                 if pub_time:
                     try:
-                        from datetime import datetime as _dt, timezone as _tz
+                        from datetime import datetime as _dt
+                        from datetime import timezone as _tz
                         _ts = _dt.fromisoformat(pub_time.replace('Z', '+00:00'))
                         if _ts.tzinfo is None:
                             _ts = _ts.replace(tzinfo=_tz.utc)
@@ -668,7 +670,9 @@ def build_intelligence_brief(result: dict) -> str:
     stages = result.get("providers_per_stage") or {}
     if stages:
         try:
-            from investment_engine.providers.attribution import format_stage_line as _fmt_stage
+            from investment_engine.providers.attribution import (
+                format_stage_line as _fmt_stage,
+            )
         except Exception:
             _fmt_stage = None
         if _fmt_stage is not None:
@@ -703,7 +707,9 @@ def build_intelligence_brief(result: dict) -> str:
     # from "everything not deterministic is LLM" heuristics — unknown records
     # must not inflate the LLM count.
     try:
-        from investment_engine.providers.attribution import stage_origin as _stage_origin
+        from investment_engine.providers.attribution import (
+            stage_origin as _stage_origin,
+        )
     except Exception:
         _stage_origin = None
     def _classify_stage(rec):
@@ -840,8 +846,8 @@ def build_intelligence_brief(result: dict) -> str:
         lines.append("- Causal attribution: " + ("available" if _changed else "unavailable"))
     lines.extend([
         "",
-        "Details: t212_portfolio_snapshot.md (full broker-first positions) + "
-        "portfolio_deep_dive.md (15-section analysis).",
+        ("Details: t212_portfolio_snapshot.md (full broker-first positions) + "
+        "portfolio_deep_dive.md (15-section analysis)."),
     ])
     brief = "\n".join(lines)
     if len(brief.splitlines()) > 60:
@@ -932,9 +938,9 @@ def render_brief(
         f"- Market regime: **{regime_line}**",
         f"- Account reconciliation: **{status}**",
         f"- Broker total equity: {_feur(perf.get('broker_total_equity_eur', (recon or {}).get('total_equity')))}",
-        f"- Net deposits: {_feur(perf.get('net_deposits_eur'))} "
+        (f"- Net deposits: {_feur(perf.get('net_deposits_eur'))} "
         f"({perf.get('net_deposits_source', 'Unavailable — no verified cash-flow source')} / "
-        f"{perf.get('net_deposits_status', 'UNAVAILABLE')})",
+        f"{perf.get('net_deposits_status', 'UNAVAILABLE')})"),
         f"- Net P&L after costs: {_perf_eur(perf.get('net_pnl_after_costs_eur')) if perf_ok else 'Unavailable'}",
         f"- Return on net deposits: {_perf_pct(perf.get('return_pct')) if perf_ok else 'Unavailable'}",
         f"- Reported free cash: {_feur(perf.get('reported_free_cash_eur'))}",
@@ -1126,12 +1132,12 @@ def _snapshot_row_lines(r: dict, monitoring_by_display: dict | None,
     lot = str(r.get("internal_id") or "").strip()
     notes_cell = note_marker if note_marker else (r.get("notes") or "—")
     return [
-        f"| {r.get('display_symbol') or r.get('ticker')} | {lot or '—'} | {r.get('company')} | "
+        (f"| {r.get('display_symbol') or r.get('ticker')} | {lot or '—'} | {r.get('company')} | "
         f"{float(r.get('quantity', 0) or 0):.4f} | {_feur(r.get('avg_cost'))} | {_feur(r.get('current_price'))} | "
         f"{_feur(r.get('market_value'))} | {unreal_s} | {_feur(r.get('realized_pnl'))} | {total_s} | "
         f"{pct_s} | {float(r.get('weight', 0) or 0):.2f}% | {signal_emoji(r.get('signal', 'HOLD'))} | {mon} | "
         f"{_fnum(_eur_level(r, 'support'))} | {_fnum(_eur_level(r, 'resistance'))} | "
-        f"{r.get('market_data_state', 'n/a')} | {notes_cell} |"
+        f"{r.get('market_data_state', 'n/a')} | {notes_cell} |")
     ]
 
 
@@ -1190,8 +1196,8 @@ def render_snapshot(
     ]
     if status == "FAIL":
         lines += ["",
-                  "> Reconciliation check failed — derived account totals withheld. "
-                  "No cause is asserted.",
+                  ("> Reconciliation check failed — derived account totals withheld. "
+                  "No cause is asserted."),
                   "",
                   f"> {FAIL_PERFORMANCE_NOTE}"]
     lines += ["", "## Holdings", ""]
@@ -1209,7 +1215,7 @@ def render_snapshot(
             _txt = str(_rdict.get("notes") or "").strip()
             _marker = ""
             if _txt and _txt != "—":
-                _notes.append(f"{str(_rdict.get('display_symbol') or _rdict.get('ticker'))}: {_txt}")
+                _notes.append(f"{_rdict.get('display_symbol') or _rdict.get('ticker')!s}: {_txt}")
                 _marker = f"[{len(_notes)}]"
             for _line in _snapshot_row_lines(_rdict, monitoring_by_display,
                                              note_marker=_marker or None):
@@ -1362,8 +1368,8 @@ def build_deep_dive(
         f"- Stance: **{portfolio_stance(rows, status)}** | Regime: **{regime}**",
         *status_lines,
         f"- Broker total equity: {_feur(perf.get('total_equity', (recon or {}).get('total_equity')))}",
-        f"- Reported free cash: {_feur(cash.get('free', 0))} | Total reported cash: "
-        f"{_feur(_num(cash.get('free', 0)) + _num(cash.get('pie_cash', 0)) + _num(cash.get('blocked', 0)))}",
+        (f"- Reported free cash: {_feur(cash.get('free', 0))} | Total reported cash: "
+        f"{_feur(_num(cash.get('free', 0)) + _num(cash.get('pie_cash', 0)) + _num(cash.get('blocked', 0)))}"),
         "",
         "## 2. Macro & Policy Watch (Trump/Geopolitics)", "",
     ]
@@ -1547,7 +1553,9 @@ def build_deep_dive(
     _sa = stage_attribution if isinstance(stage_attribution, dict) else {}
     if _sa:
         try:
-            from investment_engine.providers.attribution import format_stage_line as _fmt_sa
+            from investment_engine.providers.attribution import (
+                format_stage_line as _fmt_sa,
+            )
         except Exception:
             _fmt_sa = None
         lines.append("- Models actually used this run:")

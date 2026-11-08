@@ -8,24 +8,27 @@ imports keep working.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-from investment_engine.config.settings import EngineSettings
-from investment_engine.providers.factory import ProviderFactory
-from investment_engine.portfolio import t212_view
-from investment_engine.research.market_regime import EXI2RegimeAnalyzer
-from investment_engine.reporting.regime_report import RegimeReportGenerator
 from investment_engine import liveness as _lv
-from investment_engine.schemas.context import AssetInput, RunResult
+from investment_engine.config.settings import EngineSettings
+from investment_engine.portfolio import t212_view
+from investment_engine.providers.factory import ProviderFactory
+from investment_engine.reporting.regime_report import RegimeReportGenerator
+from investment_engine.research.market_regime import EXI2RegimeAnalyzer
 from investment_engine.run_state import STAGE_ATTRIBUTION as _STAGE_ATTRIBUTION
+from investment_engine.schemas.context import AssetInput, RunResult
 
 logger = logging.getLogger(__name__)
 
-from investment_engine.main import SUMMARY_GUARDRAILS
 from investment_engine.fetching import build_regime_context
+from investment_engine.main import SUMMARY_GUARDRAILS
 from investment_engine.providers.generation import (
     annotate_skill_output,
     generate_with_fallback,
@@ -49,7 +52,61 @@ from investment_engine.reporting.sections import (
 )
 
 
-def run_engine(assets: List[AssetInput], portfolio_context: Dict[str, Any] | None = None, settings: EngineSettings | None = None) -> RunResult:
+def apply_user_cash_floor(regime_result, cash_floor_pct):
+    """Override the regime cash target with an explicit user cash floor.
+
+    ``None`` keeps the regime recommendation. ``0.0`` disables the cash target
+    (user explicitly chose no mandatory cash reserve). Invalid values are
+    ignored so a malformed custom rule never blocks the run.
+    """
+    if regime_result is None or cash_floor_pct is None:
+        return regime_result
+    try:
+        floor = float(cash_floor_pct)
+    except (TypeError, ValueError):
+        logger.warning("Invalid cash_floor_pct %r; keeping regime cash target", cash_floor_pct)
+        return regime_result
+    implications = getattr(regime_result, "implications", None)
+    if not isinstance(implications, dict):
+        return regime_result
+    previous = implications.get("cash_target_pct")
+    implications["cash_target_pct"] = floor
+    logger.info("Cash target overridden by custom_rules: %s%% -> %s%% (explicit user floor)",
+                previous, floor)
+    return regime_result
+
+
+def apply_user_cash_floor_to_policy(policy_state: dict, cash_floor_pct):
+    """Apply the explicit user cash floor to the loaded investment policy.
+
+    The policy file's ``cash.mandatory_floor_pct`` controls the order-plan
+    reserve. Without this override, custom_rules' ``cash_floor_pct: 0`` is
+    ignored and every BUY is blocked by the file's reserve.
+    """
+    if cash_floor_pct is None or not isinstance(policy_state, dict):
+        return policy_state
+    if str(policy_state.get("status", "")).upper() != "OK":
+        return policy_state
+    try:
+        floor = float(cash_floor_pct)
+    except (TypeError, ValueError):
+        logger.warning("Invalid cash_floor_pct %r; keeping policy cash floor", cash_floor_pct)
+        return policy_state
+    policy = policy_state.get("policy")
+    if not isinstance(policy, dict):
+        return policy_state
+    cash_cfg = policy.get("cash")
+    if not isinstance(cash_cfg, dict):
+        cash_cfg = {}
+        policy["cash"] = cash_cfg
+    previous = cash_cfg.get("mandatory_floor_pct")
+    cash_cfg["mandatory_floor_pct"] = floor
+    logger.info("Policy cash floor overridden by custom_rules: %s%% -> %s%%",
+                previous, floor)
+    return policy_state
+
+
+def run_engine(assets: list[AssetInput], portfolio_context: dict[str, Any] | None = None, settings: EngineSettings | None = None) -> RunResult:
     """Create a compact, live-data report with short model calls per active category."""
     from investment_engine.run_phases.setup import build_universe_plan, prepare_run
 
@@ -135,6 +192,9 @@ def run_engine(assets: List[AssetInput], portfolio_context: Dict[str, Any] | Non
                 cache_ttl_seconds=settings.market_regime.cache_ttl_seconds,
             )
             regime_result = regime_analyzer.analyze()
+            regime_result = apply_user_cash_floor(
+                regime_result, getattr(settings, "cash_floor_pct", None)
+            )
             regime_context = build_regime_context(regime_result)
         except Exception as e:
             regime_context = f"Regime analysis failed: {e}"
@@ -146,6 +206,24 @@ def run_engine(assets: List[AssetInput], portfolio_context: Dict[str, Any] | Non
     if regime_result and t212_ok:
         provider = ProviderFactory.create(settings)
         ai_recs = build_ai_recommendations(regime_result, t212_data, all_active_assets, provider, settings_dict, language)
+
+        # Notify about BUY/SELL signals from AI recommendations
+        try:
+            from investment_engine.notifications import notify_urgent
+            ai_recs_data = ai_recs.get("ai_recs", {}) if isinstance(ai_recs, dict) else {}
+            if isinstance(ai_recs_data, dict):
+                trades = ai_recs_data.get("trades", [])
+                portfolio_actions = ai_recs_data.get("portfolio_actions", [])
+                for action in trades + portfolio_actions:
+                    if isinstance(action, dict) and action.get("action") in ("BUY", "SELL"):
+                        symbol = action.get("asset", "Unknown")
+                        reason = action.get("reason", "No reason provided")
+                        notify_urgent(
+                            f"{action} {symbol}",
+                            f"{action} {symbol}: {reason}"
+                        )
+        except Exception as exc:
+            logger.debug("Notification failed: %s", type(exc).__name__)
 
     # 6. Regime + context report rendering happens at the end (needs all AI
     # sections, technicals, news and earnings ready). Placeholders for now.
@@ -159,9 +237,13 @@ def run_engine(assets: List[AssetInput], portfolio_context: Dict[str, Any] | Non
     # (T212 Portfolio, Priority Actions, AI Recommendations, PIE evaluation,
     # KPI text). Keyed by DISPLAY symbol; internal IDs alias to the same entry.
     try:
-        from investment_engine.reporting.regime_report import build_canonical_signals as _build_canon
-        from investment_engine.reporting.regime_report import ensure_canonical_defaults as _ensure_defaults
         from investment_engine.portfolio.symbols import to_display_symbol as _td_canon
+        from investment_engine.reporting.regime_report import (
+            build_canonical_signals as _build_canon,
+        )
+        from investment_engine.reporting.regime_report import (
+            ensure_canonical_defaults as _ensure_defaults,
+        )
         canonical_map: dict = _build_canon(ai_recs, known_clean,
                                              settings_dict.get("hold_thesis", {}))
         # Pre-fill HOLD defaults for every authoritative holding so the PIE
@@ -173,7 +255,7 @@ def run_engine(assets: List[AssetInput], portfolio_context: Dict[str, Any] | Non
     canonical = {k: (v.get("signal") if isinstance(v, dict) else v) for k, v in (canonical_map or {}).items()}
     # Deduplicate display keys for the prompt note.
     _seen_disp: dict = {}
-    for _k, _v in (canonical_map or {}).items():
+    for _v in (canonical_map or {}).values():
         if isinstance(_v, dict) and _v.get("display") and _v["display"] not in _seen_disp:
             _seen_disp[_v["display"]] = _v.get("signal")
     canonical_display_note = (
@@ -187,7 +269,10 @@ def run_engine(assets: List[AssetInput], portfolio_context: Dict[str, Any] | Non
     # Prepare news for LLM
 
     # Per-scope LLM decision sections (crypto, tech, renewables)
-    from investment_engine.run_phases.decisions import DecisionInputs, build_decision_sections
+    from investment_engine.run_phases.decisions import (
+        DecisionInputs,
+        build_decision_sections,
+    )
 
     decisions = build_decision_sections(
         DecisionInputs(
@@ -316,7 +401,9 @@ DECISIONS:
     except Exception:
         pass
     try:
-        from investment_engine.reporting.regime_report import build_unified_portfolio_rows as _build_rows
+        from investment_engine.reporting.regime_report import (
+            build_unified_portfolio_rows as _build_rows,
+        )
         portfolio_rows = _build_rows(
             t212_data, ai_recs, unified_technicals_seed, portfolio_names,
             known_clean, canonical_map, yahoo_by_display,
@@ -326,7 +413,9 @@ DECISIONS:
         portfolio_rows = []
     # Phase 5: issuer-level exposure aggregation (same ISIN -> one issuer).
     try:
-        from investment_engine.portfolio.exposure import aggregate_issuer_exposure as _agg_issuer
+        from investment_engine.portfolio.exposure import (
+            aggregate_issuer_exposure as _agg_issuer,
+        )
         issuer_exposure = _agg_issuer(portfolio_rows)
     except Exception:
         issuer_exposure = []
@@ -336,10 +425,36 @@ DECISIONS:
     )
     unified_technicals = dict(extra_tech or {})
 
+    # Record signals for later backtesting (best-effort, never blocks the run).
+    try:
+        from investment_engine.signals import record_portfolio_signals as _record_signals
+        _record_signals(run_id, portfolio_rows)
+    except Exception as _sig_exc:
+        logger.debug("Signal recording skipped: %s", type(_sig_exc).__name__)
+
+    # Permanent AI memory: record actionable signals with their rationale.
+    try:
+        from investment_engine.history import record_decision as _record_decision
+        for _row in portfolio_rows:
+            _sig = str(_row.get("signal", "")).upper()
+            if _sig in ("BUY", "SELL"):
+                _record_decision(
+                    _row.get("display_symbol") or _row.get("ticker") or "?",
+                    _sig,
+                    str(_row.get("notes") or _row.get("_trigger") or "")[:500],
+                    confidence=float(_row.get("confidence", 0) or 0),
+                    source="portfolio_ai",
+                    run_id=run_id,
+                    mode="live",
+                )
+    except Exception as _hist_exc:
+        logger.debug("History recording skipped: %s", type(_hist_exc).__name__)
+
     # Earnings radar keyed by DISPLAY symbol with inline certainty tags.
     # Config-asset earnings remapped to display; T212 enrichment earnings
     # mapped via the Yahoo layer; unsupported instruments stay 'unavailable'.
     import re as _re
+
     from investment_engine.research.market_data import classify_earnings_status
 
     def _add_radar(disp: str, d, status: str | None = None, source: str | None = None) -> None:
@@ -349,7 +464,9 @@ DECISIONS:
             # A confirmed date always wins over an estimated one.
             if prev is None or (prev[1] == "estimated" and st == "confirmed"):
                 earnings_status[str(disp)] = (d[:10], st)
-                from investment_engine.research.market_data import earnings_source_for as _src_for
+                from investment_engine.research.market_data import (
+                    earnings_source_for as _src_for,
+                )
                 _cal = _calendar_sourced if "_calendar_sourced" in dir() else set()
                 earnings_provenance[str(disp)] = {
                     "source": source or _src_for(str(disp), _cal),
@@ -479,11 +596,14 @@ DECISIONS:
                          "advisory_guard": "", "generated_at": ""}
     policy_state: dict = {"status": "NOT SET", "policy": {}, "version": "", "problems": []}
     try:
+        from investment_engine.portfolio.symbols import to_display_symbol as _td_sleeve
         from investment_engine.risk import order_plan as _op
         from investment_engine.risk import policy as _pol
         from investment_engine.risk.order_plan import sleeve_for_group as _sleeve_of
-        from investment_engine.portfolio.symbols import to_display_symbol as _td_sleeve
         policy_state = _pol.load_policy()
+        policy_state = apply_user_cash_floor_to_policy(
+            policy_state, getattr(settings, "cash_floor_pct", None)
+        )
         if policy_state.get("status") == "OK":
             _sleeves: dict[str, str] = {}
             for _a in assets or []:
@@ -529,7 +649,9 @@ DECISIONS:
     })
     # Trade safety: reconcile-gated BUY demotion applied once.
     try:
-        from investment_engine.reporting.regime_report import apply_trade_safety as _safety
+        from investment_engine.reporting.regime_report import (
+            apply_trade_safety as _safety,
+        )
         # Sanitized observability record.
         logger.info(
             "Reconciliation diagnostic | endpoints=/equity/account/cash,/equity/portfolio"
@@ -567,7 +689,7 @@ DECISIONS:
                 _recon_result.sum_deduplicated_broker_position_values_eur
             _dsummary["sum_raw_broker_position_values_eur"] = \
                 _recon_result.sum_raw_broker_position_values_eur
-            _dout = Path("reports")
+            _dout = ROOT / "reports"
             _dout.mkdir(parents=True, exist_ok=True)
             _write_dcsv(_drows, _dout / "reconciliation_diagnostic.csv")
             _write_dmd(_drows, _dsummary, _dout / "reconciliation_diagnostic.md")
@@ -629,7 +751,7 @@ DECISIONS:
     # --- Two-document reporting: decision brief (concise) + snapshot (full) ---
     from investment_engine.run_phases.reporting import ReportInputs, build_report
 
-    return build_report(
+    _result = build_report(
         ReportInputs(
             settings=settings,
             settings_dict=settings_dict,
@@ -685,3 +807,14 @@ DECISIONS:
             context_file=context_file,
         )
     )
+    try:
+        from investment_engine.reporting.excel_export import export_holdings_excel
+        export_holdings_excel(
+            t212_data,
+            pie_blocks,
+            portfolio_names,
+            Path(ROOT / "reports" / "current" / "holdings.xlsx"),
+        )
+    except Exception as _xl_exc:
+        logger.debug("Excel export skipped: %s", type(_xl_exc).__name__)
+    return _result

@@ -8,7 +8,6 @@ a data-quality error, never a guess ( Eval T02).
 
 from __future__ import annotations
 
-
 import numpy as np
 
 # Sub-unit price units -> multiplier to the major unit.

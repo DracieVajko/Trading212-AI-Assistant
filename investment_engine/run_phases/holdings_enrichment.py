@@ -100,7 +100,7 @@ def enrich_holdings(inputs: HoldingsEnrichmentInputs) -> HoldingsEnrichmentResul
         for h in (pie.get("holdings", []) if isinstance(pie, dict) else [])
     ]
     known_clean, _known_names = build_known_maps(_pie_slices, assets)
-    for _k, _v in (aliases or {}).items():
+    for _k in (aliases or {}):
         known_clean.add(str(_k).strip().upper())
 
     for pos in t212_positions_all:
@@ -147,9 +147,13 @@ def enrich_holdings(inputs: HoldingsEnrichmentInputs) -> HoldingsEnrichmentResul
 
     # --- Dividends (trailing-12M) ---
     try:
+        from concurrent.futures import ThreadPoolExecutor as _TPE
+        from concurrent.futures import as_completed as _ac
+
         from investment_engine.portfolio.symbols import support_state as _ss_div
-        from investment_engine.research.market_data import fetch_dividend_summary as _div_one
-        from concurrent.futures import ThreadPoolExecutor as _TPE, as_completed as _ac
+        from investment_engine.research.market_data import (
+            fetch_dividend_summary as _div_one,
+        )
 
         _div_cands: list[tuple] = []
         _div_seen: set[str] = set()
@@ -194,7 +198,9 @@ def enrich_holdings(inputs: HoldingsEnrichmentInputs) -> HoldingsEnrichmentResul
             _dd, _yy = _sp.get("display"), _sp.get("yahoo")
             if (_dd and _yy and not str(_yy).upper().endswith("-USD")
                     and analyst_consensus is not None):
-                from investment_engine.portfolio.symbols import support_state as _ss_cons
+                from investment_engine.portfolio.symbols import (
+                    support_state as _ss_cons,
+                )
                 if _ss_cons(_yy, "market_data") == "SUPPORTED":
                     _cons_cands.append((_sp.get("value_eur", 0) or 0, _dd, _yy))
         _cons_cands.sort(key=lambda t: t[0], reverse=True)
@@ -223,8 +229,8 @@ def enrich_holdings(inputs: HoldingsEnrichmentInputs) -> HoldingsEnrichmentResul
     # --- Universe enrichment ---
     universe_info: dict = {"resolved": 0, "skipped_working": 0, "missed": 0}
     try:
-        from investment_engine.research import universe as _uni
         from investment_engine.portfolio.symbols import support_state as _ss
+        from investment_engine.research import universe as _uni
         if _uni.enabled() and _snap is not None:
             _snap_rows = [{
                 "display_symbol": str(getattr(getattr(p, "instrument", None), "display_symbol", "") or ""),

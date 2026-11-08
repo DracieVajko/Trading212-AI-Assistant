@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 
 class PieLoader:
@@ -11,25 +11,25 @@ class PieLoader:
     def __init__(self, pies_dir: str | None = None) -> None:
         self.pies_dir = Path(pies_dir or "PIEs")
 
-    def load_all(self) -> List[Dict[str, Any]]:
+    def load_all(self) -> list[dict[str, Any]]:
         if not self.pies_dir.exists():
             return []
 
-        pies: List[Dict[str, Any]] = []
+        pies: list[dict[str, Any]] = []
         for csv_path in sorted(self.pies_dir.glob("*.csv")):
             pie = self._load_file(csv_path)
             if pie:
                 pies.append(pie)
         return pies
 
-    def _load_file(self, csv_path: Path) -> Dict[str, Any] | None:
+    def _load_file(self, csv_path: Path) -> dict[str, Any] | None:
         try:
             with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
                 rows = list(csv.DictReader(handle))
         except Exception:
             return None
 
-        holdings: List[Dict[str, Any]] = []
+        holdings: list[dict[str, Any]] = []
         for row in rows:
             slice_code = (row.get("Slice") or "").strip()
             name = (row.get("Name") or "").strip()
@@ -48,7 +48,7 @@ class PieLoader:
             "holdings": holdings,
         }
 
-    def as_portfolio_context(self) -> Dict[str, Any]:
+    def as_portfolio_context(self) -> dict[str, Any]:
         pies = self.load_all()
         return {
             "pie_count": len(pies),

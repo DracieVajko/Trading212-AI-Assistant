@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List
-
-
-_SECTOR_TEMPLATES: Dict[str, Dict[str, List[str]]] = {
+_SECTOR_TEMPLATES: dict[str, dict[str, list[str]]] = {
     "AI": {
         "queries": ["earnings guidance", "Blackwell", "CUDA", "hyperscaler demand", "analyst ratings"],
     },
@@ -61,7 +58,7 @@ _SECTOR_TEMPLATES: Dict[str, Dict[str, List[str]]] = {
 }
 
 
-def build_dynamic_search_queries(symbol: str, sector: str) -> List[str]:
+def build_dynamic_search_queries(symbol: str, sector: str) -> list[str]:
     """Create company-specific research queries based on sector templates."""
     sector_key = (sector or "AI").strip().title()
     base_queries = _SECTOR_TEMPLATES.get(sector_key, _SECTOR_TEMPLATES["AI"])["queries"]

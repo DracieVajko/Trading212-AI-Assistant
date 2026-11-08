@@ -6,7 +6,7 @@ Extracted from ``main.py``.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from investment_engine.portfolio import t212_view
 from investment_engine.providers.generation import _model_for_stage, _try_lmstudio_stage
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def _build_ai_recommendations(
     regime_result, 
     t212_data: dict, 
-    assets: List[Dict[str, Any]],
+    assets: list[dict[str, Any]],
     provider,
     settings_dict: dict,
     language: str
@@ -38,7 +38,7 @@ def _build_ai_recommendations(
         recon_note = "\nWARNING: Account-level derived totals are UNRECONCILED – do NOT use account return figures. Base decisions ONLY on per-position data, regime and news below."
     
     summary = t212_view.account_summary(t212_data)
-    positions = t212_data.get("positions", [])
+    positions = t212_view.authoritative_positions(t212_data)
     cash = t212_view.cash(t212_data)
     free_cash = cash.get("free", 0)
     total_equity = t212_view.total_equity(t212_data)
@@ -83,6 +83,15 @@ def _build_ai_recommendations(
         "support": regime_result.price_structure.nearest_support,
         "resistance": regime_result.price_structure.nearest_resistance,
     }
+
+    def _threshold(key: str, default: float) -> float:
+        try:
+            return float((settings_dict or {}).get(key, default))
+        except (TypeError, ValueError, AttributeError):
+            return default
+
+    buy_threshold = _threshold("buy_threshold", 60.0)
+    sell_threshold = _threshold("sell_threshold", 65.0)
     
     support_str = f"{key_levels['support']:.2f}" if key_levels['support'] else 'N/A'
     resistance_str = f"{key_levels['resistance']:.2f}" if key_levels['resistance'] else 'N/A'
@@ -93,6 +102,7 @@ PORTFOLIO:{recon_note}
 - Equity: {total_equity:,.0f} EUR | Cash: {free_cash:,.0f} EUR | Cash Target: {regime_summary['cash_target_pct']}%
 - Regime: {regime_summary['regime']} ({regime_summary['confidence']:.0%}) | Action: {regime_summary['action']}
 - DCA Multiplier: {regime_summary['dca_multiplier']}x
+- Signal thresholds: BUY at >= {buy_threshold:.0f}% conviction | SELL at >= {sell_threshold:.0f}% conviction
 - Tech Allocation: {regime_summary['tech_allocation']} | Crypto: {regime_summary['crypto_allocation']}
 - Support: {support_str} | Resistance: {resistance_str}
 
@@ -110,6 +120,7 @@ OUTPUT ONLY VALID JSON:
 
 RULES:
 - Max 2% risk per trade, min 1:2 R:R, mandatory stops, 50/50 scale-out
+- Only propose BUY/ADD when conviction >= {buy_threshold:.0f}%; only propose SELL/TRIM when conviction >= {sell_threshold:.0f}%
 - PEAK_HOLD = prioritize SELLs, reduce new BUYs
 - POTENTIAL_ACCUMULATION_ZONE = research accumulation candidates, size any idea per policy
 - DECLINING = prepare watchlist, raise cash, no new positions
@@ -119,6 +130,10 @@ RULES:
 - Be concise, specific, actionable. No hedging language.
 - Output ONLY valid JSON, no markdown, no extra text."""
 
+    logger.info(
+        "AI recommendations prompt: %d chars (~%d tokens), positions=%d",
+        len(prompt), len(prompt) // 4, len(pos_summary),
+    )
     try:
         _rec_ctx: dict = {"max_output_tokens": 1024}
         try:
@@ -157,18 +172,17 @@ RULES:
         # Clean up response - remove any markdown code fences or extra text
         cleaned = result.strip()
         # Remove markdown code fences if present
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        if cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
+        cleaned = cleaned.removeprefix("```json")
+        cleaned = cleaned.removeprefix("```")
+        cleaned = cleaned.removesuffix("```")
         cleaned = cleaned.strip()
         # Use the new schema validation
-        from investment_engine.schemas.ai_recommendations import parse_ai_recommendations
+        from investment_engine.schemas.ai_recommendations import (
+            parse_ai_recommendations,
+        )
         return parse_ai_recommendations(cleaned)
     except Exception as e:
-        return {"error": f"AI recommendation failed: {str(e)}", "raw_response": result[:500] if 'result' in locals() else "no response"}
+        return {"error": f"AI recommendation failed: {e!s}", "raw_response": result[:500] if 'result' in locals() else "no response"}
 
 # Public aliases for cross-module use (private names remain the
 # implementation detail and stay available for in-module calls).

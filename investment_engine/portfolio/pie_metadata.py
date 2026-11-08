@@ -9,12 +9,15 @@ then exact normalized base-symbol via the single canonical layer
 substring/prefix matching.
 """
 from __future__ import annotations
+
 import csv
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 from investment_engine.portfolio.symbols import to_display_symbol as _canonical_display
+
 logger = logging.getLogger(__name__)
 _WEIGHT_CANDIDATES = {
     "weight",
@@ -68,25 +71,25 @@ class PieConstituent:
     """One row in a pie CSV - metadata only."""
     ticker: str
     name: str
-    target_weight: Optional[float] = None
-    isin: Optional[str] = None
-    instrument_id: Optional[str] = None
+    target_weight: float | None = None
+    isin: str | None = None
+    instrument_id: str | None = None
 @dataclass
 class PieMetadata:
     """Validated metadata for a single pie."""
     pie_id: str
     display_name: str
     path: str
-    constituents: List[PieConstituent] = field(default_factory=list)
+    constituents: list[PieConstituent] = field(default_factory=list)
     has_target_weights: bool = False
-    weight_sum: Optional[float] = None
-    weights_valid: Optional[bool] = None
-    weight_validation_error: Optional[str] = None
+    weight_sum: float | None = None
+    weights_valid: bool | None = None
+    weight_validation_error: str | None = None
     source: str = "csv_universe_only"
     @property
-    def tickers(self) -> List[str]:
+    def tickers(self) -> list[str]:
         return [c.ticker for c in self.constituents]
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "pie_id": self.pie_id,
             "display_name": self.display_name,
@@ -105,21 +108,21 @@ class PieMetadata:
 @dataclass
 class PieUniverse:
     """Collection of all pies."""
-    pies: List[PieMetadata] = field(default_factory=list)
+    pies: list[PieMetadata] = field(default_factory=list)
     @property
-    def all_tickers(self) -> List[str]:
+    def all_tickers(self) -> list[str]:
         s = set()
         for p in self.pies:
             s.update(p.tickers)
         return sorted(s)
-    def pies_for_ticker(self, ticker: str, isin: Optional[str] = None, instrument_id: Optional[str] = None) -> List[PieMetadata]:
+    def pies_for_ticker(self, ticker: str, isin: str | None = None, instrument_id: str | None = None) -> list[PieMetadata]:
         """Backward-compatible: returns pies for ticker using hardened matching.
         Prefers ISIN/instrument_id when available, then exact normalized base-symbol.
         Never uses loose substring.
         """
         matched = self.pies_for_ticker_with_provenance(ticker, isin, instrument_id)
         return [pie for pie, _, _ in matched]
-    def pies_for_ticker_with_provenance(self, ticker: str, isin: Optional[str] = None, instrument_id: Optional[str] = None) -> List[Tuple[PieMetadata, str, str]]:
+    def pies_for_ticker_with_provenance(self, ticker: str, isin: str | None = None, instrument_id: str | None = None) -> list[tuple[PieMetadata, str, str]]:
         """
         Returns list of (pie, match_method, match_confidence) with hardened matching.
         match_method: instrument_id | exact_normalized_symbol | safe_base_symbol | unmatched
@@ -129,7 +132,7 @@ class PieUniverse:
         ticker_norm = _normalize_base_symbol(ticker, _known)
         isin_norm = isin.strip().upper() if isin else None
         inst_norm = str(instrument_id).strip().upper() if instrument_id else None
-        results: List[Tuple[PieMetadata, str, str]] = []
+        results: list[tuple[PieMetadata, str, str]] = []
         for pie in self.pies:
             for constituent in pie.constituents:
                 if isin_norm and constituent.isin and isin_norm == constituent.isin.strip().upper():
@@ -143,13 +146,13 @@ class PieUniverse:
                     results.append((pie, "exact_normalized_symbol", "high"))
                     break
         return results
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "pie_count": len(self.pies),
             "pies": [p.to_dict() for p in self.pies],
             "all_tickers": self.all_tickers,
         }
-def _detect_weight_column(fieldnames: List[str]) -> Optional[str]:
+def _detect_weight_column(fieldnames: list[str]) -> str | None:
     """Return actual fieldname that matches weight candidates, or None."""
     if not fieldnames:
         return None
@@ -162,7 +165,7 @@ def _detect_weight_column(fieldnames: List[str]) -> Optional[str]:
         if key in _WEIGHT_CANDIDATES:
             return fn
     return None
-def _detect_isin_column(fieldnames: List[str]) -> Optional[str]:
+def _detect_isin_column(fieldnames: list[str]) -> str | None:
     if not fieldnames:
         return None
     lowered_map = {fn.strip().lower(): fn for fn in fieldnames}
@@ -170,7 +173,7 @@ def _detect_isin_column(fieldnames: List[str]) -> Optional[str]:
         if cand in lowered_map:
             return lowered_map[cand]
     return None
-def _parse_weight(value: str) -> Optional[float]:
+def _parse_weight(value: str) -> float | None:
     """Parse weight cell; return None if empty/zero-placeholder/invalid."""
     if value is None:
         return None
@@ -196,13 +199,13 @@ def load_pie_universe(pies_dir: str | Path = "PIEs") -> PieUniverse:
             pies_dir = example_dir
         else:
             return PieUniverse(pies=[])
-    pies: List[PieMetadata] = []
+    pies: list[PieMetadata] = []
     for csv_path in sorted(pies_dir.glob("*.csv")):
         meta = _load_single_pie(csv_path)
         if meta is not None:
             pies.append(meta)
     return PieUniverse(pies=pies)
-def _load_single_pie(csv_path: Path) -> Optional[PieMetadata]:
+def _load_single_pie(csv_path: Path) -> PieMetadata | None:
     try:
         with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.DictReader(handle)
@@ -212,14 +215,14 @@ def _load_single_pie(csv_path: Path) -> Optional[PieMetadata]:
             rows = list(reader)
     except Exception:
         return None
-    constituents: List[PieConstituent] = []
-    weight_values: List[float] = []
+    constituents: list[PieConstituent] = []
+    weight_values: list[float] = []
     for row in rows:
         slice_code = (row.get("Slice") or row.get("slice") or row.get("Ticker") or row.get("ticker") or "").strip()
         name = (row.get("Name") or row.get("name") or "").strip()
         if not slice_code or slice_code.lower() == "total":
             continue
-        target_weight: Optional[float] = None
+        target_weight: float | None = None
         if weight_col is not None:
             raw_w = row.get(weight_col, "")
             parsed = _parse_weight(raw_w)
@@ -253,9 +256,9 @@ def _load_single_pie(csv_path: Path) -> Optional[PieMetadata]:
         return None
     pie_id = csv_path.stem
     has_weights = False
-    weight_sum: Optional[float] = None
-    weights_valid: Optional[bool] = None
-    weight_error: Optional[str] = None
+    weight_sum: float | None = None
+    weights_valid: bool | None = None
+    weight_error: str | None = None
     if weight_col is not None and weight_values:
         non_zero = [w for w in weight_values if abs(w) > 1e-9]
         if not non_zero:

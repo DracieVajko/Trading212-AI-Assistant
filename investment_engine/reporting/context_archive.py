@@ -5,9 +5,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from investment_engine.portfolio.broker_first import AccountSnapshot, ReconciliationResult
+from investment_engine.portfolio.broker_first import (
+    AccountSnapshot,
+    ReconciliationResult,
+)
 from investment_engine.reporting.regime_report import AIContextReportBuilder
 from investment_engine.research.market_regime import RegimeResult
+
 
 def _save_ai_context(
     regime_result: RegimeResult,

@@ -16,21 +16,24 @@ import logging
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List
 
 logger = logging.getLogger(__name__)
+
+ROOT = Path(__file__).resolve().parents[2]
 
 # Retention settings
 DEBUG_RETENTION_DAYS = 30
 DEBUG_MAX_RUNS = 14
 
 
-def setup_debug_layer(run_id: str, base_dir: Path = Path("reports")) -> Dict[str, Path]:
+def setup_debug_layer(run_id: str, base_dir: Path | None = None) -> dict[str, Path]:
     """
     Create debug layer folder structure for a run.
     Returns dict with paths for each debug output.
     """
-    debug_dir = Path("reports") / "debug" / run_id
+    if base_dir is None:
+        base_dir = ROOT / "reports"
+    debug_dir = base_dir / "debug" / run_id
     debug_dir.mkdir(parents=True, exist_ok=True)
 
     # Prune old debug folders
@@ -55,7 +58,7 @@ def _prune_debug_layer(base_dir: Path) -> None:
         return
 
     cutoff_date = datetime.now() - timedelta(days=DEBUG_RETENTION_DAYS)
-    run_dirs: List[tuple[datetime, Path]] = []
+    run_dirs: list[tuple[datetime, Path]] = []
 
     for item in base_dir.iterdir():
         if item.is_dir():
@@ -81,7 +84,7 @@ def _prune_debug_layer(base_dir: Path) -> None:
             shutil.rmtree(dir_path, ignore_errors=True)
 
 
-def move_debug_outputs(run_id: str, run_log_path: Path, debug_paths: Dict[str, Path]) -> None:
+def move_debug_outputs(run_id: str, run_log_path: Path, debug_paths: dict[str, Path]) -> None:
     """Move debug outputs to the debug layer folder."""
     debug_dir = debug_paths["debug_dir"]
 
@@ -90,7 +93,7 @@ def move_debug_outputs(run_id: str, run_log_path: Path, debug_paths: Dict[str, P
         ("reconciliation_diagnostic.csv", debug_paths["reconciliation_diagnostic_csv"]),
         ("reconciliation_diagnostic.md", debug_paths["reconciliation_diagnostic_md"]),
     ]:
-        src = Path("reports") / src_name
+        src = ROOT / "reports" / src_name
         if src.exists():
             try:
                 shutil.move(str(src), str(dst_path))
@@ -100,7 +103,7 @@ def move_debug_outputs(run_id: str, run_log_path: Path, debug_paths: Dict[str, P
 
     # Move raw endpoint dump (pattern: raw_endpoint_dump_<run_id>.json or raw_endpoint_dump.json)
     for pattern in [f"raw_endpoint_dump_{run_id}.json", "raw_endpoint_dump.json"]:
-        src = Path("reports") / pattern
+        src = ROOT / "reports" / pattern
         if src.exists():
             try:
                 shutil.move(str(src), str(debug_paths["raw_endpoint_dump"]))
@@ -123,13 +126,15 @@ def save_ai_context_layer(
     run_id: str,
     context_content: str,
     portfolio_analysis: dict,
-    base_dir: Path = Path("reports")
+    base_dir: Path | None = None,
 ) -> tuple[Path, Path]:
     """
     Save AI context layer files.
     Returns (context_file_path, portfolio_analysis_path).
     """
-    ai_context_dir = Path("reports") / "ai_context"
+    if base_dir is None:
+        base_dir = Path("reports")
+    ai_context_dir = base_dir / "ai_context"
     ai_context_dir.mkdir(parents=True, exist_ok=True)
 
     context_file = ai_context_dir / f"ai_context_{run_id}.md"
@@ -240,30 +245,31 @@ def _format_model_name(model: str) -> str:
         return "Python (deterministic)"
     model_lower = model.lower()
     if "gpt-oss" in model_lower:
-        return f"gpt-oss (OpenAI OSS)"
+        return "gpt-oss (OpenAI OSS)"
     elif "qwen" in model_lower:
-        return f"qwen (Alibaba)"
+        return "qwen (Alibaba)"
     elif "gemma" in model_lower:
-        return f"gemma (Google)"
+        return "gemma (Google)"
     elif "mistral" in model_lower:
-        return f"mistral (Mistral AI)"
+        return "mistral (Mistral AI)"
     elif "gemini" in model_lower:
-        return f"gemini (Google)"
+        return "gemini (Google)"
     elif "finr1" in model_lower:
         return "finr1 (math reasoning)"
     elif "qwen" in model_lower and ("3.8" in model_lower or "9b" in model_lower):
-        return f"qwen3.8-9b (Alibaba)"
+        return "qwen3.8-9b (Alibaba)"
     else:
         return model
 
-def write_human_brief(brief_content: str, output_dir: Path = Path("reports/current")) -> Path:
+def write_human_brief(brief_content: str, output_dir: Path | None = None) -> Path:
     """Write the intelligence brief (Phase 4 target topology: current/).
 
     The legacy reports/summary/ path is retired; per-run copies live in
     archive/<run_id>/ via write_reports(). Existing summary/ files on disk
     are left untouched (stale, not rewritten).
     """
-    output_dir = Path("reports") / "current"
+    if output_dir is None:
+        output_dir = ROOT / "reports" / "current"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     brief_path = output_dir / "portfolio_intelligence_brief.md"

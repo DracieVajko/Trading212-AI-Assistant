@@ -149,8 +149,7 @@ def _v0_loading_state(base_url: str) -> str | None:
 
 def _root_of(base_url: str) -> str:
     base = str(base_url or "").rstrip("/")
-    if base.endswith("/v1"):
-        base = base[: -len("/v1")]
+    base = base.removesuffix("/v1")
     return base.rstrip("/")
 
 
@@ -211,7 +210,7 @@ def _aggregate(parts: list[str], evidence: dict) -> Verdict:
 def _norm_model_name(model: str) -> str:
     """Ollama registry-normalized name: lowercase, ":latest" tag stripped."""
     t = str(model or "").strip().lower()
-    return t[: -len(":latest")] if t.endswith(":latest") else t
+    return t.removesuffix(":latest")
 
 
 def _ollama_resident(base_url: str, model: str, evidence: dict) -> bool | None:

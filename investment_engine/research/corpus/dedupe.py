@@ -35,7 +35,7 @@ def item_id(url: str) -> str:
 
 
 def _tokens(title: str) -> set[str]:
-    return set(t for t in re.findall(r"[a-z0-9]{3,}", (title or "").lower()))
+    return set(re.findall(r"[a-z0-9]{3,}", (title or "").lower()))
 
 
 def titles_similar(a: str, b: str, threshold: float = 0.85) -> bool:

@@ -45,8 +45,10 @@ def fetch_earnings_phase(
     playwright_earnings = 0
 
     try:
-        from investment_engine.portfolio.symbols import to_display_symbol
-        from investment_engine.portfolio.symbols import to_yahoo_symbol
+        from investment_engine.portfolio.symbols import (
+            to_display_symbol,
+            to_yahoo_symbol,
+        )
         from investment_engine.research import web_researcher
         from investment_engine.research.market_data import is_etf_like
 

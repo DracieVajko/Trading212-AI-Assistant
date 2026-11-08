@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -28,7 +28,7 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def parse_utc(value: Any) -> Optional[datetime]:
+def parse_utc(value: Any) -> datetime | None:
     """Parse ISO/email date strings or datetimes to aware UTC. None when unparseable."""
     if value is None:
         return None
@@ -66,7 +66,7 @@ class ResearchItem(BaseModel, extra="forbid"):
     canonical_url: str = Field(min_length=1)
     publisher: str = Field(default="unknown")
     published_at_utc: str = Field(default="")
-    age_hours: Optional[float] = Field(default=None)
+    age_hours: float | None = Field(default=None)
     source_tier: int = Field(default=3, ge=0, le=3)
     source_category: str = Field(default="general")
     ticker_tags: list[str] = Field(default_factory=list)
@@ -76,7 +76,7 @@ class ResearchItem(BaseModel, extra="forbid"):
     raw_extract_if_available: str = Field(default="")
     credibility: float = Field(default=0.0, ge=0.0, le=100.0)
     relevance_score: float = Field(default=0.0)
-    sentiment_if_available: Optional[float] = Field(default=None)
+    sentiment_if_available: float | None = Field(default=None)
     fetch_status: FetchStatus = Field(default="OK")
     failure_reason_if_any: str = Field(default="")
     # URL provenance: "article" when the canonical article URL is validated,
@@ -97,14 +97,14 @@ class ResearchItem(BaseModel, extra="forbid"):
     event_id: str = Field(default="")
     event_sources: list[str] = Field(default_factory=list)
     corroboration: int = Field(default=0, ge=0)
-    relevance_adjusted: Optional[float] = Field(default=None)
+    relevance_adjusted: float | None = Field(default=None)
     relevance_basis: list[str] = Field(default_factory=list)
 
     @field_validator("canonical_url")
     @classmethod
     def _url_must_be_http(cls, value: str) -> str:
         low = value.strip().lower()
-        if not (low.startswith("http://") or low.startswith("https://")):
+        if not (low.startswith(("http://", "https://"))):
             raise ValueError("canonical_url must be http(s)")
         return value.strip()
 

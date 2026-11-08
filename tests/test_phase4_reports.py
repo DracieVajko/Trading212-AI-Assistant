@@ -134,7 +134,7 @@ def test_lmstudio_enabled_by_default(monkeypatch):
     monkeypatch.delenv("LMSTUDIO_ENABLED", raising=False)
     assert EngineSettings().lmstudio_enabled is True
     chain = ProviderFactory._build_chain(EngineSettings())
-    assert [p.name for p in chain][:3] == ["LM Studio", "llama.cpp", "Ollama"]
+    assert [p.name for p in chain][:2] == ["LM Studio", "Ollama"]
 
 
 def test_manifest_provider_is_winners_summary(tmp_path):

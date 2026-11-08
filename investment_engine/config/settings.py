@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 # Load .env file if present
 try:
@@ -172,6 +173,13 @@ class EngineSettings:
     preferred_sectors: list[str] = field(default_factory=lambda: ["AI", "Semiconductors", "Cloud", "Data Centers", "Renewables"])
     portfolio_strategy: str = "long_term"
     investment_profile: str = _ACTIVE_STRATEGY  # conservative/balanced/aggressive/very_aggressive
+    #: Explicit user cash floor from custom_rules.json investment_rules.
+    #: None = no override (regime cash target applies). 0.0 = cash target disabled.
+    cash_floor_pct: float | None = None
+    #: Explicit signal thresholds from custom_rules.json strategy_aggression.
+    #: None = prompt uses historical defaults (60 buy / 65 sell).
+    buy_threshold: float | None = None
+    sell_threshold: float | None = None
     max_news_age_days: int = _profile("max_news_age_hours", 7 * 24) // 24
     ignore_duplicate_news: bool = True
     strict_fact_mode: bool = True
@@ -311,7 +319,7 @@ class EngineSettings:
     market_regime: MarketRegimeSettings = field(default_factory=MarketRegimeSettings)
 
     @classmethod
-    def from_defaults(cls) -> "EngineSettings":
+    def from_defaults(cls) -> EngineSettings:
         """Create settings with strategy profile applied to market_regime."""
         # Create base instance
         instance = cls()
@@ -322,7 +330,7 @@ class EngineSettings:
         return instance
 
     @classmethod
-    def from_mapping(cls, values: Mapping[str, Any] | None = None) -> "EngineSettings":
+    def from_mapping(cls, values: Mapping[str, Any] | None = None) -> EngineSettings:
         """Create settings from the project's JSON config, ignoring unrelated keys."""
         values = values or {}
         aliases = {

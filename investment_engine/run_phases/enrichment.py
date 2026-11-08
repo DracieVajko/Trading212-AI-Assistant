@@ -19,10 +19,14 @@ from typing import Any
 from investment_engine.config.settings import EngineSettings
 from investment_engine.run_phases.holdings_enrichment import (
     HoldingsEnrichmentInputs as _HoldingsInputs,
+)
+from investment_engine.run_phases.holdings_enrichment import (
     enrich_holdings as _enrich_holdings,
 )
 from investment_engine.run_phases.pie_enrichment import (
     PieEnrichmentInputs as _PieInputs,
+)
+from investment_engine.run_phases.pie_enrichment import (
     enrich_pies as _enrich_pies,
 )
 

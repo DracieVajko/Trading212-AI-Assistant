@@ -30,12 +30,14 @@ All helpers are deterministic and dependency-free (no network, no yfinance)
 so they can be unit-tested offline.
 """
 from __future__ import annotations
+
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 logger = logging.getLogger(__name__)
 UNKNOWN_INSTRUMENT = "Unknown instrument"
-COMPANY_OVERRIDES: Dict[str, str] = {
+COMPANY_OVERRIDES: dict[str, str] = {
     "TTWO": "Take-Two Interactive",
     "TUYA": "Tuya Inc",
     "ASGN": "ASGN Incorporated",
@@ -45,10 +47,10 @@ COMPANY_OVERRIDES: Dict[str, str] = {
     "DJGTEEX": "iShares Dow Jones Global Titans 50 UCITS ETF",
     "DJGTEEXD": "iShares Dow Jones Global Titans 50 UCITS ETF",
 }
-DISPLAY_OVERRIDES: Dict[str, str] = {
+DISPLAY_OVERRIDES: dict[str, str] = {
     "DJGTEEXD": "DJGTEEX",
 }
-YAHOO_OVERRIDES: Dict[str, str] = {
+YAHOO_OVERRIDES: dict[str, str] = {
     "VRT": "VRT",
     "QCOM": "QCOM",
     "AAPL": "AAPL",
@@ -105,7 +107,7 @@ NO_EARNINGS_YAHOO: frozenset = frozenset({
 # ENRd_EQ must reach Siemens Energy ENR.DE, never US Energizer ENR; LAR0D_EQ
 # reaches Xetra LOM.DE, never a guessed form). Keys are UPPER broker IDs.
 # Crypto pairs are handled by YAHOO_OVERRIDES/crypto rules below instead.
-BROKER_YAHOO_OVERRIDES: Dict[str, str] = {
+BROKER_YAHOO_OVERRIDES: dict[str, str] = {
     "TUYA_US_EQ": "TUYA", "CNQ_US_EQ": "CNQ", "EMR_US_EQ": "EMR",
     "NCLRL_EQ": "NCLR.L", "LOW_US_EQ": "LOW", "O_US_EQ": "O",
     "LAR0D_EQ": "LOM.DE", "NEE_US_EQ": "NEE", "SILGL_EQ": "SIL",
@@ -155,23 +157,23 @@ SUPPORTED_YAHOO: frozenset = frozenset({
     "000660.KS",
     "C", "CVX", "JNJ", "JPM", "WMT",
     # Verified 2026-09-26 (live Yahoo): US holdings.
-    "TUYA", "CNQ", "EMR", "LOW", "O", "LMT", "AFL", "COP", "RY", "LIN",
-    "BLK", "CAH", "ITW", "GD", "ADC", "MAIN", "ECL", "BMO", "ETN", "META",
-    "TD", "HTHIY", "TROW", "SYY", "GEV", "ADP", "PEP", "CB", "APD", "ROP",
+    "CNQ", "EMR", "LOW", "O", "LMT", "COP", "LIN",
+    "BLK", "CAH", "ITW", "GD", "ADC", "MAIN", "ECL", "ETN", "META",
+    "HTHIY", "TROW", "GEV", "ADP", "PEP", "CB", "APD", "ROP",
     "UEC", "KO", "PG", "PNR", "MCD", "GOOD", "AGNC", "BNS", "DUK", "NUE",
-    "GWW", "ABT", "PPG", "BMY", "SHW", "CF", "RGLD", "MA", "KMB", "SLB",
+    "GWW", "ABT", "PPG", "SHW", "RGLD", "MA", "KMB", "SLB",
     # Verified 2026-09-26 (live Yahoo): EU/ETF listings (dotted forms need
     # explicit entries; venue hints alone never verify them).
     "NCLR.L", "WBIO.L", "DRDR.L", "QWTM.L", "NATP.L", "IISU.L", "IUVF.L",
     "ESIF.L", "JEDG.L", "SSLN.L", "IQQH.DE", "EXI2.DE", "COFF.L", "DR4M.L",
     "ERNE.L", "ENR.DE", "LOM.DE", "SU.PA", "AI.PA", "SGLN", "LITM.L",
     "FWRG", "COCO", "GDX", "SIL", "IEFA", "300750.SZ", "3750.HK", "CYATY",
-    "AINF", "NVDA", "INTC",
+    "AINF",
 })
 MAPPING_UNAVAILABLE_NOTE = "Market-data mapping unavailable; broker valuation retained."
 def _normalize_alias_key(key: Any) -> str:
     return str(key or "").strip().upper()
-def resolve_alias(key: Any, aliases: Optional[Dict[str, str]] = None) -> Optional[str]:
+def resolve_alias(key: Any, aliases: dict[str, str] | None = None) -> str | None:
     """Resolve one key to a Yahoo ticker with config-over-static precedence.
     Config ``symbol_aliases`` (keys upper-normalized) always win over static
     ``YAHOO_OVERRIDES``. Returns the mapped value (stripped) or None.
@@ -193,7 +195,7 @@ def resolve_alias(key: Any, aliases: Optional[Dict[str, str]] = None) -> Optiona
     if v is not None:
         logger.debug("resolve_alias %r -> %r via static", k, v)
     return v
-def resolve_config_alias(key: Any, aliases: Optional[Dict[str, str]] = None) -> Optional[str]:
+def resolve_config_alias(key: Any, aliases: dict[str, str] | None = None) -> str | None:
     """Config-layer hit only (no static fallback). Used for precedence."""
     k = _normalize_alias_key(key)
     if not k or not aliases:
@@ -207,7 +209,7 @@ def resolve_config_alias(key: Any, aliases: Optional[Dict[str, str]] = None) -> 
     return None
 
 
-def resolve_alias_with_source(key: Any, aliases: Optional[Dict[str, str]] = None) -> Tuple[Optional[str], str]:
+def resolve_alias_with_source(key: Any, aliases: dict[str, str] | None = None) -> tuple[str | None, str]:
     """Same as ``resolve_alias`` but also returns the provenance label.
     Returns ``(value_or_None, source)`` where source is config/static/none.
     """
@@ -225,13 +227,13 @@ def resolve_alias_with_source(key: Any, aliases: Optional[Dict[str, str]] = None
     if v is not None:
         return v, "static"
     return None, "none"
-EXCHANGE_SUFFIX_MAP: Dict[str, str] = {
+EXCHANGE_SUFFIX_MAP: dict[str, str] = {
     "d": ".DE",
     "l": ".L",
     "p": ".PA",
     "e": ".MC",
 }
-CURRENCY_SUFFIX_MAP: Dict[str, Optional[str]] = {
+CURRENCY_SUFFIX_MAP: dict[str, str | None] = {
     "GBX": ".L",
     "GBP": ".L",
     "GBp": ".L",
@@ -243,7 +245,7 @@ CURRENCY_SUFFIX_MAP: Dict[str, Optional[str]] = {
     "SEK": ".ST",
     "CHF": ".SW",
 }
-ISIN_COUNTRY_SUFFIX_MAP: Dict[str, str] = {
+ISIN_COUNTRY_SUFFIX_MAP: dict[str, str] = {
     "FR": ".PA",
     "DE": ".DE",
     "ES": ".MC",
@@ -257,7 +259,7 @@ ISIN_COUNTRY_SUFFIX_MAP: Dict[str, str] = {
     "CH": ".SW",
     "SE": ".ST",
 }
-def _extract_exchange_letter(internal_id: str) -> Optional[str]:
+def _extract_exchange_letter(internal_id: str) -> str | None:
     s = (internal_id or "").strip()
     if not s:
         return None
@@ -272,7 +274,7 @@ def _extract_exchange_letter(internal_id: str) -> Optional[str]:
     if len(stem) >= 1 and stem[-1].isalpha() and stem[-1].islower():
         return stem[-1].lower()
     return None
-def _is_us_venue(isin: Optional[str] = None, currency: Optional[str] = None, venue: Optional[str] = None) -> bool:
+def _is_us_venue(isin: str | None = None, currency: str | None = None, venue: str | None = None) -> bool:
     if isin and str(isin).strip().upper().startswith("US"):
         return True
     if currency and str(currency).strip().upper() in ("USD", "US", "US$"):
@@ -285,7 +287,7 @@ def _is_us_venue(isin: Optional[str] = None, currency: Optional[str] = None, ven
             if token in v:
                 return True
     return False
-def propose_yahoo_candidates(internal_id: str, display_symbol: str = "", catalog: Optional[Dict[str, Any]] = None, aliases: Optional[Dict[str, str]] = None) -> List[Tuple[str, str]]:
+def propose_yahoo_candidates(internal_id: str, display_symbol: str = "", catalog: dict[str, Any] | None = None, aliases: dict[str, str] | None = None) -> list[tuple[str, str]]:
     """Propose ranked Yahoo candidates (deterministic, network-free).
     Sources (ranked): config > static > exchange_suffix > currency > isin_country.
     Returns a deduplicated list of ``(candidate, source_label)`` in rank order.
@@ -295,8 +297,8 @@ def propose_yahoo_candidates(internal_id: str, display_symbol: str = "", catalog
     """
     disp = (display_symbol or "").strip().upper() or to_display_symbol(internal_id)
     disp = disp.split("_")[0] if disp else ""
-    out: List[Tuple[str, str]] = []
-    seen: Dict[str, int] = {}
+    out: list[tuple[str, str]] = []
+    seen: dict[str, int] = {}
     def _add(cand: str, source: str) -> None:
         c = (cand or "").strip()
         if not c or c.upper() == "UNKNOWN":
@@ -352,7 +354,7 @@ def propose_yahoo_candidates(internal_id: str, display_symbol: str = "", catalog
         if mapped:
             _add(f"{disp}{mapped}", f"venue:{venue}->{mapped}")
     return out
-def support_state(yahoo_symbol: Optional[str], purpose: str = "market_data", venue: Optional[str] = None, isin: Optional[str] = None, currency: Optional[str] = None, verified_symbols: Optional[Any] = None) -> str:
+def support_state(yahoo_symbol: str | None, purpose: str = "market_data", venue: str | None = None, isin: str | None = None, currency: str | None = None, verified_symbols: Any | None = None) -> str:
     """Classify a Yahoo ticker: SUPPORTED / UNSUPPORTED / UNRESOLVED.
     purpose=earnings additionally excludes instruments without an earnings
     calendar (crypto, cash-like ETFs).
@@ -411,7 +413,7 @@ def _internal_stem(internal_key: str) -> str:
             stem = stem[: -len(suffix)]
             break
     return stem
-def to_display_symbol(internal_id: str, known_clean: Optional[set] = None) -> str:
+def to_display_symbol(internal_id: str, known_clean: set | None = None) -> str:
     """Map a T212 internal ID to a clean display ticker.
     ``AAPL_US_EQ`` -> ``AAPL``; ``VWSBd_EQ`` -> ``VWSB``; ``SUp_EQ`` -> ``SU``.
     A trailing lowercase letter is an exchange code when the input carried an
@@ -436,13 +438,11 @@ def to_display_symbol(internal_id: str, known_clean: Optional[set] = None) -> st
     if re.match(r"^[A-Za-z0-9.]+_[A-Za-z]{1,3}$", stem):
         stem = stem.rsplit("_", 1)[0]
     if len(stem) > 1 and stem[-1].islower():
-        if known_clean is not None and stem[:-1].upper() in known_clean:
-            stem = stem[:-1]
-        elif known_clean is None and stem[-1] in ("d", "l", "p", "e") and len(stem) > 4:
+        if known_clean is not None and stem[:-1].upper() in known_clean or known_clean is None and stem[-1] in ("d", "l", "p", "e") and len(stem) > 4:
             stem = stem[:-1]
     disp = stem.upper()
     return DISPLAY_OVERRIDES.get(disp, disp)
-def resolve_company_name(internal_id: str, display_symbol: str, instrument_name: str = "", known_names: Optional[Dict[str, str]] = None) -> str:
+def resolve_company_name(internal_id: str, display_symbol: str, instrument_name: str = "", known_names: dict[str, str] | None = None) -> str:
     """Resolve a company name; never falls back to an internal broker ID.
     Order: broker symbol -> display symbol -> instrument name ->
     ``Unknown instrument``.
@@ -466,7 +466,7 @@ def resolve_company_name(internal_id: str, display_symbol: str, instrument_name:
     if name and name.upper() not in (internal_key, display_key):
         return name
     return UNKNOWN_INSTRUMENT
-def to_yahoo_symbol(internal_id: str, display_symbol: str = "", aliases: Optional[Dict[str, str]] = None) -> Optional[str]:
+def to_yahoo_symbol(internal_id: str, display_symbol: str = "", aliases: dict[str, str] | None = None) -> str | None:
     """Map an internal broker ID to a Yahoo Finance ticker.
     Single merging point: ``resolve_alias()`` (config-over-static).
     Returns ``None`` for instruments without a Yahoo representation instead
@@ -506,18 +506,18 @@ def to_yahoo_symbol(internal_id: str, display_symbol: str = "", aliases: Optiona
     if " " in display_key or len(display_key) > 12:
         return None
     return display_key
-def is_earnings_supported(yahoo_symbol: Optional[str]) -> bool:
+def is_earnings_supported(yahoo_symbol: str | None) -> bool:
     """Whether an earnings lookup is meaningful for a Yahoo ticker."""
     if not yahoo_symbol:
         return False
     return yahoo_symbol not in NO_EARNINGS_YAHOO
-def build_known_maps(pie_slices: Optional[List[tuple]] = None, config_assets: Optional[List[dict]] = None, extra_names: Optional[Dict[str, str]] = None) -> tuple:
+def build_known_maps(pie_slices: list[tuple] | None = None, config_assets: list[dict] | None = None, extra_names: dict[str, str] | None = None) -> tuple:
     """Build (known_clean_set, known_names) from pie slices + config assets.
     pie_slices: iterable of (slice, name). config_assets: portfolio_config
     asset dicts with broker_symbol / yahoo_symbol / name.
     """
     known_clean: set = set()
-    known_names: Dict[str, str] = {}
+    known_names: dict[str, str] = {}
     for item in pie_slices or []:
         try:
             sl, nm = item
@@ -553,8 +553,8 @@ def build_known_maps(pie_slices: Optional[List[tuple]] = None, config_assets: Op
 
 
 def confirm_content_entities(title: str, extract: str, queried_symbol: str,
-                             names_map: Optional[Dict[str, str]],
-                             universe_symbols: Optional[set]) -> tuple:
+                             names_map: dict[str, str] | None,
+                             universe_symbols: set | None) -> tuple:
     """Confirm portfolio entities referenced in content (conservative).
 
     Returns ``(confirmed, relevance)``:

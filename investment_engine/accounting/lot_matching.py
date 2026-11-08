@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from investment_engine.accounting.models import (
     LedgerEvent,
@@ -27,13 +27,13 @@ from investment_engine.accounting.models import (
 @dataclass
 class MatchingResult:
     """Result of FIFO matching for all symbols."""
-    matched_trades: List[MatchedTrade] = field(default_factory=list)
-    open_lots: Dict[str, List[Lot]] = field(default_factory=dict)  # symbol -> lots
-    unmatched_sells: List[LedgerEvent] = field(default_factory=list)
-    short_sells: List[MatchedTrade] = field(default_factory=list)  # sells exceeding available lots
-    warnings: List[str] = field(default_factory=list)
+    matched_trades: list[MatchedTrade] = field(default_factory=list)
+    open_lots: dict[str, list[Lot]] = field(default_factory=dict)  # symbol -> lots
+    unmatched_sells: list[LedgerEvent] = field(default_factory=list)
+    short_sells: list[MatchedTrade] = field(default_factory=list)  # sells exceeding available lots
+    warnings: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "matched_trades": [t.to_dict() for t in self.matched_trades],
             "open_lots": {sym: [l.to_dict() for l in lots] for sym, lots in self.open_lots.items()},
@@ -43,8 +43,8 @@ class MatchingResult:
         }
 
 
-def _convert_to_eur(amount: Decimal, currency: str, exchange_rate: Optional[Decimal],
-                    default_fx_rates: Dict[str, Decimal]) -> Decimal:
+def _convert_to_eur(amount: Decimal, currency: str, exchange_rate: Decimal | None,
+                    default_fx_rates: dict[str, Decimal]) -> Decimal:
     """Convert amount to EUR using event's exchange rate or default rates."""
     if currency == "EUR":
         return amount
@@ -59,8 +59,8 @@ def _convert_to_eur(amount: Decimal, currency: str, exchange_rate: Optional[Deci
 
 
 def match_sell_fifo(
-    events: List[LedgerEvent],
-    default_fx_rates: Optional[Dict[str, Decimal]] = None,
+    events: list[LedgerEvent],
+    default_fx_rates: dict[str, Decimal] | None = None,
 ) -> MatchingResult:
     """Match all sell events to buy lots using FIFO.
     
@@ -84,11 +84,11 @@ def match_sell_fifo(
     sorted_events = sorted(events, key=lambda e: (e.timestamp, e.source_row))
     
     # Track open lots per symbol
-    open_lots: Dict[str, List[Lot]] = {}
-    matched_trades: List[MatchedTrade] = []
-    unmatched_sells: List[LedgerEvent] = []
-    short_sells: List[MatchedTrade] = []
-    warnings: List[str] = []
+    open_lots: dict[str, list[Lot]] = {}
+    matched_trades: list[MatchedTrade] = []
+    unmatched_sells: list[LedgerEvent] = []
+    short_sells: list[MatchedTrade] = []
+    warnings: list[str] = []
     
     for event in sorted_events:
         symbol = event.normalized_symbol or event.broker_symbol
@@ -99,7 +99,7 @@ def match_sell_fifo(
         
         if event.is_buy:
             # Create new lot from buy event
-            cost_basis_per_share = event.price if event.price and event.price != 0 else Decimal("0")
+            cost_basis_per_share = event.price if event.price and event.price != 0 else Decimal(0)
             if event.quantity > 0 and cost_basis_per_share > 0:
                 # Calculate cost basis in EUR per share
                 cost_basis_eur_per_share = None
@@ -145,7 +145,7 @@ def match_sell_fifo(
                 warnings.append(f"Sell event {event.event_id} ({symbol}): Zero or negative quantity")
                 continue
             
-            sell_price = event.price if event.price and event.price != 0 else Decimal("0")
+            sell_price = event.price if event.price and event.price != 0 else Decimal(0)
             sell_price_eur = None
             if sell_price > 0:
                 if event.exchange_rate and event.exchange_rate != 0:
@@ -154,8 +154,8 @@ def match_sell_fifo(
                     sell_price_eur = sell_price * default_fx_rates_str[event.currency]
             
             matched_lots_details = []
-            total_cost_basis_eur = Decimal("0")
-            total_fees_eur = Decimal("0")
+            total_cost_basis_eur = Decimal(0)
+            total_fees_eur = Decimal(0)
             remaining_to_sell = quantity_to_sell
             
             # Iterate through lots in FIFO order
@@ -187,7 +187,7 @@ def match_sell_fifo(
                     fee_proportion = qty_from_lot / lot.quantity
                     fees_eur = lot.fees_allocated_eur * fee_proportion
                 else:
-                    fees_eur = Decimal("0")
+                    fees_eur = Decimal(0)
                 
                 total_cost_basis_eur += cost_basis_eur
                 total_fees_eur += fees_eur
@@ -227,7 +227,7 @@ def match_sell_fifo(
                 matched_lots=matched_lots_details,
                 realized_pnl_eur=realized_pnl_eur,
                 fees_eur=total_fees_eur,
-                short_quantity=remaining_to_sell if remaining_to_sell > 0 else Decimal("0"),
+                short_quantity=remaining_to_sell if remaining_to_sell > 0 else Decimal(0),
             )
             
             if remaining_to_sell > 0:
@@ -256,9 +256,9 @@ def match_sell_fifo(
     )
 
 
-def calculate_open_lot_cost_basis(open_lots: Dict[str, List[Lot]]) -> Decimal:
+def calculate_open_lot_cost_basis(open_lots: dict[str, list[Lot]]) -> Decimal:
     """Calculate total cost basis of all open lots in EUR."""
-    total = Decimal("0")
+    total = Decimal(0)
     for lots in open_lots.values():
         for lot in lots:
             if lot.cost_basis_eur_per_share is not None:

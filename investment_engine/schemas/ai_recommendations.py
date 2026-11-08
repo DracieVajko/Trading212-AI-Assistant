@@ -1,9 +1,9 @@
 """Pydantic schemas for AI recommendation validation."""
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any, Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from typing import Literal
 
 
 class PortfolioAction(BaseModel):
@@ -93,7 +93,7 @@ class CashDeployment(BaseModel):
     deploy_amount: float = Field(ge=0.0)
     deploy_pct: float = Field(ge=0.0, le=100.0)
     reserve: float = Field(ge=0.0)
-    targets: List[Any] = Field(default_factory=list)
+    targets: list[Any] = Field(default_factory=list)
 
     @field_validator("deploy_pct")
     @classmethod
@@ -105,9 +105,9 @@ class CashDeployment(BaseModel):
 
 class AIRecommendations(BaseModel):
     """Complete AI recommendations response."""
-    portfolio_actions: List[Any] = Field(default_factory=list)
-    trades: List[Any] = Field(default_factory=list)
-    position_updates: List[Any] = Field(default_factory=list)
+    portfolio_actions: list[Any] = Field(default_factory=list)
+    trades: list[Any] = Field(default_factory=list)
+    position_updates: list[Any] = Field(default_factory=list)
     cash_deployment: Any = None  # Will be validated in model_validator
 
     @model_validator(mode="after")
@@ -142,8 +142,7 @@ def parse_ai_recommendations(json_str: str) -> dict:
         cleaned = cleaned[7:]
     elif cleaned.startswith("```"):
         cleaned = cleaned[3:]
-    if cleaned.endswith("```"):
-        cleaned = cleaned[:-3]
+    cleaned = cleaned.removesuffix("```")
     cleaned = cleaned.strip()
     
     # Strip <answer> tags if present

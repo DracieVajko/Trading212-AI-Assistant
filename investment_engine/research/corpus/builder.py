@@ -28,13 +28,13 @@ def build_corpus(news_by_symbol: dict[str, list[dict[str, Any]]],
     ``names_map`` + ``universe_symbols`` enable conservative company-name
     confirmation (WP2); when absent the adapter confirms only query symbols.
     """
+    from investment_engine.research import crypto_events as _ce
+    from investment_engine.research import healthcare_events as _he
+    from investment_engine.research import policy_events as _pe
     from investment_engine.research.corpus import adapters as _ad
     from investment_engine.research.corpus import dedupe as _dedupe
     from investment_engine.research.corpus import freshness as _fresh
     from investment_engine.research.corpus import tiers as _tiers
-    from investment_engine.research import healthcare_events as _he
-    from investment_engine.research import crypto_events as _ce
-    from investment_engine.research import policy_events as _pe
 
     ref = now if isinstance(now, datetime) else datetime.now(timezone.utc)
     if ref.tzinfo is None:
