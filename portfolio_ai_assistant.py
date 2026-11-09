@@ -456,6 +456,16 @@ def main() -> int:
             except Exception as _dt_exc:
                 print(f"ERROR: day-trader pack failed: {_dt_exc}", file=sys.stderr)
                 return 1
+        # Phase 2: Live recommendations only (zero order execution).
+        # Demo already ran above; live never places orders:
+        # T212_LIVE_ORDER_ENABLED=0, no live_ack, auto_approve forbidden.
+        if _did_day_trader:
+            try:
+                from investment_engine.history import runtime_mode as _rm
+                _live_mode = _rm("live")
+                print(f"Live phase: recommendations only (no orders), mode={_live_mode}")
+            except Exception as _live_exc:
+                print(f"Live phase skipped: {_live_exc}")
         if args.day_trader_plan:
             try:
                 from investment_engine.day_trader import DayTraderConfig, run_planning, run_premarket
