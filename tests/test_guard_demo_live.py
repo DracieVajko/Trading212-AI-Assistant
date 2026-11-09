@@ -17,10 +17,10 @@ def test_guard_blocks_live_orders():
         allowed_sides=["BUY", "SELL"],
         unlimited=False,
     )
-    intent = {"symbol": "AAPL", "side": "BUY", "notional": 100, "manual_approval": True}
+    intent = {"symbol": "AAPL", "side": "BUY", "notional": 40, "manual_approval": True}
     decision = evaluate(intent, cfg, env, recon_status="PASS", account_currency="EUR")
     assert decision.allowed is False
-    assert decision.reasons
+    assert any("T212_LIVE_ORDER_ENABLED" in r for r in decision.reasons)
 
 
 def test_guard_allows_demo_orders():

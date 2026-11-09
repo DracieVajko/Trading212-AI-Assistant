@@ -32,3 +32,4 @@ def test_auto_script_demo_then_live_flow():
     live_cfg.execution.auto_approve = False
     live_decision = evaluate(demo_intent, live_cfg, live_env, recon_status="PASS", account_currency="EUR")
     assert live_decision.allowed is False
+    assert any("T212_LIVE_ORDER_ENABLED" in r for r in live_decision.reasons)
