@@ -482,9 +482,9 @@ def main() -> int:
                 print(f"Day trader plan: {_payload.get('plan_status')} symbol={_payload.get('plan_symbol')} status={_payload.get('status')}")
                 print(f"Plan file: {_state_root / 'planning.json'}")
                 _did_day_trader = True
-                if args.day_trader_allow_orders and _dt_cfg.execution.environment == "demo":
+                from investment_engine.day_trader.execute import demo_execution_allowed, execute_demo_tickets
+                if demo_execution_allowed(args.day_trader_allow_orders, _dt_cfg.execution.environment):
                     try:
-                        from investment_engine.day_trader.execute import execute_demo_plan, normalize_ticket
                         from investment_engine.day_trader.broker.t212_orders import T212OrderClient
                         import os as _os
                         from dotenv import load_dotenv as _ld
@@ -507,17 +507,12 @@ def main() -> int:
                         if not _known_instruments:
                             for _full in (locals().get("_portfolio_symbols") or []):
                                 _known_instruments[str(_full).split("_")[0].upper()] = str(_full)
-                        _tickets = (_payload or {}).get("tickets") or {}
-                        for _sym, _ticket in _tickets.items():
-                            _norm = normalize_ticket(_sym, _ticket, _known_instruments)
-                            if _norm is None:
-                                print(f"Demo execute {_sym}: skipped (unmapped or incomplete ticket)")
-                                continue
-                            _res = execute_demo_plan(
-                                _dt_cfg, _norm, _demo_client,
-                                db_path=str(ROOT / "data" / "day_trader" / "audit.db"),
-                            )
-                            print(f"Demo execute {_sym}: {_res['status']} {_res.get('reasons') or _res.get('error') or ''}")
+                        _results = execute_demo_tickets(
+                            _dt_cfg, _payload, _demo_client, _known_instruments,
+                            db_path=str(ROOT / "data" / "day_trader" / "audit.db"),
+                        )
+                        for _r in _results:
+                            print(f"Demo execute {_r['symbol']}: {_r['result']['status']}")
                     except Exception as _ex:
                         print(f"Demo execution skipped: {_ex}")
             except Exception as _dt_exc:

@@ -72,6 +72,32 @@ def normalize_ticket(
     }
 
 
+def demo_execution_allowed(allow_orders: bool, environment: str) -> bool:
+    return bool(allow_orders) and str(environment).lower() == "demo"
+
+
+def execute_demo_tickets(
+    config: Any,
+    payload: dict[str, Any] | None,
+    client: Any,
+    known_instruments: dict[str, str] | None = None,
+    *,
+    db_path: str = "data/day_trader/audit.db",
+) -> list[dict[str, Any]]:
+    """Normalize every ticket and execute it; return per-ticket results."""
+    results: list[dict[str, Any]] = []
+    tickets = (payload or {}).get("tickets") or {}
+    for sym, ticket in tickets.items():
+        norm = normalize_ticket(sym, ticket, known_instruments)
+        if norm is None:
+            print(f"Demo execute {sym}: skipped (unmapped or incomplete ticket)")
+            continue
+        res = execute_demo_plan(config, norm, client, db_path=db_path)
+        print(f"Demo execute {sym}: {res['status']} {res.get('reasons') or res.get('error') or ''}")
+        results.append({"symbol": sym, "result": res})
+    return results
+
+
 def _count_placed_today(db_path: str | os.PathLike[str], session_date: str) -> int:
     try:
         conn = sqlite3.connect(str(db_path))
