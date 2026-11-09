@@ -28,8 +28,9 @@ In scope:
 - History: demo trades recorded to `history/demo/` (permanent, never purged) — routine path exists; no live demo trades yet.
 
 Follow-up (not in this branch):
-- Demo order placement on the T212 demo account (automatic execution from the scheduled run).
+- Demo order placement on the T212 demo account (delivered: demo-only market entry plus optional stop/target exits, gated by `--day-trader-allow-orders` and `environment="demo"`).
 - In-lifecycle demo trade scoring: wiring `scoring.py` into the demo trade path so each trade is scored when executed/closed.
+- Lifecycle scoring caller (score_closed_trades is a library; wiring to closed demo trades is a follow-up)
 
 Out of scope:
 - Live order execution (explicitly forbidden).

@@ -1,18 +1,27 @@
 """Demo-only execution of day-trader tickets.
 
-Places orders on the T212 demo account only. Never live: the guard and the
-client-level interlock both refuse live placement.
+Places market entries plus optional stop/target exits (emulated bracket) on the
+T212 demo account only. Never live: the guard and the client-level interlock
+both refuse live placement.
+
+Reconciliation: demo paper trading may opt in to unverified recon because
+reconciliation of the live account is not available in the day-trader phase.
+Set ``T212_DEMO_ALLOW_UNVERIFIED_RECON=1`` to treat a missing ``recon_status``
+as PASS; otherwise a missing status is reported as UNKNOWN and the guard blocks.
 """
 
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import sqlite3
 from datetime import date
 from typing import Any
 
 DEFAULT_REASON = "demo execution from day-trader plan"
+
+logger = logging.getLogger(__name__)
 
 
 def _today_iso() -> str:
@@ -26,8 +35,8 @@ def normalize_ticket(
 ) -> dict[str, Any] | None:
     """Normalize a vendored ticket (dict or list, fields possibly under tool_input).
 
-    Returns a dict ready for ``execute_demo_plan`` or None when the ticket
-    cannot be mapped to a T212 instrument safely.
+    Returns a dict ready for ``execute_demo_plan`` or None when the ticket is
+    not ready or cannot be mapped to a T212 instrument safely.
     """
     if isinstance(ticket, list):
         ticket = ticket[0] if ticket else None
@@ -38,6 +47,12 @@ def normalize_ticket(
         raw = {**ticket, **tool_input}
     else:
         raw = dict(ticket)
+
+    if raw.get("ready") is False:
+        return None
+    status = raw.get("status")
+    if isinstance(status, str) and status.strip().lower() in {"blocked", "not_ready", "rejected"}:
+        return None
 
     side = str(raw.get("side") or "").upper()
     if side not in ("BUY", "SELL"):
@@ -69,6 +84,8 @@ def normalize_ticket(
         "quantity": qty,
         "notional": raw.get("notional", 0),
         "reason": raw.get("reason") or DEFAULT_REASON,
+        "stop_price": raw.get("stop_price") or raw.get("stop_loss_stop_price") or raw.get("stop"),
+        "target_price": raw.get("target_price") or raw.get("take_profit_limit_price") or raw.get("target"),
     }
 
 
@@ -99,6 +116,7 @@ def execute_demo_tickets(
 
 
 def _count_placed_today(db_path: str | os.PathLike[str], session_date: str) -> int:
+    """Count today's PLACED intents; -1 when the audit DB cannot be read."""
     try:
         conn = sqlite3.connect(str(db_path))
         try:
@@ -110,7 +128,7 @@ def _count_placed_today(db_path: str | os.PathLike[str], session_date: str) -> i
         finally:
             conn.close()
     except Exception:
-        return 0
+        return -1
 
 
 def execute_demo_plan(
@@ -161,10 +179,11 @@ def execute_demo_plan(
         )
     except sqlite3.IntegrityError:
         existing = find_intent_by_fingerprint(fp, db_path=db_path)
-        if not existing or existing.get("status") != "FAILED":
+        status = str((existing or {}).get("status", "")).upper()
+        if not existing or status not in ("FAILED", "BLOCKED"):
             return {"status": "BLOCKED", "order": None, "reasons": ["duplicate intent"]}
-        # Same-day retry after a failed placement: reuse the existing intent
-        # row instead of inserting a duplicate fingerprint.
+        # Same-day retry after a failed or blocked attempt: reuse the existing
+        # intent row instead of inserting a duplicate fingerprint.
         intent_id = int(existing["id"])
         try:
             update_intent_status(intent_id, "PENDING", db_path=db_path)
@@ -175,12 +194,24 @@ def execute_demo_plan(
 
     if not daily_orders:
         daily_orders = _count_placed_today(db_path, session_date)
+    if daily_orders < 0:
+        _mark_intent(update_intent_status, intent_id, "FAILED", db_path=db_path)
+        return {"status": "BLOCKED", "order": None, "reasons": ["audit db unavailable"]}
 
     def _mark(status: str, broker_order_id: str | None = None) -> None:
-        try:
-            update_intent_status(intent_id, status, broker_order_id=broker_order_id, db_path=db_path)
-        except Exception:
-            pass
+        _mark_intent(update_intent_status, intent_id, status, broker_order_id, db_path=db_path)
+
+    account_currency = getattr(getattr(config, "budget", None), "account_currency", None)
+    if not account_currency:
+        account_currency = ticket.get("account_currency") or "UNKNOWN"
+
+    recon_status = ticket.get("recon_status")
+    if not recon_status:
+        env_name = str(getattr(getattr(config, "execution", None), "environment", "")).lower()
+        if env_name == "demo" and os.getenv("T212_DEMO_ALLOW_UNVERIFIED_RECON") == "1":
+            recon_status = "PASS"
+        else:
+            recon_status = "UNKNOWN"
 
     intent = {
         "symbol": symbol,
@@ -193,15 +224,15 @@ def execute_demo_plan(
         intent,
         config,
         env,
-        recon_status=str(ticket.get("recon_status", "PASS")),
-        account_currency=str(ticket.get("account_currency", "EUR")),
+        recon_status=str(recon_status),
+        account_currency=str(account_currency),
         kill_switch_path=ticket.get("kill_switch_path"),
         daily_orders=daily_orders,
         daily_loss=daily_loss,
         allowed_symbols=ticket.get("allowed_symbols"),
     )
     if not decision.allowed:
-        _mark("FAILED")
+        _mark("BLOCKED")
         return {"status": "BLOCKED", "order": None, "reasons": decision.reasons}
 
     if getattr(client, "environment", "") != "demo":
@@ -222,13 +253,44 @@ def execute_demo_plan(
 
     _mark("PLACED", broker_order_id=str(oid))
 
+    exits: dict[str, Any] = {}
+    stop_price = ticket.get("stop_price")
+    target_price = ticket.get("target_price")
+    if stop_price is not None:
+        try:
+            exits["stop"] = client.place_stop_order(symbol, -abs(qty), float(stop_price))
+        except Exception as exc:
+            exits["stop"] = {"error": f"{type(exc).__name__}: {exc}"}
+    if target_price is not None:
+        try:
+            exits["target"] = client.place_limit_order(symbol, -abs(qty), float(target_price))
+        except Exception as exc:
+            exits["target"] = {"error": f"{type(exc).__name__}: {exc}"}
+
+    result: dict[str, Any] = {"status": "PLACED", "order": order, "reasons": [], "exits": exits}
     try:
+        # Canonical history DB: never the audit DB.
         record_trade(
             symbol, side, qty, order_id=str(oid), status="PLACED",
             reason=reason,
-            source="execute_demo_plan", mode=history_mode, db_path=db_path,
+            source="execute_demo_plan", mode=history_mode,
         )
+    except Exception as exc:
+        logger.warning("history record_trade failed for %s: %s", symbol, exc)
+        result["history_error"] = f"{type(exc).__name__}: {exc}"
+
+    return result
+
+
+def _mark_intent(
+    update_intent_status: Any,
+    intent_id: int,
+    status: str,
+    broker_order_id: str | None = None,
+    *,
+    db_path: str,
+) -> None:
+    try:
+        update_intent_status(intent_id, status, broker_order_id=broker_order_id, db_path=db_path)
     except Exception:
         pass
-
-    return {"status": "PLACED", "order": order, "reasons": []}

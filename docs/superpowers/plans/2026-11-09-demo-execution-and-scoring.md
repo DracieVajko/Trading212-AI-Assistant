@@ -298,6 +298,8 @@ git commit -m "feat: wire demo execution into the day-trader run"
 
 ### Task 4: Score trades on close
 
+**Status:** Partially delivered: library only, caller is a follow-up.
+
 **Files:**
 - Create: `investment_engine/day_trader/score_closed_trades.py`
 - Test: `tests/test_score_closed_trades.py`

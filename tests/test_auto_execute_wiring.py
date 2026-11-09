@@ -27,6 +27,7 @@ class _FakeClient:
 def _guard_env(monkeypatch):
     monkeypatch.setenv("T212_DEMO_ORDER_ENABLED", "1")
     monkeypatch.setenv("T212_ORDER_ENV", "demo")
+    monkeypatch.setenv("T212_DEMO_ALLOW_UNVERIFIED_RECON", "1")
 
 
 def test_normalize_ticket_list_and_tool_input():
@@ -64,6 +65,29 @@ def test_normalize_ticket_invalid_qty():
     from investment_engine.day_trader.execute import normalize_ticket
 
     assert normalize_ticket("AAPL", {"symbol": "AAPL", "side": "buy", "qty": "nope"}) is None
+
+
+def test_normalize_ticket_refuses_not_ready():
+    from investment_engine.day_trader.execute import normalize_ticket
+
+    ticket = {"ready": False, "tool_input": {"symbol": "AAPL", "side": "buy", "qty": "1"}}
+    assert normalize_ticket("AAPL", ticket) is None
+
+
+def test_normalize_ticket_accepts_ready_true():
+    from investment_engine.day_trader.execute import normalize_ticket
+
+    ticket = {"ready": True, "tool_input": {"symbol": "AAPL", "side": "buy", "qty": "1"}}
+    norm = normalize_ticket("AAPL", ticket)
+    assert norm is not None
+    assert norm["ticker"] == "AAPL_US_EQ"
+
+
+def test_normalize_ticket_refuses_blocked_status():
+    from investment_engine.day_trader.execute import normalize_ticket
+
+    ticket = {"status": "blocked", "tool_input": {"symbol": "AAPL", "side": "buy", "qty": "1"}}
+    assert normalize_ticket("AAPL", ticket) is None
 
 
 def test_demo_execution_allowed_gate():
