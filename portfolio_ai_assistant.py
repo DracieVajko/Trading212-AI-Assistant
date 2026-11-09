@@ -484,7 +484,7 @@ def main() -> int:
                 _did_day_trader = True
                 if args.day_trader_allow_orders and _dt_cfg.execution.environment == "demo":
                     try:
-                        from investment_engine.day_trader.execute import execute_demo_plan
+                        from investment_engine.day_trader.execute import execute_demo_plan, normalize_ticket
                         from investment_engine.day_trader.broker.t212_orders import T212OrderClient
                         import os as _os
                         from dotenv import load_dotenv as _ld
@@ -494,20 +494,25 @@ def main() -> int:
                             _os.getenv("T212_DEMO_API_KEY"),
                             _os.getenv("T212_DEMO_API_SECRET"),
                         )
+                        # Map base symbol -> full T212 instrument from live positions
+                        # when the earlier day-trader phase fetched them.
+                        _known_instruments = {}
+                        _positions_src = locals().get("_positions")
+                        if not isinstance(_positions_src, list):
+                            _positions_src = []
+                        for _p in _positions_src:
+                            _full = (_p.get("instrument") or {}).get("ticker") if isinstance(_p, dict) else None
+                            if _full:
+                                _known_instruments[str(_full).split("_")[0].upper()] = str(_full)
+                        if not _known_instruments:
+                            for _full in (locals().get("_portfolio_symbols") or []):
+                                _known_instruments[str(_full).split("_")[0].upper()] = str(_full)
                         _tickets = (_payload or {}).get("tickets") or {}
                         for _sym, _ticket in _tickets.items():
-                            _raw = _ticket if isinstance(_ticket, dict) else {}
-                            try:
-                                _qty = float(_raw.get("quantity", _raw.get("qty", 0)) or 0)
-                            except (TypeError, ValueError):
-                                _qty = 0.0
-                            _norm = {
-                                "ticker": str(_raw.get("ticker") or _raw.get("symbol") or _sym).upper(),
-                                "side": str(_raw.get("side") or "BUY").upper(),
-                                "quantity": _qty,
-                                "notional": _raw.get("notional", 0),
-                                "reason": "demo execution from day-trader plan",
-                            }
+                            _norm = normalize_ticket(_sym, _ticket, _known_instruments)
+                            if _norm is None:
+                                print(f"Demo execute {_sym}: skipped (unmapped or incomplete ticket)")
+                                continue
                             _res = execute_demo_plan(
                                 _dt_cfg, _norm, _demo_client,
                                 db_path=str(ROOT / "data" / "day_trader" / "audit.db"),
@@ -517,7 +522,6 @@ def main() -> int:
                         print(f"Demo execution skipped: {_ex}")
             except Exception as _dt_exc:
                 print(f"ERROR: day-trader planning failed: {_dt_exc}", file=sys.stderr)
-                return 1
         if args.day_trader_mirror_demo:
             try:
                 import os as _os

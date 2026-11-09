@@ -197,3 +197,32 @@ def test_execute_demo_plan_forces_demo_history_mode(tmp_path, monkeypatch):
     )
     # An unsupported history_mode must never reach the permanent live log.
     assert [k["mode"] for _a, k in calls] == ["demo"]
+
+
+def test_execute_demo_plan_blocks_duplicate(tmp_path, monkeypatch):
+    from investment_engine.day_trader.execute import execute_demo_plan
+    cfg = _demo_config()
+    cfg.execution.unlimited = True
+    calls = []
+    monkeypatch.setattr(
+        "investment_engine.history.record_trade",
+        lambda *a, **k: calls.append((a, k)),
+    )
+
+    class FakeClient:
+        environment = "demo"
+        def place_market_order(self, ticker, qty, **k):
+            return {"id": 101}
+
+    env = {"T212_DEMO_ORDER_ENABLED": "1", "T212_ORDER_ENV": "demo"}
+    ticket = {"ticker": "AAPL_US_EQ", "side": "BUY", "quantity": 1, "reason": "dup test"}
+    db = str(tmp_path / "audit.db")
+
+    first = execute_demo_plan(cfg, ticket, FakeClient(), env=env, db_path=db)
+    assert first["status"] == "PLACED"
+
+    second = execute_demo_plan(cfg, ticket, FakeClient(), env=env, db_path=db)
+    assert second["status"] == "BLOCKED"
+    assert "duplicate intent" in second["reasons"]
+    assert len(calls) == 1
+
