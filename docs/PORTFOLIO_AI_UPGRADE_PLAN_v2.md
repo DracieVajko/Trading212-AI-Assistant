@@ -292,8 +292,10 @@
 The scheduled auto script (Windows Task Scheduler, 09:00 and 21:00) runs two
 phases in one process:
 
-1. **Demo phase** — full BUY/SELL execution on the T212 demo account
-   (`day_trader.auto_run=true`, `environment="demo"`, `allowed_sides=["BUY","SELL"]`).
+1. **Demo phase** — currently performs the read-only premarket scan and writes
+   the day-trader brief; automatic demo order placement (T212 demo account) is a
+   follow-up not yet implemented. Config still carries `day_trader.auto_run=true`,
+   `environment="demo"`, `allowed_sides=["BUY","SELL"]` for that future wiring.
 2. **Live phase** — AI recommendations only, zero order execution. Live stays
    blocked by `T212_LIVE_ORDER_ENABLED=0`, the missing `live_ack`, and the
    `auto_approve`-forbidden rule in the guard.

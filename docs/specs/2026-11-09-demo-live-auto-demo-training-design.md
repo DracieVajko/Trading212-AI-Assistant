@@ -7,7 +7,7 @@
 ## Goal
 
 One auto script (Task Scheduler 09:00 / 21:00) that runs two phases per execution:
-1. **Demo phase** — full BUY/SELL execution on T212 demo account, with trade scoring (short/medium/long term horizons).
+1. **Demo phase** — currently runs the read-only premarket scan and writes the day-trader brief. Demo order placement and in-lifecycle scoring are a planned follow-up (not yet wired).
 2. **Live phase** — AI recommendations only, zero order execution (live remains locked).
 
 Plus:
@@ -17,15 +17,19 @@ Plus:
 ## Scope
 
 In scope:
-- `run_automated.bat` — passes `--day-trader --day-trader-allow-orders` to trigger demo execution.
-- `portfolio_ai_assistant.py` — orchestrates demo phase then live phase in one process.
-- `investment_engine/day_trader/config.py` — `auto_run=true`, `environment="demo"`, `allowed_sides=["BUY","SELL"]`.
+- `run_automated.bat` — passes `--day-trader --day-trader-allow-orders` to run the read-only premarket day-trader phase.
+- `portfolio_ai_assistant.py` — runs the demo premarket scan/brief, then the live phase, in one process.
+- `investment_engine/day_trader/config.py` — `auto_run=true`, `environment="demo"`, `allowed_sides=["BUY","SELL"]` (config only; no orders are placed yet).
 - `investment_engine/day_trader/premarket.py` — demo trading window 08:30–10:00 ET, `allow_short=True`.
-- `investment_engine/day_trader/scoring.py` (NEW) — demo trade scoring, short/medium/long term buckets.
+- `investment_engine/day_trader/scoring.py` (NEW) — demo trade scoring module, short/medium/long term buckets (unit-tested; not wired into the trade lifecycle).
 - `investment_engine/providers/optimization.py` (NEW) — AI model optimization abstraction for LM Studio + Ollama.
 - `investment_engine/providers/optimization_config.json` (NEW) — persisted best settings per model.
 - Guard already blocks live execution (`T212_LIVE_ORDER_ENABLED=0`, no `live_ack`, `auto_approve` forbidden live).
-- History: demo trades recorded to `history/demo/` (permanent, never purged).
+- History: demo trades recorded to `history/demo/` (permanent, never purged) — routine path exists; no live demo trades yet.
+
+Follow-up (not in this branch):
+- Demo order placement on the T212 demo account (automatic execution from the scheduled run).
+- In-lifecycle demo trade scoring: wiring `scoring.py` into the demo trade path so each trade is scored when executed/closed.
 
 Out of scope:
 - Live order execution (explicitly forbidden).
@@ -40,12 +44,12 @@ Out of scope:
 Scheduled Task (09:00 / 21:00)
   └─ run_automated.bat
        └─ portfolio_ai_assistant.py
-            ├─ Phase 1: DEMO (T212 demo API, BUY/SELL enabled, auto_approve)
+            ├─ Phase 1: DEMO (read-only premarket scan; order placement not wired)
             │     ├─ Premarket scan → watchlist
             │     ├─ Planning (entry/exit/stop/target via bracket emulation)
             │     ├─ Guard evaluate (demo env → ALLOWED)
-            │     ├─ Place demo orders (market + stop + target)
-            │     ├─ Scoring module available (unit-tested; not yet wired into this path)
+            │     ├─ [NOT YET WIRED — follow-up] Place demo orders (market + stop + target)
+            │     ├─ [NOT YET WIRED — follow-up] Score each trade (scoring.py is unit-tested only)
             │     ├─ Record to history/demo/ (JSONL + SQLite)
             │     └─ Write reports/day_trader/<mode>/current/day_trader_brief.md
             │

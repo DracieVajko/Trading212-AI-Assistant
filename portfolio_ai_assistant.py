@@ -295,7 +295,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate a portfolio analysis report.")
     parser.add_argument("--config", default="portfolio_config.json", help="Path to the JSON configuration file.")
     parser.add_argument("--investment-engine", action="store_true", help="Run the modular investment engine.")
-    parser.add_argument("--generate-full-report", action="store_true", help="Kept for compatibility; reports are always written.")
+    parser.add_argument("--generate-full-report", action="store_true", help="Continue past the day-trader block into the main engine (used by the scheduled run); reports are always written.")
     parser.add_argument("--execution-mode", choices=["auto", "public", "locals"], default=None,
                         help="Provider classes for this run: auto (locals first, then public APIs), "
                              "public (public APIs only, locals never touched), "
