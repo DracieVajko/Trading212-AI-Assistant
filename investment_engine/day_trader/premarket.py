@@ -49,11 +49,10 @@ def run_premarket(
             "max_daily_loss_usd": config.budget.max_daily_loss,
             "max_trades_per_day": config.budget.max_trades_per_day,
             "min_reward_risk": 1.0,
-            # Demo profile: scan for shorting opportunities around the US open.
-            # US market opens 09:30 ET -> entries from 08:30 (1h before) to 10:00 (30m after).
-            "no_entries_before": "08:30",
-            "no_entries_after": "10:00",
-            "flat_by": "10:00",
+            # Nonstop trading: no entry window restriction.
+            "no_entries_before": "00:00",
+            "no_entries_after": "23:59",
+            "flat_by": "23:59",
             "fractional": False,
             "broker": "trading212",
             "paper": True,
