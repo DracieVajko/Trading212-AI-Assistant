@@ -224,6 +224,15 @@ def ensure_model_context(
         return {"status": "not_served", "context_length": target}
     max_ctx = int(entry.get("max_context_length") or 0)
     if max_ctx > 0:
+        # If the prompt requires more context than the model can provide,
+        # don't try to load with a clamped context — it will fail at inference.
+        # Return a distinct status so the caller can fall back to the next provider.
+        if target > max_ctx:
+            logger.warning(
+                "LM Studio model %s cannot fit prompt: target=%d exceeds max_context=%d — skipping",
+                model, target, max_ctx,
+            )
+            return {"status": "context_too_small", "context_length": max_ctx}
         target = min(target, max_ctx)
     instances = entry.get("loaded_instances") or []
     if instances:
@@ -288,7 +297,14 @@ class LMStudioProvider(BaseLLMProvider):
                 "LM Studio dynamic context: model=%s prompt~%d out=%d target=%d (cap=%d)",
                 model, prompt_tokens, output_tokens, target, self.max_context_tokens,
             )
-            ensure_model_context(self.base_url, model, target, exclusive=self.exclusive_load)
+            result = ensure_model_context(self.base_url, model, target, exclusive=self.exclusive_load)
+            if result.get("status") == "context_too_small":
+                raise RuntimeError(
+                    f"prompt ({target} tokens) exceeds model max context "
+                    f"({result.get('context_length', 0)}) — falling back"
+                )
+        except RuntimeError:
+            raise
         except Exception as exc:
             logger.debug("LM Studio context ensure skipped for %s: %s", model, exc)
 
