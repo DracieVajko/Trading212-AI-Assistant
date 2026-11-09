@@ -326,6 +326,39 @@ def test_execute_demo_plan_places_bracket_exits(tmp_path, monkeypatch):
     assert res["exits"]["target"]["id"] == 303
 
 
+def test_execute_demo_plan_skips_bracket_exits_for_sell_entry(tmp_path, monkeypatch):
+    from investment_engine.day_trader.execute import execute_demo_plan
+    _allow_unverified_recon(monkeypatch)
+    cfg = _demo_config()
+    cfg.execution.unlimited = True
+    cfg.execution.allowed_sides = ["BUY", "SELL"]
+
+    class BracketClient:
+        environment = "demo"
+        def __init__(self):
+            self.calls = []
+        def place_market_order(self, ticker, qty, **k):
+            self.calls.append(("market", ticker, qty))
+            return {"id": 401}
+        def place_stop_order(self, ticker, qty, price):
+            self.calls.append(("stop", ticker, qty, price))
+            return {"id": 402}
+        def place_limit_order(self, ticker, qty, price):
+            self.calls.append(("limit", ticker, qty, price))
+            return {"id": 403}
+
+    client = BracketClient()
+    env = {"T212_DEMO_ORDER_ENABLED": "1", "T212_ORDER_ENV": "demo"}
+    res = execute_demo_plan(
+        cfg,
+        {"ticker": "AAPL_US_EQ", "side": "SELL", "quantity": 1, "stop_price": 90.0, "target_price": 110.0},
+        client, env=env, db_path=str(tmp_path / "audit.db"),
+    )
+    assert res["status"] == "PLACED"
+    assert client.calls == [("market", "AAPL_US_EQ", -1.0)]
+    assert not res.get("exits")
+
+
 def test_execute_demo_plan_blocks_duplicate(tmp_path, monkeypatch):
     from investment_engine.day_trader.execute import execute_demo_plan
     _allow_unverified_recon(monkeypatch)

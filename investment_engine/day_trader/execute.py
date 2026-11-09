@@ -256,16 +256,17 @@ def execute_demo_plan(
     exits: dict[str, Any] = {}
     stop_price = ticket.get("stop_price")
     target_price = ticket.get("target_price")
-    if stop_price is not None:
-        try:
-            exits["stop"] = client.place_stop_order(symbol, -abs(qty), float(stop_price))
-        except Exception as exc:
-            exits["stop"] = {"error": f"{type(exc).__name__}: {exc}"}
-    if target_price is not None:
-        try:
-            exits["target"] = client.place_limit_order(symbol, -abs(qty), float(target_price))
-        except Exception as exc:
-            exits["target"] = {"error": f"{type(exc).__name__}: {exc}"}
+    if side == "BUY":
+        if stop_price is not None:
+            try:
+                exits["stop"] = client.place_stop_order(symbol, -abs(qty), float(stop_price))
+            except Exception as exc:
+                exits["stop"] = {"error": f"{type(exc).__name__}: {exc}"}
+        if target_price is not None:
+            try:
+                exits["target"] = client.place_limit_order(symbol, -abs(qty), float(target_price))
+            except Exception as exc:
+                exits["target"] = {"error": f"{type(exc).__name__}: {exc}"}
 
     result: dict[str, Any] = {"status": "PLACED", "order": order, "reasons": [], "exits": exits}
     try:
