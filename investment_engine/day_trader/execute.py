@@ -97,6 +97,7 @@ def execute_demo_plan(
     history_mode: str = "demo",
 ) -> dict[str, Any]:
     from investment_engine.day_trader.broker.audit import (
+        find_intent_by_fingerprint,
         record_intent,
         update_intent_status,
     )
@@ -133,7 +134,16 @@ def execute_demo_plan(
             session_date, symbol, side, qty, "MARKET", fp, db_path=db_path,
         )
     except sqlite3.IntegrityError:
-        return {"status": "BLOCKED", "order": None, "reasons": ["duplicate intent"]}
+        existing = find_intent_by_fingerprint(fp, db_path=db_path)
+        if not existing or existing.get("status") != "FAILED":
+            return {"status": "BLOCKED", "order": None, "reasons": ["duplicate intent"]}
+        # Same-day retry after a failed placement: reuse the existing intent
+        # row instead of inserting a duplicate fingerprint.
+        intent_id = int(existing["id"])
+        try:
+            update_intent_status(intent_id, "PENDING", db_path=db_path)
+        except Exception as exc:
+            return {"status": "FAILED", "error": f"{type(exc).__name__}: {exc}", "order": None, "reasons": []}
     except Exception as exc:  # fail closed: no audited intent, no order
         return {"status": "FAILED", "error": f"{type(exc).__name__}: {exc}", "order": None, "reasons": []}
 

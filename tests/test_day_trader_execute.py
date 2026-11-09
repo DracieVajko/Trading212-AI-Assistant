@@ -226,3 +226,37 @@ def test_execute_demo_plan_blocks_duplicate(tmp_path, monkeypatch):
     assert "duplicate intent" in second["reasons"]
     assert len(calls) == 1
 
+
+def test_execute_demo_plan_retries_same_day_after_failed_placement(tmp_path, monkeypatch):
+    from investment_engine.day_trader.execute import execute_demo_plan
+    cfg = _demo_config()
+    cfg.execution.unlimited = True
+    calls = []
+    monkeypatch.setattr(
+        "investment_engine.history.record_trade",
+        lambda *a, **k: calls.append((a, k)),
+    )
+
+    class FailingClient:
+        environment = "demo"
+        def place_market_order(self, ticker, qty, **k):
+            raise RuntimeError("broker unavailable")
+
+    class FakeClient:
+        environment = "demo"
+        def place_market_order(self, ticker, qty, **k):
+            return {"id": 202}
+
+    env = {"T212_DEMO_ORDER_ENABLED": "1", "T212_ORDER_ENV": "demo"}
+    ticket = {"ticker": "AAPL_US_EQ", "side": "BUY", "quantity": 1, "reason": "retry test"}
+    db = str(tmp_path / "audit.db")
+
+    first = execute_demo_plan(cfg, ticket, FailingClient(), env=env, db_path=db)
+    assert first["status"] == "FAILED"
+
+    second = execute_demo_plan(cfg, ticket, FakeClient(), env=env, db_path=db)
+    assert second["status"] == "PLACED"
+    assert second["order"]["id"] == 202
+    assert len(calls) == 1
+
+
