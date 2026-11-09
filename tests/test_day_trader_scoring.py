@@ -70,3 +70,21 @@ def test_scoring_fx_fee_reduces_net_pnl():
     }
     result = score_demo_trade(trade)
     assert result.breakdown["net_pnl_eur"] == 7.0
+
+
+def test_scoring_malformed_timestamps_do_not_raise():
+    from investment_engine.day_trader.scoring import score_demo_trade
+    trade = {"symbol": "AAPL", "side": "BUY", "executed_at": "garbage",
+             "closed_at": "also-garbage", "pnl_eur": 1.0, "fx_fee_eur": 0.0,
+             "stop_loss_adhered": True, "risk_reward_ratio": 1.0}
+    result = score_demo_trade(trade)
+    assert result.horizon == "short"
+
+
+def test_missing_stop_loss_flag_is_neutral_not_penalised():
+    from investment_engine.day_trader.scoring import score_demo_trade
+    trade = {"symbol": "AAPL", "side": "BUY", "executed_at": "2026-11-09T09:30:00Z",
+             "closed_at": "2026-11-09T10:00:00Z", "pnl_eur": 0.0,
+             "fx_fee_eur": 0.0, "risk_reward_ratio": 1.0}
+    result = score_demo_trade(trade)
+    assert result.breakdown["stop_loss_component"] == 0.0

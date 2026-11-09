@@ -18,9 +18,12 @@ class DemoTradeScore:
 def _hold_minutes(executed_at: str, closed_at: str | None) -> int:
     if not closed_at or not executed_at:
         return 0
-    start = datetime.fromisoformat(executed_at.replace("Z", "+00:00"))
-    end = datetime.fromisoformat(closed_at.replace("Z", "+00:00"))
-    return max(0, int((end - start).total_seconds() / 60))
+    try:
+        start = datetime.fromisoformat(executed_at.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(closed_at.replace("Z", "+00:00"))
+        return max(0, int((end - start).total_seconds() / 60))
+    except Exception:
+        return 0
 
 
 def _horizon(minutes: int) -> str:
@@ -36,14 +39,15 @@ def score_demo_trade(trade: dict) -> DemoTradeScore:
 
     Weights: P&L after FX = 0.40, hold time = 0.20, risk:reward = 0.20,
     stop-loss adherence = 0.20. FX fees are subtracted from P&L before
-    normalization.
+    normalization. P&L is normalized against a 100 EUR scale (clamped to
+    [-1, 1]). Missing stop-loss data is neutral (0.0) rather than penalised.
     """
     pnl_eur = float(trade.get("pnl_eur", 0.0) or 0.0)
     fx_fee_eur = float(trade.get("fx_fee_eur", 0.0) or 0.0)
     net_pnl = pnl_eur - fx_fee_eur
     hold_min = _hold_minutes(trade.get("executed_at", ""), trade.get("closed_at"))
     horizon = _horizon(hold_min)
-    stop_ok = bool(trade.get("stop_loss_adhered", False))
+    sl_raw = trade.get("stop_loss_adhered")
     rr = float(trade.get("risk_reward_ratio", 0.0) or 0.0)
 
     W_PNL = 0.40
@@ -61,7 +65,7 @@ def score_demo_trade(trade: dict) -> DemoTradeScore:
         time_component = 0.5
 
     rr_component = min(1.0, rr / 2.0) if rr > 0 else 0.0
-    sl_component = 1.0 if stop_ok else -1.0
+    sl_component = 0.0 if sl_raw is None else (1.0 if bool(sl_raw) else -1.0)
 
     score = (
         W_PNL * pnl_component
