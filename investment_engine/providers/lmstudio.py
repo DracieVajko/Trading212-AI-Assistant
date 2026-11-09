@@ -15,6 +15,9 @@ from .context_budget import (
 from .context_budget import (
     context_target as _context_target,
 )
+from .context_budget import (
+    estimate_tokens as _estimate_tokens,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +284,10 @@ class LMStudioProvider(BaseLLMProvider):
             return
         try:
             target = _context_target(prompt_tokens, output_tokens, self.max_context_tokens)
+            logger.info(
+                "LM Studio dynamic context: model=%s prompt~%d out=%d target=%d (cap=%d)",
+                model, prompt_tokens, output_tokens, target, self.max_context_tokens,
+            )
             ensure_model_context(self.base_url, model, target, exclusive=self.exclusive_load)
         except Exception as exc:
             logger.debug("LM Studio context ensure skipped for %s: %s", model, exc)
@@ -429,7 +436,7 @@ class LMStudioProvider(BaseLLMProvider):
         try:
             self._warmup_model(
                 requested_model,
-                prompt_tokens=max(1, len(prompt or "") // 4),
+                prompt_tokens=_estimate_tokens(prompt or "") + 32,  # +system/chat wrapper
                 output_tokens=max_tokens,
             )
         except RuntimeError as exc:

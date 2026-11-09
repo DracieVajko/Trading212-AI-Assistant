@@ -6,7 +6,7 @@ import time
 import requests
 
 from .base import BaseLLMProvider
-from .context_budget import context_target
+from .context_budget import context_target, estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -121,9 +121,18 @@ class OllamaProvider(BaseLLMProvider):
         }
         if self.auto_context:
             # num_ctx covers the prompt plus the completion budget, which
-            # includes thinking tokens. Cap comes from OLLAMA_CONTEXT_TOKENS.
-            options["num_ctx"] = context_target(
-                max(1, len(prompt or "") // 4), num_predict, self.max_context_tokens)
+            # includes thinking tokens. Sized per prompt; cap from
+            # OLLAMA_CONTEXT_TOKENS, floor/step from LOCAL_CONTEXT_* env vars.
+            num_ctx = context_target(
+                estimate_tokens(prompt or "") + 32,  # +system/chat wrapper
+                num_predict,
+                self.max_context_tokens,
+            )
+            options["num_ctx"] = num_ctx
+            logger.debug(
+                "Ollama dynamic context: stage=%s prompt~%d out=%d num_ctx=%d (cap=%d)",
+                stage, estimate_tokens(prompt or ""), num_predict, num_ctx, self.max_context_tokens,
+            )
 
         payload: dict[str, object] = {
             "model": self.model,
