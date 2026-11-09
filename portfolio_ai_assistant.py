@@ -523,7 +523,7 @@ def main() -> int:
             except Exception as _dt_exc:
                 print(f"ERROR: day-trader mirror failed: {_dt_exc}", file=sys.stderr)
                 return 1
-        if _did_day_trader:
+        if _did_day_trader and not args.generate_full_report:
             return 0
         # Rotation + toggle overrides (advisory only; never executes orders)
         include_quantities = args.include_quantities
