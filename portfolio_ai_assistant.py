@@ -482,6 +482,39 @@ def main() -> int:
                 print(f"Day trader plan: {_payload.get('plan_status')} symbol={_payload.get('plan_symbol')} status={_payload.get('status')}")
                 print(f"Plan file: {_state_root / 'planning.json'}")
                 _did_day_trader = True
+                if args.day_trader_allow_orders and _dt_cfg.execution.environment == "demo":
+                    try:
+                        from investment_engine.day_trader.execute import execute_demo_plan
+                        from investment_engine.day_trader.broker.t212_orders import T212OrderClient
+                        import os as _os
+                        from dotenv import load_dotenv as _ld
+                        _ld(str(ROOT / "api.env"))
+                        _demo_client = T212OrderClient(
+                            "demo",
+                            _os.getenv("T212_DEMO_API_KEY"),
+                            _os.getenv("T212_DEMO_API_SECRET"),
+                        )
+                        _tickets = (_payload or {}).get("tickets") or {}
+                        for _sym, _ticket in _tickets.items():
+                            _raw = _ticket if isinstance(_ticket, dict) else {}
+                            try:
+                                _qty = float(_raw.get("quantity", _raw.get("qty", 0)) or 0)
+                            except (TypeError, ValueError):
+                                _qty = 0.0
+                            _norm = {
+                                "ticker": str(_raw.get("ticker") or _raw.get("symbol") or _sym).upper(),
+                                "side": str(_raw.get("side") or "BUY").upper(),
+                                "quantity": _qty,
+                                "notional": _raw.get("notional", 0),
+                                "reason": "demo execution from day-trader plan",
+                            }
+                            _res = execute_demo_plan(
+                                _dt_cfg, _norm, _demo_client,
+                                db_path=str(ROOT / "data" / "day_trader" / "audit.db"),
+                            )
+                            print(f"Demo execute {_sym}: {_res['status']} {_res.get('reasons') or _res.get('error') or ''}")
+                    except Exception as _ex:
+                        print(f"Demo execution skipped: {_ex}")
             except Exception as _dt_exc:
                 print(f"ERROR: day-trader planning failed: {_dt_exc}", file=sys.stderr)
                 return 1
