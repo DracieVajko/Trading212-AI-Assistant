@@ -38,7 +38,8 @@ def test_mirror_dry_run_does_not_place():
     assert len(res["actions"]) == 1
 
 
-def test_mirror_executes_when_enabled(tmp_path):
+def test_mirror_executes_when_enabled(tmp_path, monkeypatch):
+    monkeypatch.setattr("investment_engine.history.record_trade", lambda *a, **k: None)
     live = FakeClient([{"instrument": {"ticker": "AAPL_US_EQ"}, "quantity": 5.0}])
     demo = FakeClient([])
     cfg = SimpleNamespace(execution=SimpleNamespace(enabled=True, auto_approve=True, environment="demo", max_order_eur=50.0, max_daily_orders=2, allowed_sides=["BUY"], live_ack=""), budget=SimpleNamespace(max_daily_loss=30.0))
