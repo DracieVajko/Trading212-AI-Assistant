@@ -51,6 +51,9 @@ class T212OrderClient:
     def _request(self, method: str, path: str, *, json_body: Any = None, params: dict | None = None, timeout: int = 30) -> dict[str, Any]:
         if path not in ALLOWED_PATHS and not path.startswith("/api/v0/equity/orders/"):
             return {"error": f"disallowed path: {path}", "status": "forbidden"}
+        if method.upper() in ("POST", "DELETE") and self.environment == "live":
+            if os.getenv("T212_LIVE_ORDER_ENABLED", "0") != "1" or os.getenv("T212_LIVE_ACK", "") != "I_UNDERSTAND_LIVE_TRADING":
+                return {"status": "blocked", "error": "live order execution disabled"}
         self._throttle()
         url = f"{self.base_url}{path}"
         headers = {"Authorization": self._auth, "Content-Type": "application/json"}
