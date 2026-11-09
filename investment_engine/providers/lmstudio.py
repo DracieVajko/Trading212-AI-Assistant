@@ -299,14 +299,19 @@ class LMStudioProvider(BaseLLMProvider):
             raise RuntimeError(f"Model '{model}' previously failed to load")
         # Context check runs on every call: a later stage may need more room.
         # v1 model state is cached briefly, so this is one cheap GET per TTL.
-        self._ensure_context(model, prompt_tokens, output_tokens)
-        if key in _model_warmed:
-            return
+        # Hold the global warmup lock for the entire context-check + warmup so
+        # two provider instances cannot load two different models at once
+        # (exclusive_load policy requires serialised load/unload).
         with _warmup_lock:
             if key in _model_warmed:
                 return
             if key in _model_failed:
                 raise RuntimeError(f"Model '{model}' previously failed to load")
+            # Context check runs inside the lock so exclusive unloading of other
+            # models is not racy.
+            self._ensure_context(model, prompt_tokens, output_tokens)
+            if key in _model_warmed:
+                return
             # Pre-flight: skip models the server does not serve instead of
             # burning a warmup + 30s retry + failed generation on each stage.
             # Transient (NOT cached in _model_failed): the user may load the
