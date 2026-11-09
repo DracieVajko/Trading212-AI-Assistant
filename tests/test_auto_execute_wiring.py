@@ -159,3 +159,11 @@ def test_wiring_source_uses_helpers():
     src = Path("portfolio_ai_assistant.py").read_text(encoding="utf-8")
     assert "demo_execution_allowed(" in src
     assert "execute_demo_tickets(" in src
+
+
+def test_wiring_prints_exit_and_history_errors():
+    src = Path("portfolio_ai_assistant.py").read_text(encoding="utf-8")
+    assert 'if _res.get("history_error"):' in src
+    assert "history_error={_res['history_error']}" in src
+    assert 'if _res.get("exits"):' in src
+    assert "exit_errors={_bad}" in src

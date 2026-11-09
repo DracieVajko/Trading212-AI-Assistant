@@ -512,7 +512,15 @@ def main() -> int:
                             db_path=str(ROOT / "data" / "day_trader" / "audit.db"),
                         )
                         for _r in _results:
-                            print(f"Demo execute {_r['symbol']}: {_r['result']['status']}")
+                            _res = _r["result"]
+                            _extra = ""
+                            if _res.get("history_error"):
+                                _extra += f" history_error={_res['history_error']}"
+                            if _res.get("exits"):
+                                _bad = {k: v for k, v in _res["exits"].items() if isinstance(v, dict) and v.get("error")}
+                                if _bad:
+                                    _extra += f" exit_errors={_bad}"
+                            print(f"Demo execute {_r['symbol']}: {_res['status']} {_res.get('reasons') or _res.get('error') or ''}{_extra}")
                     except Exception as _ex:
                         print(f"Demo execution skipped: {_ex}")
             except Exception as _dt_exc:
