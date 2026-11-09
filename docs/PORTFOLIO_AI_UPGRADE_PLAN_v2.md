@@ -286,3 +286,38 @@
 - [ ] Všetky zmeny sú commitnuté (iba pokiaľ používateľ explicitne požiadá o commit/push)
 
 ---
+
+## Demo + Live auto script & training scoring (2026-11-09)
+
+The scheduled auto script (Windows Task Scheduler, 09:00 and 21:00) runs two
+phases in one process:
+
+1. **Demo phase** — full BUY/SELL execution on the T212 demo account
+   (`day_trader.auto_run=true`, `environment="demo"`, `allowed_sides=["BUY","SELL"]`).
+2. **Live phase** — AI recommendations only, zero order execution. Live stays
+   blocked by `T212_LIVE_ORDER_ENABLED=0`, the missing `live_ack`, and the
+   `auto_approve`-forbidden rule in the guard.
+
+The scheduled invocation uses `--day-trader --day-trader-allow-orders
+--generate-full-report`; the `--generate-full-report` flag lets the run continue
+past the day-trader block into the main engine so the live recommendation report
+is written. Without the flag, a day-trader-only invocation still exits early.
+
+### Demo training scoring
+
+Each closed demo trade is scored in `investment_engine/day_trader/scoring.py`
+across short (<= 1 day), medium (<= 30 days) and long (> 30 days) horizons:
+
+- P&L after FX fees: 0.40 weight (fees are subtracted before normalization)
+- hold time vs. horizon: 0.20
+- risk:reward ratio (full credit at 1:2): 0.20
+- stop-loss adherence (honored = +1, violated = -1): 0.20
+
+### AI runtime optimization
+
+`investment_engine/providers/optimization.py` maps model names to validated
+runtime configs sourced from LocalLLM_Optimiser. LM Studio REST parameters:
+`context_length`, `flash_attention`, `offload_kv_cache_to_gpu`,
+`eval_batch_size`. KV cache quantization and CPU threads are GUI-only in
+LM Studio (REST rejects them) and are documented, not set, here. Ollama is a
+beta backend (Modelfile export/apply only).
