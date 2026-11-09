@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** One auto script (Task Scheduler 09:00 / 21:00) that runs demo phase (full BUY/SELL execution on T212 demo with trade scoring) then live phase (AI recommendations only, zero order execution), plus AI model optimization layer for LM Studio and Ollama backends.
+**Goal:** One auto script (Task Scheduler 09:00 / 21:00) that runs a read-only demo premarket phase then a live recommendation phase (zero order execution), plus a demo trade scoring module and an AI model optimization layer for LM Studio and Ollama backends. Demo order placement and in-lifecycle scoring are a follow-up not yet wired.
 
 **Architecture:** Single Python process with two sequential phases. Demo phase uses `environment="demo"` + `auto_approve=true` + `allowed_sides=["BUY","SELL"]`. Live phase uses `environment="live"` + `auto_approve=false` — guard blocks all live orders via `T212_LIVE_ORDER_ENABLED=0`. Scoring system rates each demo trade on P&L (after FX), hold time, risk:reward, stop-loss adherence across short/medium/long horizons. AI optimization abstracts LM Studio REST + Ollama Modelfile backends.
 
