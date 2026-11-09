@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -13,6 +14,30 @@ class DemoTradeScore:
     horizon: str  # "short" | "medium" | "long"
     score: float
     breakdown: dict[str, float]
+
+
+_ADHERED_FLAGS = {"true", "1", "yes"}
+_VIOLATED_FLAGS = {"false", "0", "no"}
+
+
+def _adherence_component(raw: Any) -> float:
+    """Map a stop-loss adherence flag to +1 / -1 / neutral 0.
+
+    Missing or unrecognized values are neutral so absent data is not punished.
+    """
+    if raw is None:
+        return 0.0
+    if raw is True:
+        return 1.0
+    if raw is False:
+        return -1.0
+    if isinstance(raw, str):
+        token = raw.strip().lower()
+        if token in _ADHERED_FLAGS:
+            return 1.0
+        if token in _VIOLATED_FLAGS:
+            return -1.0
+    return 0.0
 
 
 def _hold_minutes(executed_at: str, closed_at: str | None) -> int:
@@ -40,7 +65,9 @@ def score_demo_trade(trade: dict) -> DemoTradeScore:
     Weights: P&L after FX = 0.40, hold time = 0.20, risk:reward = 0.20,
     stop-loss adherence = 0.20. FX fees are subtracted from P&L before
     normalization. P&L is normalized against a 100 EUR scale (clamped to
-    [-1, 1]). Missing stop-loss data is neutral (0.0) rather than penalised.
+    [-1, 1]). Stop-loss adherence accepts booleans and the strings "true"/"1"/
+    "yes" (adhered) and "false"/"0"/"no" (violated); missing or unrecognized
+    values are neutral (0.0) rather than penalised.
     """
     pnl_eur = float(trade.get("pnl_eur", 0.0) or 0.0)
     fx_fee_eur = float(trade.get("fx_fee_eur", 0.0) or 0.0)
@@ -65,7 +92,7 @@ def score_demo_trade(trade: dict) -> DemoTradeScore:
         time_component = 0.5
 
     rr_component = min(1.0, rr / 2.0) if rr > 0 else 0.0
-    sl_component = 0.0 if sl_raw is None else (1.0 if bool(sl_raw) else -1.0)
+    sl_component = _adherence_component(sl_raw)
 
     score = (
         W_PNL * pnl_component

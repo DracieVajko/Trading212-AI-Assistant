@@ -88,3 +88,21 @@ def test_missing_stop_loss_flag_is_neutral_not_penalised():
              "fx_fee_eur": 0.0, "risk_reward_ratio": 1.0}
     result = score_demo_trade(trade)
     assert result.breakdown["stop_loss_component"] == 0.0
+
+
+def test_string_stop_loss_false_is_violation():
+    from investment_engine.day_trader.scoring import score_demo_trade
+    trade = {"symbol": "AAPL", "side": "BUY", "executed_at": "2026-11-09T09:30:00Z",
+             "closed_at": "2026-11-09T10:00:00Z", "pnl_eur": 0.0, "fx_fee_eur": 0.0,
+             "stop_loss_adhered": "false", "risk_reward_ratio": 1.0}
+    result = score_demo_trade(trade)
+    assert result.breakdown["stop_loss_component"] == -1.0
+
+
+def test_string_stop_loss_yes_is_adhered():
+    from investment_engine.day_trader.scoring import score_demo_trade
+    trade = {"symbol": "AAPL", "side": "BUY", "executed_at": "2026-11-09T09:30:00Z",
+             "closed_at": "2026-11-09T10:00:00Z", "pnl_eur": 0.0, "fx_fee_eur": 0.0,
+             "stop_loss_adhered": "yes", "risk_reward_ratio": 1.0}
+    result = score_demo_trade(trade)
+    assert result.breakdown["stop_loss_component"] == 1.0
