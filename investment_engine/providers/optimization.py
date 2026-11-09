@@ -10,11 +10,11 @@ and are recorded, never set, here.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 
-@dataclass
+@dataclass(frozen=True)
 class AIModelConfig:
     model: str
     backend: str  # "lmstudio" | "ollama"
@@ -67,8 +67,9 @@ _DEFAULT_CONFIGS: dict[str, AIModelConfig] = {
 def get_best_config(model: str, backend: str = "lmstudio", vram_gb: int = 6) -> AIModelConfig:
     """Return validated best config for a model. Falls back to safe defaults."""
     key = model.lower()
-    if key in _DEFAULT_CONFIGS:
-        return _DEFAULT_CONFIGS[key]
+    cfg = _DEFAULT_CONFIGS.get(key)
+    if cfg is not None and cfg.backend == backend:
+        return replace(cfg)
     return AIModelConfig(
         model=model,
         backend=backend,

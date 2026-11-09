@@ -8,10 +8,16 @@ from __future__ import annotations
 def test_lmstudio_config_has_validated_keys():
     from investment_engine.providers.optimization import get_best_config
     cfg = get_best_config("qwen3.8-9b-distill", "lmstudio", vram_gb=6)
-    assert cfg.context_length in (8192, 16384, 32768)
+    assert cfg.context_length == 32768
     assert cfg.flash_attention is True
     assert cfg.offload_kv_cache_to_gpu is True
-    assert cfg.eval_batch_size in (128, 256, 512, 1024, 2048)
+    assert cfg.eval_batch_size == 2048
+
+    ministral = get_best_config("ministral-3b-top", "lmstudio", vram_gb=6)
+    assert ministral.eval_batch_size == 128
+
+    gemma = get_best_config("gemma-4-12b", "lmstudio", vram_gb=6)
+    assert gemma.eval_batch_size == 2048
 
 
 def test_save_and_load_config_roundtrip(tmp_path):
@@ -34,5 +40,12 @@ def test_save_and_load_config_roundtrip(tmp_path):
 def test_unknown_model_falls_back_to_safe_defaults():
     from investment_engine.providers.optimization import get_best_config
     cfg = get_best_config("some-unknown-model")
+    assert cfg.context_length == 8192
+    assert cfg.flash_attention is False
+
+
+def test_known_model_wrong_backend_falls_back_to_generic_defaults():
+    from investment_engine.providers.optimization import get_best_config
+    cfg = get_best_config("qwen3.8-9b-distill", "ollama")
     assert cfg.context_length == 8192
     assert cfg.flash_attention is False
