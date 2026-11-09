@@ -305,8 +305,10 @@ is written. Without the flag, a day-trader-only invocation still exits early.
 
 ### Demo training scoring
 
-Each closed demo trade is scored in `investment_engine/day_trader/scoring.py`
-across short (<= 1 day), medium (<= 30 days) and long (> 30 days) horizons:
+The scoring module `investment_engine/day_trader/scoring.py` (unit-tested)
+provides per-trade scoring across short (<= 1 day), medium (<= 30 days) and
+long (> 30 days) horizons; wiring it into the demo trade lifecycle is a
+follow-up (the module currently has a test-only consumer):
 
 - P&L after FX fees: 0.40 weight (fees are subtracted before normalization)
 - hold time vs. horizon: 0.20

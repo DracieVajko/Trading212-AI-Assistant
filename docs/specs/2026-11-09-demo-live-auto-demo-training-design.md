@@ -45,15 +45,16 @@ Scheduled Task (09:00 / 21:00)
             │     ├─ Planning (entry/exit/stop/target via bracket emulation)
             │     ├─ Guard evaluate (demo env → ALLOWED)
             │     ├─ Place demo orders (market + stop + target)
-            │     ├─ Score each trade (P&L after FX, hold time, R:R, stop adherence)
+            │     ├─ Scoring module available (unit-tested; not yet wired into this path)
             │     ├─ Record to history/demo/ (JSONL + SQLite)
-            │     └─ Write reports/current/day_trader_brief.md
+            │     └─ Write reports/day_trader/<mode>/current/day_trader_brief.md
             │
             └─ Phase 2: LIVE (recommendations only)
                   ├─ AI recommendations (qwen3.6 decision + Gemma writer)
                   ├─ Order plans (informational only)
                   ├─ Guard evaluate (live env → BLOCKED)
-                  └─ Write reports/current/portfolio_decision_brief.md
+                  ├─ Print live-phase notice (recommendations only, no orders)
+                  └─ Main engine writes the live report
 ```
 
 ## Data Model
@@ -61,16 +62,9 @@ Scheduled Task (09:00 / 21:00)
 **DemoTradeScore** (dataclass):
 - symbol: str
 - side: str ("BUY"/"SELL")
-- entry_price: float
-- exit_price: float | None
-- pnl_eur: float (after FX fees)
-- pnl_pct: float
-- hold_minutes: int
-- risk_reward_ratio: float
-- stop_loss_adhered: bool
 - horizon: str ("short" | "medium" | "long")
 - score: float (weighted sum)
-- executed_at: str (ISO)
+- breakdown: dict[str, float] (per-component scores)
 
 **AIModelConfig** (dataclass):
 - model: str
@@ -90,14 +84,13 @@ score = pnl_weight * normalized_pnl
       + time_weight * time_score
       + rr_weight * rr_score
       + sl_weight * stop_loss_score
-      - fx_fee_penalty
 ```
 
-- `pnl_weight = 0.40` — profit/loss after FX fees (dominant).
+- `pnl_weight = 0.40` — profit/loss after FX fees (dominant); fees are subtracted from P&L before normalization.
 - `time_weight = 0.20` — hold time vs. horizon target (shorter = better for short term).
 - `rr_weight = 0.20` — risk:reward ratio (≥ 1:2 → full points).
-- `sl_weight = 0.20` — stop-loss adherence (honored → full points, violated → zero).
-- `fx_fee_penalty` — subtracted from pnl before normalization.
+- `sl_weight = 0.20` — stop-loss adherence (honored → +1, violated → -1, i.e. -0.20 weighted).
+- FX fees are subtracted from P&L before normalization (no separate penalty term).
 
 Horizon buckets:
 - **short:** hold ≤ 1 day
