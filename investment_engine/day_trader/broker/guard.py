@@ -64,8 +64,7 @@ def evaluate(
         reasons.append(f"account currency {account_currency} not supported")
 
     side = str(intent.get("side", "")).upper()
-    # allowed_sides governs entries only: an exit must never be blocked by it.
-    if side != "SELL" and side not in [s.upper() for s in getattr(exec_cfg, "allowed_sides", [])]:
+    if side not in [s.upper() for s in getattr(exec_cfg, "allowed_sides", [])]:
         reasons.append(f"side {side} not allowed")
 
     unlimited = bool(getattr(exec_cfg, "unlimited", False)) and env_name == "demo"

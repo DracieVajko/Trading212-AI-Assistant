@@ -32,3 +32,19 @@ def test_demo_client_is_not_blocked(monkeypatch):
     monkeypatch.setenv("T212_LIVE_ORDER_ENABLED", "0")
     client = T212OrderClient("demo", "key", "secret")
     assert client.environment == "demo"
+
+
+def test_live_blocked_order_never_touches_the_session(monkeypatch):
+    from investment_engine.day_trader.broker.t212_orders import T212OrderClient
+    monkeypatch.setenv("T212_LIVE_ORDER_ENABLED", "0")
+    monkeypatch.setenv("T212_LIVE_ACK", "I_UNDERSTAND_LIVE_TRADING")
+    client = T212OrderClient("live", "key", "secret")
+
+    def _boom(*a, **k):
+        raise AssertionError("blocked live order must not reach the network")
+
+    monkeypatch.setattr(client.session, "post", _boom)
+    assert client.place_market_order("AAPL_US_EQ", 0.1) == {
+        "status": "blocked",
+        "error": "live order execution disabled",
+    }

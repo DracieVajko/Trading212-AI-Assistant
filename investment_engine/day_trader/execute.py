@@ -23,16 +23,29 @@ def execute_demo_plan(
     from investment_engine.history import record_trade
 
     env = dict(env or os.environ)
+    if history_mode not in ("demo", "live"):
+        history_mode = "demo"
     symbol = str(ticket.get("ticker") or ticket.get("symbol") or "").upper()
     side = str(ticket.get("side", "BUY")).upper()
-    qty = float(ticket.get("quantity", 0) or 0)
+    try:
+        qty = float(ticket.get("quantity", 0) or 0)
+        notional = float(ticket.get("notional", 0) or 0)
+    except (TypeError, ValueError):
+        return {"status": "FAILED", "error": "invalid quantity/notional", "order": None, "reasons": []}
     if not symbol or qty <= 0:
         return {"status": "FAILED", "error": "missing symbol or quantity", "order": None, "reasons": []}
+    if side not in ("BUY", "SELL"):
+        return {"status": "FAILED", "error": f"invalid side: {side}", "order": None, "reasons": []}
+    try:
+        daily_orders = int(ticket.get("daily_orders", 0) or 0)
+        daily_loss = float(ticket.get("daily_loss", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return {"status": "FAILED", "error": "invalid daily_orders/daily_loss", "order": None, "reasons": []}
 
     intent = {
         "symbol": symbol,
         "side": side,
-        "notional": float(ticket.get("notional", 0) or 0),
+        "notional": notional,
         "manual_approval": True,
     }
     decision = evaluate(
@@ -42,6 +55,9 @@ def execute_demo_plan(
         recon_status=str(ticket.get("recon_status", "PASS")),
         account_currency=str(ticket.get("account_currency", "EUR")),
         kill_switch_path=ticket.get("kill_switch_path"),
+        daily_orders=daily_orders,
+        daily_loss=daily_loss,
+        allowed_symbols=ticket.get("allowed_symbols"),
     )
     if not decision.allowed:
         return {"status": "BLOCKED", "order": None, "reasons": decision.reasons}
