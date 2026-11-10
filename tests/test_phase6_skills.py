@@ -30,8 +30,11 @@ class _FakeProvider:
 def test_registry_versions_prompts_manifests():
     from investment_engine.skills import registry as reg
 
-    assert set(reg.SKILL_VERSIONS) == {"portfolio_risk_manager", "news_event_analyst",
-                                      "equity_research_analyst", "investment_committee"}
+    assert set(reg.SKILL_VERSIONS) == {
+        "portfolio_risk_manager", "news_event_analyst", "equity_research_analyst",
+        "investment_committee", "technical_analyst", "sentiment_analyst",
+        "researcher_debate", "trader_agent",
+    }
     for skill, version in reg.SKILL_VERSIONS.items():
         assert version == "v1"
         prompt = reg.load_prompt(skill)

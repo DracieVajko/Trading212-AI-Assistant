@@ -22,6 +22,10 @@ SKILL_VERSIONS: dict[str, str] = {
     "news_event_analyst": "v1",
     "equity_research_analyst": "v1",
     "investment_committee": "v1",
+    "technical_analyst": "v1",
+    "sentiment_analyst": "v1",
+    "researcher_debate": "v1",
+    "trader_agent": "v1",
 }
 
 _SKILL_MODULES = {
@@ -29,6 +33,10 @@ _SKILL_MODULES = {
     "news_event_analyst": "investment_engine.skills.news_event_analyst.skill",
     "equity_research_analyst": "investment_engine.skills.equity_research_analyst.skill",
     "investment_committee": "investment_engine.skills.investment_committee.skill",
+    "technical_analyst": "investment_engine.skills.technical_analyst.skill",
+    "sentiment_analyst": "investment_engine.skills.sentiment_analyst.skill",
+    "researcher_debate": "investment_engine.skills.researcher_debate.skill",
+    "trader_agent": "investment_engine.skills.trader_agent.skill",
 }
 
 

@@ -566,12 +566,54 @@ DECISIONS:
                  "earnings_status": earnings_status, "corpus_items": _corpus_items},
                 provider, settings, language),
             "equity_research_analyst")
+        # --- TradingAgents-style analyst team (technical + sentiment) ---
+        skill_outputs["technical"] = annotate_skill_output(
+            _skills.run_skill(
+                "technical_analyst",
+                {"portfolio_rows": portfolio_rows, "technicals": unified_technicals},
+                provider, settings, language),
+            "technical_analyst")
+        skill_outputs["sentiment"] = annotate_skill_output(
+            _skills.run_skill(
+                "sentiment_analyst",
+                {"decision_items": _corpus_decision, "social_items": _corpus_items},
+                provider, settings, language),
+            "sentiment_analyst")
+        # --- Bull vs bear researcher debate over the analyst outputs ---
+        skill_outputs["researchers"] = annotate_skill_output(
+            _skills.run_skill(
+                "researcher_debate",
+                {"analyst_outputs": {
+                    "technical_analyst": skill_outputs["technical"],
+                    "sentiment_analyst": skill_outputs["sentiment"],
+                    "news_event_analyst": skill_outputs["news_events"],
+                    "equity_research_analyst": skill_outputs["equity_notes"],
+                }},
+                provider, settings, language),
+            "researcher_debate")
+        # --- Trader agent: concrete advisory proposal from the debate ---
+        _risk_budget = 0.0
+        try:
+            _eq_now = float(t212_view.account_summary(t212_data).get("total_equity", 0) or 0)
+            _risk_budget = _eq_now * 2.0 / 100.0  # 2% per trade default
+        except Exception:
+            _risk_budget = 0.0
+        skill_outputs["trader"] = annotate_skill_output(
+            _skills.run_skill(
+                "trader_agent",
+                {"debates": (skill_outputs["researchers"].get("data", {}) or {}).get("debates", []),
+                 "technicals": unified_technicals,
+                 "risk_budget": _risk_budget},
+                provider, settings, language),
+            "trader_agent")
         skill_outputs["committee"] = annotate_skill_output(
             _skills.run_skill(
                 "investment_committee",
                 {"risk_output": skill_outputs["risk"], "news_output": skill_outputs["news_events"],
                  "equity_output": skill_outputs["equity_notes"], "canonical_map": canonical_map,
                  "portfolio_rows": portfolio_rows,
+                 "researcher_output": skill_outputs["researchers"],
+                 "trader_output": skill_outputs["trader"],
                  "reconciliation": _recon if isinstance(_recon, dict) else {"status": "UNKNOWN"}},
                 provider, settings, language),
             "investment_committee")
@@ -579,6 +621,10 @@ DECISIONS:
         # Record deterministic skill executions with human-readable reasons
         note_deterministic_skill("risk", "deterministic_by_design")
         note_deterministic_skill("equity_notes", "deterministic_by_design")
+        note_deterministic_skill("technical", "deterministic_by_design")
+        note_deterministic_skill("sentiment", "deterministic_by_design")
+        note_deterministic_skill("researchers", "deterministic_by_design")
+        note_deterministic_skill("trader", "deterministic_by_design")
         note_deterministic_skill("committee", "deterministic_by_design")
         logger.info("Skills complete: %s",
                     {k: v.get("status", "?") for k, v in skill_outputs.items()})
