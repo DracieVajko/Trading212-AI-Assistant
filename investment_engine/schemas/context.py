@@ -109,6 +109,7 @@ class RunResult(TypedDict, total=False):
     source_status: list[dict[str, Any]]
     source_status_summary: dict[str, Any]
     research_note: str
+    research_watchlist_markdown: str
     execution_mode_lines: list[str]
     api_execution_mode: str
     disabled_providers: list[str]

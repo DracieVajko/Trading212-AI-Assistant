@@ -606,6 +606,29 @@ DECISIONS:
                  "risk_budget": _risk_budget},
                 provider, settings, language),
             "trader_agent")
+        # --- Sector-style research watchlist with anti-chasing stance ---
+        _sector_map: dict[str, str] = {}
+        try:
+            from investment_engine.portfolio.symbols import to_display_symbol as _td_sector
+            for _asset in assets or []:
+                _disp = _td_sector(str((_asset or {}).get("broker_symbol", "")), known_clean)
+                _grp = str((_asset or {}).get("group", "") or "")
+                if _disp and _grp:
+                    _sector_map[_disp] = _grp
+        except Exception:
+            _sector_map = {}
+        skill_outputs["watchlist"] = annotate_skill_output(
+            _skills.run_skill(
+                "watchlist_stance",
+                {"watchlist": list(settings_dict.get("watchlist", []) or []),
+                 "portfolio_rows": portfolio_rows,
+                 "technicals": unified_technicals,
+                 "news_events": (skill_outputs["news_events"].get("data", {}) or {}).get("events", []) or [],
+                 "earnings_status": earnings_status,
+                 "sectors": _sector_map,
+                 "event_calendar": []},
+                provider, settings, language),
+            "watchlist_stance")
         skill_outputs["committee"] = annotate_skill_output(
             _skills.run_skill(
                 "investment_committee",
@@ -614,6 +637,7 @@ DECISIONS:
                  "portfolio_rows": portfolio_rows,
                  "researcher_output": skill_outputs["researchers"],
                  "trader_output": skill_outputs["trader"],
+                 "watchlist_output": skill_outputs["watchlist"],
                  "reconciliation": _recon if isinstance(_recon, dict) else {"status": "UNKNOWN"}},
                 provider, settings, language),
             "investment_committee")
@@ -625,6 +649,7 @@ DECISIONS:
         note_deterministic_skill("sentiment", "deterministic_by_design")
         note_deterministic_skill("researchers", "deterministic_by_design")
         note_deterministic_skill("trader", "deterministic_by_design")
+        note_deterministic_skill("watchlist", "deterministic_by_design")
         note_deterministic_skill("committee", "deterministic_by_design")
         logger.info("Skills complete: %s",
                     {k: v.get("status", "?") for k, v in skill_outputs.items()})
@@ -853,6 +878,14 @@ DECISIONS:
             context_file=context_file,
         )
     )
+    # Generalised research watchlist section (sector | catalyst | confirmation | risk | stance).
+    try:
+        if skill_outputs.get("watchlist"):
+            from investment_engine.skills import registry as _skills_render
+            _wl_mod = _skills_render.get_skill("watchlist_stance")
+            _result["research_watchlist_markdown"] = _wl_mod.render(skill_outputs["watchlist"])
+    except Exception as _wl_exc:
+        logger.debug("Watchlist render skipped: %s", type(_wl_exc).__name__)
     try:
         from investment_engine.reporting.excel_export import export_holdings_excel
         export_holdings_excel(

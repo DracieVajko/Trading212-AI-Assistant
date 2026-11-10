@@ -118,6 +118,8 @@ def write_reports(
         payloads["portfolio_intelligence_brief.md"] = result["intelligence_brief_markdown"]
     if result.get("deep_dive_markdown"):
         payloads["portfolio_deep_dive.md"] = result["deep_dive_markdown"]
+    if result.get("research_watchlist_markdown"):
+        payloads["research_watchlist.md"] = result["research_watchlist_markdown"]
 
     published: dict[str, Path] = {}
     manifest_files: dict[str, dict] = {}

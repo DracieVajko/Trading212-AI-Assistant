@@ -26,6 +26,7 @@ SKILL_VERSIONS: dict[str, str] = {
     "sentiment_analyst": "v1",
     "researcher_debate": "v1",
     "trader_agent": "v1",
+    "watchlist_stance": "v1",
 }
 
 _SKILL_MODULES = {
@@ -37,6 +38,7 @@ _SKILL_MODULES = {
     "sentiment_analyst": "investment_engine.skills.sentiment_analyst.skill",
     "researcher_debate": "investment_engine.skills.researcher_debate.skill",
     "trader_agent": "investment_engine.skills.trader_agent.skill",
+    "watchlist_stance": "investment_engine.skills.watchlist_stance.skill",
 }
 
 
