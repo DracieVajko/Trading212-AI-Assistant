@@ -18,6 +18,7 @@ from .context_budget import (
 from .context_budget import (
     estimate_tokens as _estimate_tokens,
 )
+from .concurrency import get_manager as _get_concurrency_manager
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +264,7 @@ class LMStudioProvider(BaseLLMProvider):
         reasoning_effort: str = "",
         auto_load: bool = True,
         exclusive_load: bool = True,
+        max_concurrent_models: int = 1,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -280,6 +282,7 @@ class LMStudioProvider(BaseLLMProvider):
         # Single-model policy: unload the previous LLM before loading this one
         # (same behaviour Ollama gives for free).
         self.exclusive_load = bool(exclusive_load)
+        self.max_concurrent_models = max(1, int(max_concurrent_models or 1))
         self._connect_timeout = 60  # seconds to establish connection
         self._read_timeout = 7200    # seconds to read response (model generation) - 2 hours
 
@@ -293,11 +296,56 @@ class LMStudioProvider(BaseLLMProvider):
             return
         try:
             target = _context_target(prompt_tokens, output_tokens, self.max_context_tokens)
-            logger.info(
-                "LM Studio dynamic context: model=%s prompt~%d out=%d target=%d (cap=%d)",
-                model, prompt_tokens, output_tokens, target, self.max_context_tokens,
+
+            # Check capacity before loading. If at capacity, wait and poll.
+            manager = _get_concurrency_manager(
+                max_concurrent=self.max_concurrent_models,
+                poll_interval=120,
+                acquire_timeout=3600,
             )
-            result = ensure_model_context(self.base_url, model, target, exclusive=self.exclusive_load)
+            entries = v1_models(self.base_url)
+            # Count how many OTHER LLM models are loaded (not the one we want)
+            model_entry = (entries or {}).get(model)
+            model_loaded = bool(model_entry and model_entry.get("loaded_instances"))
+            other_llm_count = sum(
+                1 for key, e in (entries or {}).items()
+                if key != model and isinstance(e, dict) and str(e.get("type") or "llm") == "llm"
+                and e.get("loaded_instances")
+            )
+
+            # Wait for capacity if needed (only if the model we want is NOT already loaded)
+            if not model_loaded and other_llm_count >= self.max_concurrent_models:
+                deadline = time.monotonic() + 3600  # 1 hour
+                while other_llm_count >= self.max_concurrent_models and time.monotonic() < deadline:
+                    logger.info(
+                        "LM Studio at capacity (%d/%d other models loaded). Waiting for %s to become available...",
+                        other_llm_count, self.max_concurrent_models, model,
+                    )
+                    time.sleep(120)  # poll every 2 minutes
+                    entries = v1_models(self.base_url)
+                    other_llm_count = sum(
+                        1 for key, e in (entries or {}).items()
+                        if key != model and isinstance(e, dict) and str(e.get("type") or "llm") == "llm"
+                        and e.get("loaded_instances")
+                    )
+
+                if other_llm_count >= self.max_concurrent_models:
+                    raise RuntimeError(
+                        f"timed out waiting for model slot ({other_llm_count}/{self.max_concurrent_models} loaded)"
+                    )
+
+            logger.info(
+                "LM Studio dynamic context: model=%s prompt~%d out=%d target=%d (cap=%d, other_loaded=%d/%d)",
+                model, prompt_tokens, output_tokens, target, self.max_context_tokens,
+                other_llm_count, self.max_concurrent_models,
+            )
+
+            # Exclusive load only when single-model policy
+            exclusive = self.exclusive_load and self.max_concurrent_models <= 1
+
+            result = ensure_model_context(
+                self.base_url, model, target, exclusive=exclusive,
+            )
             if result.get("status") == "context_too_small":
                 raise RuntimeError(
                     f"prompt ({target} tokens) exceeds model max context "
