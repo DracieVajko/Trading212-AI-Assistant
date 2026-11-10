@@ -104,6 +104,7 @@ class ProviderFactory:
                     reasoning_effort=getattr(settings, "lm_studio_reasoning_effort", ""),
                     auto_load=getattr(settings, "lm_studio_auto_load", True),
                     exclusive_load=getattr(settings, "lm_studio_exclusive_load", True),
+                    max_concurrent_models=getattr(settings, "max_concurrent_models", 1),
                 ))
             except Exception:
                 pass
@@ -204,6 +205,7 @@ class ProviderFactory:
                     reasoning_effort=getattr(settings, "lm_studio_reasoning_effort", ""),
                     auto_load=getattr(settings, "lm_studio_auto_load", True),
                     exclusive_load=getattr(settings, "lm_studio_exclusive_load", True),
+                    max_concurrent_models=getattr(settings, "max_concurrent_models", 1),
                 )
                 chain.append(lm)
             except Exception:
@@ -285,6 +287,7 @@ class ProviderFactory:
             reasoning_effort=getattr(settings, "lm_studio_reasoning_effort", ""),
             auto_load=getattr(settings, "lm_studio_auto_load", True),
             exclusive_load=getattr(settings, "lm_studio_exclusive_load", True),
+            max_concurrent_models=getattr(settings, "max_concurrent_models", 1),
         )
         # Explicit lmstudio request - still attach full fallback chain for robustness
         # (any cloud fallback key present: Gemini / Mistral / OpenRouter)

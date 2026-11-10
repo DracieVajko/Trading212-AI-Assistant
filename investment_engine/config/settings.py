@@ -214,6 +214,9 @@ class EngineSettings:
     lm_studio_auto_load: bool = _env_bool("LM_STUDIO_AUTO_LOAD", True)
     #: Single-model policy (Ollama-like): unload other LLMs before loading.
     lm_studio_exclusive_load: bool = _env_bool("LM_STUDIO_EXCLUSIVE_LOAD", True)
+    #: Max concurrent local LLM models loaded at once. Default 1 (single-model policy).
+    #: Set to 2+ only on hardware that can hold multiple models in VRAM.
+    max_concurrent_models: int = _env_int("MAX_CONCURRENT_MODELS", 1)
 
     # Per-stage LM Studio models (verified served 2026-10-12).
     # reasoning/math/thinking: openai/gpt-oss-20b (fast, 32k ctx).
