@@ -5,6 +5,7 @@ logs/
 
 # Generated reports and artifacts
 reports/
+results/
 !reports/.gitkeep
 
 # Python caches
