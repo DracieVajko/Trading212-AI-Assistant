@@ -140,11 +140,11 @@ def test_loads_model_with_computed_context(monkeypatch):
     assert len(loads) == 1
     body = loads[0][2]
     assert body["model"] == "test-model"
-    assert body["context_length"] == mod._context_target(8000, 512, 32000)
+    assert body["context_length"] == mod._context_target(16032, 512, 32000)
 
 
 def test_keeps_model_when_loaded_context_covers_requirement(monkeypatch):
-    fake = _FakeHTTP([_model("test-model", loaded_context=12000)])
+    fake = _FakeHTTP([_model("test-model", loaded_context=22000)])
     _wire(monkeypatch, fake)
     provider = _provider()
 
@@ -161,7 +161,7 @@ def test_reloads_grossly_oversized_context(monkeypatch):
     assert len(fake.unload_calls()) == 1
     loads = fake.load_calls()
     assert len(loads) == 1
-    assert loads[0][2]["context_length"] == mod._context_target(8000, 512, 32000)
+    assert loads[0][2]["context_length"] == mod._context_target(16032, 512, 32000)
 
 
 def test_load_failure_falls_back_to_server_default(monkeypatch):
@@ -175,7 +175,7 @@ def test_load_failure_falls_back_to_server_default(monkeypatch):
 
 def test_unloads_other_llm_instances_before_loading(monkeypatch):
     fake = _FakeHTTP([
-        _model("qwen", loaded_context=12000),
+        _model("qwen", loaded_context=22000),
         _model("gemma"),
     ])
     _wire(monkeypatch, fake)
@@ -204,7 +204,7 @@ def test_keeps_other_models_when_target_already_loaded(monkeypatch):
 
 def test_exclusive_load_can_be_disabled(monkeypatch):
     fake = _FakeHTTP([
-        _model("qwen", loaded_context=12000),
+        _model("qwen", loaded_context=22000),
         _model("gemma"),
     ])
     _wire(monkeypatch, fake)
@@ -234,7 +234,7 @@ def test_unload_already_unloaded_is_success(monkeypatch):
 
 
 def test_unload_api_uses_v1_instance_id(monkeypatch):
-    fake = _FakeHTTP([_model("qwen", loaded_context=12000)])
+    fake = _FakeHTTP([_model("qwen", loaded_context=22000)])
     _wire(monkeypatch, fake)
 
     assert mod._unload_via_api("http://fake:1234/v1", "qwen") is True

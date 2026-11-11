@@ -318,8 +318,10 @@ class LMStudioProvider(BaseLLMProvider):
                 and e.get("loaded_instances")
             )
 
-            # Wait for capacity if needed (only if the model we want is NOT already loaded)
-            if not model_loaded and other_llm_count >= self.max_concurrent_models:
+            # Single-model policy: unload the other model instead of waiting.
+            exclusive = self.exclusive_load and self.max_concurrent_models <= 1
+            # Wait for capacity only when we are allowed to share the server.
+            if not model_loaded and other_llm_count >= self.max_concurrent_models and not exclusive:
                 deadline = time.monotonic() + 3600  # 1 hour
                 while other_llm_count >= self.max_concurrent_models and time.monotonic() < deadline:
                     logger.info(
@@ -344,9 +346,6 @@ class LMStudioProvider(BaseLLMProvider):
                 model, prompt_tokens, output_tokens, target, self.max_context_tokens,
                 other_llm_count, self.max_concurrent_models,
             )
-
-            # Exclusive load only when single-model policy
-            exclusive = self.exclusive_load and self.max_concurrent_models <= 1
 
             result = ensure_model_context(
                 self.base_url, model, target, exclusive=exclusive,
@@ -508,9 +507,12 @@ class LMStudioProvider(BaseLLMProvider):
         # becomes a chain-visible error string (not an exception) so the
         # caller falls through to the next link instead of failing the stage.
         try:
+            # Conservative estimate: JSON/number-heavy prompts tokenize near
+            # 1.8-2 chars/token, not 4. Under-sizing forces a 400 + reload,
+            # so we deliberately over-estimate here.
             self._warmup_model(
                 requested_model,
-                prompt_tokens=_estimate_tokens(prompt or "") + 32,  # +system/chat wrapper
+                prompt_tokens=max(1, len(prompt or "") // 2) + 32,  # +system/chat wrapper
                 output_tokens=max_tokens,
             )
         except RuntimeError as exc:
@@ -540,22 +542,48 @@ class LMStudioProvider(BaseLLMProvider):
                 timeout=(30, read_timeout),  # 30s connect, stage read budget
             )
             if response.status_code == 400:
-                # Model is likely (cold) loading after a switch — the server
-                # answers 400 instead of queueing. Wait, re-warmup, retry once.
-                logger.warning(
-                    "LM Studio 400 at stage=%s (likely model loading), "
-                    "waiting 30s and retrying once: %s",
-                    stage, (response.text or "")[:200])
-                time.sleep(30)
-                try:
-                    self._warmup_model(requested_model)
-                except Exception:
-                    pass
-                response = requests.post(
-                    f"{self.base_url}/chat/completions",
-                    json=payload,
-                    timeout=(30, read_timeout),
+                body = response.text or ""
+                # Case 1: the server reports the real token count exceeded the
+                # loaded window. Parse it, reload bigger, retry once.
+                import re as _re
+                m = _re.search(
+                    r"request \((\d+) tokens\) exceeds the available context size \((\d+) tokens\)",
+                    body,
                 )
+                if m:
+                    needed = int(m.group(1))
+                    target = _context_target(needed, max_tokens, self.max_context_tokens)
+                    logger.warning(
+                        "LM Studio context too small at stage=%s: need %d tokens, "
+                        "reloading %s at %d", stage, needed, requested_model, target)
+                    try:
+                        ensure_model_context(
+                            self.base_url, requested_model, target,
+                            exclusive=self.exclusive_load and self.max_concurrent_models <= 1)
+                    except Exception:
+                        pass
+                    response = requests.post(
+                        f"{self.base_url}/chat/completions",
+                        json=payload,
+                        timeout=(30, read_timeout),
+                    )
+                else:
+                    # Case 2: model is likely (cold) loading after a switch —
+                    # the server answers 400 instead of queueing.
+                    logger.warning(
+                        "LM Studio 400 at stage=%s (likely model loading), "
+                        "waiting 30s and retrying once: %s",
+                        stage, body[:200])
+                    time.sleep(30)
+                    try:
+                        self._warmup_model(requested_model)
+                    except Exception:
+                        pass
+                    response = requests.post(
+                        f"{self.base_url}/chat/completions",
+                        json=payload,
+                        timeout=(30, read_timeout),
+                    )
             logger.info("LM Studio response: stage=%s status=%s", stage, response.status_code)
             response.raise_for_status()
             data = response.json()
