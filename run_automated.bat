@@ -6,9 +6,9 @@ REM Usage: run_automated.bat [auto|public|locals]  (default: auto)
 REM   auto   = full chain, locals first (LM Studio -> Pi -> public APIs)
 REM   public = public APIs only (locals never touched)
 REM   locals = local endpoints only + deterministic fallback
-REM Models are stage-routed (decision=qwen3.8-9b-distill, finance=fin-o1-14b,
-REM thinking=tongyi-30b-a3b, summary=google/gemma-4-12b) and auto-loaded on
-REM demand by LM Studio.
+REM Models are stage-routed; every stage currently uses nvidia-nemotron-3.5-bolt-e4b
+REM (benchmarked ~45-50 tok/s with full format compliance on this machine).
+REM Change the model ids in portfolio_config.json + custom_rules.json to reroute.
 set MODE=%1
 if "%MODE%"=="" set MODE=auto
 
