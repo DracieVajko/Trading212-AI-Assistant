@@ -17,5 +17,8 @@ REM External values win (scheduled tasks may set their own).
 if not defined RUN_DEADLINE_SECONDS set RUN_DEADLINE_SECONDS=1800
 if not defined RUN_WATCHDOG_SECONDS set RUN_WATCHDOG_SECONDS=2100
 
-py -3.12 portfolio_ai_assistant.py --config portfolio_config.json --investment-engine --generate-full-report --execution-mode %MODE% --day-trader --day-trader-plan --day-trader-allow-orders
+REM Both branches in one run: live (read-only recommendations) + demo (orders).
+REM Demo orders are deduped by the order ledger: one per symbol and side per
+REM New York trading day, no matter how many times the task fires.
+py -3.12 portfolio_ai_assistant.py --config portfolio_config.json --investment-engine --generate-full-report --execution-mode %MODE% --branches both --day-trader --day-trader-plan --day-trader-allow-orders
 exit /b %ERRORLEVEL%

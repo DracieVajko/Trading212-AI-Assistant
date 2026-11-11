@@ -649,8 +649,7 @@ def main() -> int:
         _demo_branch = _demo_branch_run
 
         if _branches == "demo":
-            _demo_branch()
-            return 0
+            return 0 if _demo_branch() is not None else 1
 
         # Optional T212 activity CSV for independent statement reconciliation.
         t212_csv_path = ""

@@ -58,7 +58,7 @@ each one:
 - [ ] **Step 1: Copy the vendored files.**
 
 Use `robocopy` or Python to copy `trader-*`, `tests/`, `LICENSE`, `README.md`
-from the cloned repo (`C:\Users\DracieVajko\AppData\Local\Temp\opencode\day-trader-skill`)
+from the cloned repo (`<temp>/opencode/day-trader-skill`)
 into `vendor/day_trader_skill/`. Do not copy `.git/` or `.claude-plugin/`.
 
 - [ ] **Step 2: Write `VENDORED_COMMIT`.**
@@ -334,7 +334,7 @@ write the report, print the path, and return 0. Use `ROOT` for all paths.
 
 - [ ] **Step 2: Smoke test from the parent directory.**
 
-Run from `C:\Users\DracieVajko\Downloads\PC_Commands\AI`:
+Run from the parent directory of the project:
 `py -3.12 .\PortfolioAI_Assistant\portfolio_ai_assistant.py --day-trader --day-trader-offline <fixture path>`
 Expected: report written under `PortfolioAI_Assistant\reports\current\`, no
 `reports` created in the parent.

@@ -94,7 +94,7 @@ def test_is_localhost_matches():
     for u in ("http://127.0.0.1:1234/v1", "http://localhost:1234", "http://::1:1234"):
         assert is_localhost(u) is True
 def test_is_localhost_remote():
-    assert is_localhost("http://100.88.219.120:1234") is False
+    assert is_localhost("http://192.0.2.10:1234") is False
 ```
 
 - [ ] **Step 2: Run tests** — `py -3.12 -m pytest tests/test_load_guard.py -v -k localhost or verdict` — expected FAIL.

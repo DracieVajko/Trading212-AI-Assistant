@@ -5,6 +5,13 @@ Reliable Investment Monitoring System with local AI models (Ollama/LM Studio).
 ## Features
 
 - **T212 Integration** - Read-only portfolio sync via Trading 212 API
+- **Live and demo branches in one run** - The live account produces
+  recommendations (never an order) while the demo account gets its own snapshot,
+  its own AI context and its own demo-only execution; market data and news are
+  shared between the branches
+- **Order ledger** - One order per symbol and side per New York trading day,
+  checked against both the trade history and the audit DB before anything is
+  sent; reruns cannot repeat an order with a different size
 - **Technical Analysis** - RSI, MA crossovers, momentum, trend detection
 - **Forecast Engine** - Scenario-based price projections (pessimistic/base/optimistic) over 1/5/20/60-day horizons
 - **Signal Recording** - Every recommendation stored in SQLite for later backtesting
@@ -29,6 +36,10 @@ Reliable Investment Monitoring System with local AI models (Ollama/LM Studio).
 - **Notifications** - Email (SMTP) + ntfy.sh push notifications (tiered: urgent/
   summary/debug) for run completion, failures, and debug alerts
 - **Provider attribution** - Per-stage provider/model attribution in run manifest
+- **Local model benchmark** - Ranks the installed local models on the real
+  stages by speed, reliability and JSON/format compliance
+  (see `tests/MODEL_BENCHMARK_README.md`); reports land on the Desktop and are
+  never committed
 
 ## Quick Start
 
@@ -80,9 +91,38 @@ py -3.12 portfolio_ai_assistant.py --config portfolio_config.json
 
 Supported flags today: `--config <path>`, `--investment-engine`, `--generate-full-report`
 (compatibility only; reports are always written), `--execution-mode {auto,public,locals}`,
-`--api-only`, `--preflight`, `--t212-csv <path>`, `--include-quantities`,
-and `--rotation-plan {none,average-down,short-rotation,cash-apy}`.
+`--branches {both,live,demo}`, `--api-only`, `--preflight`, `--t212-csv <path>`,
+`--include-quantities`, and `--rotation-plan {none,average-down,short-rotation,cash-apy}`.
 Planned / not implemented: `--no-ai`, `--asset`, `--scheduled`, `--validate-only`, `--dry-run`.
+
+### Live and demo branches
+
+`--branches both` (the default) runs both accounts in one process:
+
+| Branch | Portfolio data | AI context | Orders | Reports |
+|---|---|---|---|---|
+| `live` | live account, fetched by the run | own prompt + own provider instance | never — recommendations only | `reports/current/` |
+| `demo` | demo account snapshot | own prompt + own provider instance | demo only, ledger-guarded | `reports/current/demo/` |
+
+Shared between the branches: asset universe, market data and the news corpus
+(both are cached per process, so the second branch does not fetch them again).
+Isolated: portfolio snapshot, prompt, decisions, orders and report folder.
+
+The live branch cannot place an order: live execution stays disabled by
+`T212_LIVE_ORDER_ENABLED` and requires an explicit acknowledgement that is not
+present in the configuration.
+
+**Duplicate protection.** `investment_engine/order_ledger.py` allows one order
+per symbol and side per New York trading day. It reads the trade history and the
+day-trader audit DB, so a plan made before the open and rerun after it is
+recognised as the same idea and blocked, even if the quantity changed. Failed and
+blocked attempts do not count; a genuinely new day does.
+
+**Local model selection.** `python tests/model_benchmark.py --run-all` measures
+every installed model on decision/finance/fast/writer/thinking stages and writes
+a ranked report (speed, reliability, format compliance) to the Desktop. Results
+are machine-local and gitignored; each machine runs its own benchmark.
+
 
 ### Trading 212 statement reconciliation (optional)
 
@@ -131,6 +171,11 @@ TRADING212_API_KEY=your_key
 TRADING212_API_SECRET=your_secret
 TRADING212_ENABLED=true
 ```
+
+Real credentials, local endpoint addresses and model choices stay only in your
+own `api.env` and `portfolio_config.json`; both are gitignored. The tracked
+`api.env.example` uses placeholders only. Do not paste live keys into issues,
+logs or commits.
 
 ### `investment_policy.json` and policy profiles
 
@@ -181,6 +226,8 @@ portfolio_ai_assistant/
 │   └── integration.py          # High-level integration
 ├── investment_engine/          # Core engine
 │   ├── config/                 # Settings, policy profiles
+│   ├── branches.py             # Live + demo branches (own snapshot, own AI)
+│   ├── order_ledger.py         # One order per symbol+side per trading day
 │   ├── notifications.py        # Email + ntfy.sh notification dispatch
 │   ├── run_engine.py           # Run orchestrator (thin: calls run_phases)
 │   ├── run_phases/             # One module per pipeline stage
@@ -213,6 +260,9 @@ portfolio_ai_assistant/
 ├── examples/                   # Anonymized example outputs
 │   └── github/                 # Example reports, PIE CSVs, README
 ├── tests/                      # Unit tests
+│   ├── model_benchmark.py      # Local model benchmark (results: Desktop, gitignored)
+│   ├── test_branches.py        # Live/demo branch isolation
+│   ├── test_order_ledger.py    # Duplicate-order protection
 │   ├── test_rotation.py        # Rotation tests
 │   └── test_load_guard.py      # Load-guard tests
 ├── reports/                    # Generated reports (gitignored)
