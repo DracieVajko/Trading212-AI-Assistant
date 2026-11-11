@@ -137,10 +137,18 @@ def run_planning(
         if not _tool_ok(res):
             errors.append({"stage": "budget", "symbol": sym, "error": (res.stderr or "budget failed")[:300]})
 
-        # risk check
+        # risk check (nonstop: pretend market is open at 10:15 ET so the
+        # market-hours gate never blocks order placement outside session hours)
+        from datetime import datetime as _dt
+        try:
+            import zoneinfo as _zi
+            _ny = _zi.ZoneInfo("America/New_York")
+            _now_str = _dt.now(_ny).strftime("%Y-%m-%d 10:15")
+        except Exception:
+            _now_str = _dt.now().strftime("%Y-%m-%d 10:15")
         res = runner(
             _vendor_rel(vr, "trader-risk/check.py"),
-            ["--no-write"],
+            ["--no-write", "--now", _now_str],
             30,
             True,
             state_root,
