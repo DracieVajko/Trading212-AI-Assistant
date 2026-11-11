@@ -162,31 +162,36 @@ def unload_model_v1(
     instance_id: str,
     *,
     timeout: tuple[int, int] = (5, 120),
+    retries: int = 3,
 ) -> bool:
-    """POST /api/v1/models/unload. Never raises."""
+    """POST /api/v1/models/unload. Never raises. Retries on connection errors."""
     base = _root_url(base_url)
-    try:
-        r = requests.post(
-            f"{base}/api/v1/models/unload",
-            json={"instance_id": instance_id},
-            timeout=timeout,
-        )
-        if r.status_code == 200 and not _unsupported_endpoint(r.text):
-            _v1_models_cache.pop(base, None)
-            logger.info("LM Studio unloaded %s", instance_id)
-            return True
-        if r.status_code == 404 and "not loaded" in (r.text or "").lower():
-            # Idempotent: the exit sweep must not warn about a model that was
-            # already evicted (or unloaded when switching models).
-            _v1_models_cache.pop(base, None)
-            logger.debug("LM Studio unload %s: already unloaded", instance_id)
-            return True
-        logger.warning("LM Studio unload %s -> HTTP %s: %s",
-                       instance_id, r.status_code, (r.text or "")[:200])
-    except Exception as exc:
-        logger.warning("LM Studio unload %s failed: %s", instance_id, exc)
-    return False
+    for attempt in range(retries):
+        try:
+            r = requests.post(
+                f"{base}/api/v1/models/unload",
+                json={"instance_id": instance_id},
+                timeout=timeout,
+            )
+            if r.status_code == 200 and not _unsupported_endpoint(r.text):
+                _v1_models_cache.pop(base, None)
+                logger.info("LM Studio unloaded %s", instance_id)
+                return True
+            if r.status_code == 404 and "not loaded" in (r.text or "").lower():
+                _v1_models_cache.pop(base, None)
+                logger.debug("LM Studio unload %s: already unloaded", instance_id)
+                return True
+            logger.warning("LM Studio unload %s -> HTTP %s: %s",
+                           instance_id, r.status_code, (r.text or "")[:200])
+            return False
 
+        except Exception as exc:
+            if attempt < retries - 1:
+                logger.debug("Unload attempt %d failed for %s: %s, retrying...", attempt + 1, instance_id, exc)
+                time.sleep(5)
+            else:
+                logger.warning("LM Studio unload %s failed after %d attempts: %s", instance_id, retries, exc)
+    return False
 
 def _other_loaded_instances(entries: dict, keep: str) -> list[str]:
     """Instance ids of LLMs loaded besides ``keep`` (embeddings left alone)."""
@@ -619,7 +624,12 @@ def _unload_via_api(base_url: str, model: str) -> bool:
 
 
 def unload_lmstudio_models(base_url: str, models: list[str]) -> dict[str, bool]:
-    """Best-effort unload of several models. Never raises. Returns {model: ok}."""
+    """Best-effort unload of several models. Never raises. Returns {model: ok}.
+
+    Also discovers and unloads any additional models that are currently
+    loaded on the server (not just the ones in the config list).
+    Falls back to the `lms` CLI if the REST API is unreachable.
+    """
     # Track unload attempts as local AI activity
     try:
         from investment_engine.providers.telemetry import (
@@ -629,10 +639,41 @@ def unload_lmstudio_models(base_url: str, models: list[str]) -> dict[str, bool]:
             _track_local_ai(blocked=False)
     except Exception:
         pass
+
+    # Discover all currently loaded LLM models on the server
+    all_models = set(models or [])
+    try:
+        entries = v1_models(base_url)
+        if entries:
+            for key, entry in (entries or {}).items():
+                if not isinstance(entry, dict):
+                    continue
+                if str(entry.get("type") or "llm") != "llm":
+                    continue
+                if entry.get("loaded_instances"):
+                    all_models.add(key)
+    except Exception:
+        pass
+
     out: dict[str, bool] = {}
-    for model in dict.fromkeys(models):  # dedupe, keep order
+    for model in dict.fromkeys(all_models):  # dedupe, keep order
         try:
-            out[model] = _unload_via_api(base_url, model)
+            ok = _unload_via_api(base_url, model)
+            if ok:
+                out[model] = True
+                continue
+            # REST failed — try lms CLI as fallback
+            try:
+                import subprocess
+                res = subprocess.run(
+                    ["lms", "unload", model],
+                    capture_output=True, text=True, timeout=30,
+                )
+                out[model] = res.returncode == 0
+                if out[model]:
+                    logger.info("Unloaded %s via lms CLI", model)
+            except Exception:
+                out[model] = False
         except Exception:
             out[model] = False
     return out

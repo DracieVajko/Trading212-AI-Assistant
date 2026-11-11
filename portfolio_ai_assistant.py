@@ -1026,11 +1026,21 @@ def main() -> int:
                 _s = None
             _base = (getattr(_s, "lm_studio_base_url", "") or "").rstrip("/")
             _models = [m for m in (getattr(_s, "decision_model", ""),
-                                   getattr(_s, "writer_model", "")) if m]
+                                   getattr(_s, "writer_model", ""),
+                                   getattr(_s, "lm_studio_model", "")) if m]
             if _base and _models:
                 from investment_engine.providers.lmstudio import unload_lmstudio_models
-                _unload_res = unload_lmstudio_models(_base, _models)
-                logger.info("LM Studio unload at exit: %s", _unload_res)
+                # Retry unload up to 3 times (LM Studio may be temporarily busy)
+                for _attempt in range(3):
+                    _unload_res = unload_lmstudio_models(_base, _models)
+                    if all(_unload_res.values()):
+                        logger.info("LM Studio unload at exit: %s", _unload_res)
+                        break
+                    logger.debug("LM Studio unload attempt %d: %s, retrying...", _attempt + 1, _unload_res)
+                    import time as _t
+                    _t.sleep(10)
+                else:
+                    logger.warning("LM Studio unload at exit: %s (some failed)", _unload_res)
         except Exception as _unload_exc:
             logger.debug("LM Studio unload skipped: %s", _unload_exc)
 
