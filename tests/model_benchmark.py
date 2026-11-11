@@ -166,6 +166,7 @@ def run_stage(model_id: str, stage_name: str, stage_config: dict, base_url: str,
         "temperature": 0.15,
         "max_tokens": max_tokens,
         "stream": False,
+        "reasoning_effort": "none",  # Disable thinking for benchmark (content only)
     }
 
     start = time.monotonic()
