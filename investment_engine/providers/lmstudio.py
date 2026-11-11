@@ -550,12 +550,17 @@ class LMStudioProvider(BaseLLMProvider):
                     r"request \((\d+) tokens\) exceeds the available context size \((\d+) tokens\)",
                     body,
                 )
-                if m:
-                    needed = int(m.group(1))
-                    target = _context_target(needed, max_tokens, self.max_context_tokens)
+                _ctx_err = "context size has been exceeded" in body.lower()
+                if m or _ctx_err:
+                    if m:
+                        needed = int(m.group(1))
+                        target = _context_target(needed, max_tokens, self.max_context_tokens)
+                    else:
+                        needed = 0
+                        target = self.max_context_tokens
                     logger.warning(
-                        "LM Studio context too small at stage=%s: need %d tokens, "
-                        "reloading %s at %d", stage, needed, requested_model, target)
+                        "LM Studio context too small at stage=%s: need %s tokens, "
+                        "reloading %s at %d", stage, needed or "unknown", requested_model, target)
                     try:
                         ensure_model_context(
                             self.base_url, requested_model, target,
