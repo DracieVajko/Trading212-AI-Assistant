@@ -93,6 +93,7 @@ def write_reports(
     archive_folder: Path,
     run_id: str,
     failed_markdown: str = "",
+    subdir: str = "current",
 ) -> dict[str, Path]:
     """Atomic publish into latest/ + archive/. Returns {label: Path}.
 
@@ -103,7 +104,9 @@ def write_reports(
     import hashlib as _hashlib
 
     # Phase 4 target topology: current/ holds this run; archive/<run_id>/ the copy.
-    current_dir = output_folder / "current"
+    # Branch runs publish under current/<mode>/ so live and demo never overwrite
+    # each other's brief.
+    current_dir = output_folder / subdir
     run_archive_dir = archive_folder / run_id
     current_dir.mkdir(parents=True, exist_ok=True)
     run_archive_dir.mkdir(parents=True, exist_ok=True)
@@ -327,6 +330,9 @@ def main() -> int:
                         help="Print recent trade and decision history (permanent memory) and exit.")
     parser.add_argument("--history-mode", choices=["demo", "live", "all"], default="all",
                         help="Filter --history by mode (default: all).")
+    parser.add_argument("--branches", choices=["both", "live", "demo"], default=None,
+                        help="Which branch(es) to run: both (live recommendations + demo execution), "
+                             "live only, or demo only. Defaults to settings.run_branches or 'both'.")
     args = parser.parse_args()
 
     config_path = (ROOT / args.config).resolve() if not Path(args.config).is_absolute() else Path(args.config)
@@ -380,6 +386,13 @@ def main() -> int:
     import uuid as _uuid
     run_id = str(_uuid.uuid4())[:8]
     debug_paths = setup_debug_layer(run_id)
+
+    # Branch selection. "both" runs the live recommendations and the demo
+    # execution from one process; the demo runner is bound later.
+    _branches = str(args.branches or raw_settings.get("run_branches") or "both").lower()
+    if _branches not in ("both", "live", "demo"):
+        _branches = "both"
+    _demo_branch = None
 
     try:
         settings = EngineSettings.from_mapping(raw_settings)
@@ -588,6 +601,56 @@ def main() -> int:
         if not assets:
             raise ValueError("No enabled assets were found in the configuration.")
         logger.info("Starting report for %d enabled assets; provider=%s, model=%s", len(assets), settings.provider, settings.lm_studio_model)
+
+        _branch_language = raw_settings.get("language", "English")
+
+        def _demo_branch_run() -> dict | None:
+            """Demo branch: own portfolio snapshot, own AI context, its own orders.
+
+            Runs after the live branch so the process-level market-data and news
+            caches it populated are reused instead of fetched twice.
+            """
+            from investment_engine.branches import report_subdir, run_branch
+
+            try:
+                demo_result = run_branch(
+                    "demo",
+                    assets,
+                    settings,
+                    run_id=f"{run_id}demo",
+                    language=_branch_language,
+                    reuse_market_data=True,
+                )
+            except Exception as exc:
+                logger.warning("Demo branch failed: %s", type(exc).__name__)
+                print(f"Demo branch failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+                return None
+
+            try:
+                write_reports(
+                    demo_result,
+                    ROOT / raw_settings.get("output_folder", "reports"),
+                    ROOT / raw_settings.get("archive_folder", "reports/archive"),
+                    f"{run_id}-demo",
+                    subdir=report_subdir("demo"),
+                )
+            except Exception as exc:
+                logger.warning("Demo branch report failed: %s", type(exc).__name__)
+
+            _demo_equity = (
+                (demo_result.get("t212_data") or {}).get("account_summary") or {}
+            ).get("total_equity", "n/a")
+            print(
+                f"Demo branch: status={demo_result.get('status')} "
+                f"equity={_demo_equity} reports={report_subdir('demo')}"
+            )
+            return demo_result
+
+        _demo_branch = _demo_branch_run
+
+        if _branches == "demo":
+            _demo_branch()
+            return 0
 
         # Optional T212 activity CSV for independent statement reconciliation.
         t212_csv_path = ""
@@ -848,6 +911,10 @@ def main() -> int:
                 ROOT / raw_settings.get("archive_folder", "reports/archive"),
                 run_id,
                 failed_markdown=failed_markdown,
+                # Live keeps the historical location so existing readers and the
+                # scheduled task keep finding the brief; demo publishes beside it
+                # in current/demo/.
+                subdir="current",
             )
             brief_path = published["portfolio_decision_brief.md"]
             snapshot_path = published["t212_portfolio_snapshot.md"]
@@ -1006,6 +1073,14 @@ def main() -> int:
         print(f"\nERROR: Report generation failed. Status document saved. See log: {run_log}", file=sys.stderr)
         return 3 if run_status == RUN_STATUS_ABORTED else 2
     finally:
+        # Demo branch runs last: the live report is already published and the
+        # market-data/news caches from the live pass are warm, so the demo
+        # branch reuses them instead of downloading everything twice.
+        if _branches == "both" and callable(_demo_branch):
+            try:
+                _demo_branch()
+            except Exception as _demo_exc:
+                logger.warning("Demo branch failed: %s", type(_demo_exc).__name__)
         # Disarm watchdog (clean exit path)
         _lv.disarm_watchdog()
         latest_log = log_folder / "latest_run.log"

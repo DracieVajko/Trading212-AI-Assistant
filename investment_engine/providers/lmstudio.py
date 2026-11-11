@@ -661,7 +661,10 @@ def unload_lmstudio_models(base_url: str, models: list[str]) -> dict[str, bool]:
 
     Also discovers and unloads any additional models that are currently
     loaded on the server (not just the ones in the config list).
-    Falls back to the `lms` CLI if the REST API is unreachable.
+
+    The ``lms`` CLI is only used when the REST API cannot be reached at all.
+    If the API answers but refuses to unload a specific model, that is reported
+    as ``False`` instead of being papered over by the CLI.
     """
     # Track unload attempts as local AI activity
     try:
@@ -674,39 +677,41 @@ def unload_lmstudio_models(base_url: str, models: list[str]) -> dict[str, bool]:
         pass
 
     # Discover all currently loaded LLM models on the server
-    all_models = set(models or [])
+    entries: dict[str, Any] = {}
     try:
-        entries = v1_models(base_url)
-        if entries:
-            for key, entry in (entries or {}).items():
-                if not isinstance(entry, dict):
-                    continue
-                if str(entry.get("type") or "llm") != "llm":
-                    continue
-                if entry.get("loaded_instances"):
-                    all_models.add(key)
+        entries = v1_models(base_url) or {}
     except Exception:
-        pass
+        entries = {}
+    api_available = bool(entries)
+
+    all_models = set(models or [])
+    for key, entry in entries.items():
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("type") or "llm") != "llm":
+            continue
+        if entry.get("loaded_instances"):
+            all_models.add(key)
 
     out: dict[str, bool] = {}
     for model in dict.fromkeys(all_models):  # dedupe, keep order
-        try:
-            ok = _unload_via_api(base_url, model)
-            if ok:
-                out[model] = True
-                continue
-            # REST failed — try lms CLI as fallback
+        if api_available:
             try:
-                import subprocess
-                res = subprocess.run(
-                    ["lms", "unload", model],
-                    capture_output=True, text=True, timeout=30,
-                )
-                out[model] = res.returncode == 0
-                if out[model]:
-                    logger.info("Unloaded %s via lms CLI", model)
+                out[model] = bool(_unload_via_api(base_url, model))
             except Exception:
                 out[model] = False
+            continue
+
+        # API unreachable: fall back to the `lms` CLI.
+        try:
+            import subprocess
+            res = subprocess.run(
+                ["lms", "unload", model],
+                capture_output=True, text=True, timeout=30,
+            )
+            out[model] = res.returncode == 0
+            if out[model]:
+                logger.info("Unloaded %s via lms CLI", model)
         except Exception:
             out[model] = False
     return out

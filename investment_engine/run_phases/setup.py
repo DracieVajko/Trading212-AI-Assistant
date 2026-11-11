@@ -96,7 +96,10 @@ def prepare_run(
     try:
         from investment_engine.research.market_data import reset_market_data_registry
 
-        reset_market_data_registry()
+        # Branch runs share the same market data: the second branch must reuse
+        # the bars the first one fetched instead of downloading them again.
+        if not context.get("reuse_market_data"):
+            reset_market_data_registry()
     except Exception:
         pass
 

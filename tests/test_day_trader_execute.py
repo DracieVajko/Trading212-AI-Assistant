@@ -471,3 +471,100 @@ def test_count_placed_today_returns_minus_one_on_error(tmp_path):
     from investment_engine.day_trader.execute import _count_placed_today
 
     assert _count_placed_today(tmp_path / "missing" / "audit.db", "2026-01-01") == -1
+
+
+def test_execute_demo_plan_sizes_exits_from_owned_quantity(tmp_path, monkeypatch):
+    """A fresh market order is not filled instantly: protect only what is held."""
+    from investment_engine.day_trader.execute import execute_demo_plan
+    _allow_unverified_recon(monkeypatch)
+    cfg = _demo_config()
+    cfg.execution.unlimited = True
+
+    class PartialFillClient:
+        environment = "demo"
+        def __init__(self):
+            self.calls = []
+        def get_positions(self):
+            return {"items": [{"ticker": "NVDA_US_EQ", "quantity": 1.45293247}]}
+        def place_market_order(self, ticker, qty, **k):
+            self.calls.append(("market", ticker, qty))
+            return {"id": 401}
+        def place_stop_order(self, ticker, qty, price):
+            self.calls.append(("stop", ticker, qty, price))
+            return {"id": 402}
+        def place_limit_order(self, ticker, qty, price):
+            self.calls.append(("limit", ticker, qty, price))
+            return {"id": 403}
+
+    client = PartialFillClient()
+    env = {"T212_DEMO_ORDER_ENABLED": "1", "T212_ORDER_ENV": "demo"}
+    res = execute_demo_plan(
+        cfg,
+        {"ticker": "NVDA_US_EQ", "side": "BUY", "quantity": 2,
+         "stop_price": 173.47, "target_price": 177.75},
+        client, env=env, db_path=str(tmp_path / "audit.db"),
+    )
+
+    assert res["status"] == "PLACED"
+    assert client.calls == [
+        ("market", "NVDA_US_EQ", 2.0),
+        ("stop", "NVDA_US_EQ", -1.45293247, 173.47),
+        ("limit", "NVDA_US_EQ", -1.45293247, 177.75),
+    ]
+
+
+def test_execute_demo_plan_skips_exits_without_a_position(tmp_path, monkeypatch):
+    from investment_engine.day_trader.execute import execute_demo_plan
+    _allow_unverified_recon(monkeypatch)
+    cfg = _demo_config()
+    cfg.execution.unlimited = True
+
+    class NoFillClient:
+        environment = "demo"
+        def __init__(self):
+            self.calls = []
+        def get_positions(self):
+            return {"items": []}
+        def place_market_order(self, ticker, qty, **k):
+            self.calls.append(("market", ticker, qty))
+            return {"id": 501}
+        def place_stop_order(self, *a, **k):
+            raise AssertionError("must not sell what is not held")
+
+    client = NoFillClient()
+    env = {"T212_DEMO_ORDER_ENABLED": "1", "T212_ORDER_ENV": "demo"}
+    res = execute_demo_plan(
+        cfg,
+        {"ticker": "AAPL_US_EQ", "side": "BUY", "quantity": 1, "stop_price": 90.0},
+        client, env=env, db_path=str(tmp_path / "audit.db"),
+    )
+
+    assert res["status"] == "PLACED"
+    assert client.calls == [("market", "AAPL_US_EQ", 1.0)]
+    assert "skipped" in res["exits"]
+
+
+def test_owned_quantity_reads_nested_instrument_ticker_and_sellable_size():
+    """The real T212 payload nests the ticker and reports the sellable size."""
+    from investment_engine.day_trader.execute import _owned_quantity
+
+    class Client:
+        def get_positions(self):
+            return {"items": [{
+                "instrument": {"ticker": "NVDA_US_EQ"},
+                "quantity": 3.45293247,
+                "quantityAvailableForTrading": 1.45293247,
+            }]}
+
+    assert _owned_quantity(Client(), "NVDA_US_EQ", attempts=1) == 1.45293247
+
+
+def test_owned_quantity_returns_none_when_positions_unreadable():
+    from investment_engine.day_trader.execute import _owned_quantity
+
+    class Broken:
+        def get_positions(self):
+            return {"status": "error", "error": "HTTP 500"}
+
+    assert _owned_quantity(Broken(), "AAPL_US_EQ", attempts=1) is None
+

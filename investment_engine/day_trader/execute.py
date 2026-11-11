@@ -16,6 +16,7 @@ import hashlib
 import logging
 import os
 import sqlite3
+import time
 from datetime import date
 from typing import Any
 
@@ -131,6 +132,62 @@ def _count_placed_today(db_path: str | os.PathLike[str], session_date: str) -> i
         return -1
 
 
+def _owned_quantity(client: Any, symbol: str, *, attempts: int = 5, delay: float = 2.0) -> float | None:
+    """Return the quantity actually held in the account for ``symbol``.
+
+    A market order fills asynchronously, so immediately after placing one the
+    account can still show the previous (possibly fractional) position. Sizing
+    a protective exit from the requested quantity then fails with
+    ``selling-equity-not-owned`` and leaves the position unprotected.
+
+    Returns ``None`` when the position cannot be read at all, so the caller can
+    fall back to the requested size instead of silently skipping protection.
+    """
+    base = symbol.split("_")[0].upper()
+
+    def _read() -> float | None:
+        get_positions = getattr(client, "get_positions", None)
+        if get_positions is None:
+            return None
+        try:
+            payload = get_positions() or {}
+        except Exception:
+            return None
+        if isinstance(payload, dict):
+            if payload.get("error") or payload.get("status") in ("error", "network_error", "auth_failed"):
+                return None
+            items = payload.get("items")
+        else:
+            items = payload
+        for row in items or []:
+            if not isinstance(row, dict):
+                continue
+            instrument = row.get("instrument")
+            ticker = str(
+                row.get("ticker")
+                or (instrument.get("ticker") if isinstance(instrument, dict) else "")
+                or ""
+            ).upper()
+            if ticker != symbol and ticker.split("_")[0] != base:
+                continue
+            # T212 reports the sellable size separately once orders are resting;
+            # that is the quantity the broker will actually accept for an exit.
+            raw_qty = row.get("quantityAvailableForTrading", row.get("quantity", 0))
+            try:
+                return abs(float(raw_qty or 0))
+            except (TypeError, ValueError):
+                return None
+        return 0.0
+
+    owned = _read()
+    for _ in range(max(0, attempts - 1)):
+        if owned is None or owned > 0:
+            break
+        time.sleep(delay)
+        owned = _read()
+    return owned
+
+
 def execute_demo_plan(
     config: Any,
     ticket: dict[str, Any],
@@ -239,6 +296,19 @@ def execute_demo_plan(
         _mark("FAILED")
         return {"status": "BLOCKED", "order": None, "reasons": ["client is not demo"]}
 
+    # Order-history-aware dedupe: one order per symbol+side per New York
+    # trading day, regardless of quantity or plan changes between runs.
+    from investment_engine import order_ledger
+
+    duplicate, existing = order_ledger.check(
+        symbol, side, db_path=db_path, exclude_intent_id=intent_id,
+    )
+    if duplicate:
+        _mark("BLOCKED")
+        reason_text = order_ledger.describe(existing)
+        logger.info("Demo execute %s: blocked, %s", symbol, reason_text)
+        return {"status": "BLOCKED", "order": None, "reasons": [reason_text]}
+
     signed_qty = qty if side == "BUY" else -abs(qty)
     try:
         order = client.place_market_order(symbol, signed_qty)
@@ -257,16 +327,44 @@ def execute_demo_plan(
     stop_price = ticket.get("stop_price")
     target_price = ticket.get("target_price")
     if side == "BUY":
-        if stop_price is not None:
-            try:
-                exits["stop"] = client.place_stop_order(symbol, -abs(qty), float(stop_price))
-            except Exception as exc:
-                exits["stop"] = {"error": f"{type(exc).__name__}: {exc}"}
-        if target_price is not None:
-            try:
-                exits["target"] = client.place_limit_order(symbol, -abs(qty), float(target_price))
-            except Exception as exc:
-                exits["target"] = {"error": f"{type(exc).__name__}: {exc}"}
+        # Protective orders must match what is actually owned. Ask the broker
+        # instead of reusing the requested size: a fresh market order may not be
+        # filled yet, and the account can already hold a fractional position.
+        owned = _owned_quantity(client, symbol)
+        if owned is None:
+            # Position unreadable: still try to protect, sized from the request.
+            exit_qty = abs(qty)
+            logger.warning(
+                "Demo exits for %s sized from request: position could not be read",
+                symbol,
+            )
+        else:
+            exit_qty = min(abs(qty), owned) if owned > 0 else 0.0
+        if exit_qty <= 0:
+            exits["skipped"] = {
+                "error": "no owned quantity; protective orders not placed",
+                "requested": abs(qty),
+            }
+            logger.warning(
+                "Demo exits skipped for %s: no position to protect (requested %.8f)",
+                symbol, abs(qty),
+            )
+        else:
+            if stop_price is not None:
+                try:
+                    exits["stop"] = client.place_stop_order(symbol, -exit_qty, float(stop_price))
+                except Exception as exc:
+                    exits["stop"] = {"error": f"{type(exc).__name__}: {exc}"}
+            if target_price is not None:
+                try:
+                    exits["target"] = client.place_limit_order(symbol, -exit_qty, float(target_price))
+                except Exception as exc:
+                    exits["target"] = {"error": f"{type(exc).__name__}: {exc}"}
+            if exit_qty < abs(qty):
+                logger.warning(
+                    "Demo exits for %s sized to owned %.8f, requested %.8f",
+                    symbol, exit_qty, abs(qty),
+                )
 
     result: dict[str, Any] = {"status": "PLACED", "order": order, "reasons": [], "exits": exits}
     try:
@@ -275,6 +373,12 @@ def execute_demo_plan(
             symbol, side, qty, order_id=str(oid), status="PLACED",
             reason=reason,
             source="execute_demo_plan", mode=history_mode,
+            plan={
+                "bracket": ticket.get("bracket"),
+                "tool_input": ticket.get("tool_input"),
+                "fingerprint": ticket.get("fingerprint"),
+                "max_loss": ticket.get("max_loss"),
+            } or None,
         )
     except Exception as exc:
         logger.warning("history record_trade failed for %s: %s", symbol, exc)

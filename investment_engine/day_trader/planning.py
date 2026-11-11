@@ -148,7 +148,7 @@ def run_planning(
             _now_str = _dt.now().strftime("%Y-%m-%d 10:15")
         res = runner(
             _vendor_rel(vr, "trader-risk/check.py"),
-            ["--no-write", "--now", _now_str],
+            ["--now", _now_str],  # write verdicts so ticket.py show reports READY
             30,
             True,
             state_root,

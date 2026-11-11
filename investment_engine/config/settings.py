@@ -321,6 +321,11 @@ class EngineSettings:
     # Market regime settings
     market_regime: MarketRegimeSettings = field(default_factory=MarketRegimeSettings)
 
+    #: Branch plumbing (never set from config JSON): when a branch already has
+    #: its own broker snapshot (live or demo), the broker phase uses it instead
+    #: of fetching the live account again.
+    t212_snapshot_override: dict | None = None
+
     @classmethod
     def from_defaults(cls) -> EngineSettings:
         """Create settings with strategy profile applied to market_regime."""

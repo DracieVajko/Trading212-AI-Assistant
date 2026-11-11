@@ -445,7 +445,7 @@ DECISIONS:
                     confidence=float(_row.get("confidence", 0) or 0),
                     source="portfolio_ai",
                     run_id=run_id,
-                    mode="live",
+                    mode=str((run.portfolio_context or {}).get("mode") or "live"),
                 )
     except Exception as _hist_exc:
         logger.debug("History recording skipped: %s", type(_hist_exc).__name__)

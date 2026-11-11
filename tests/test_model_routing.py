@@ -198,5 +198,31 @@ def test_unload_lmstudio_models_helper(monkeypatch):
     monkeypatch.setattr(
         lms_mod, "_unload_via_api", lambda base_url, m: m != "bad"
     )
+    monkeypatch.setattr(
+        lms_mod, "v1_models", lambda base_url: {"a": {"type": "llm", "loaded_instances": []}}
+    )
     res = lms_mod.unload_lmstudio_models("http://x:1234/v1", ["a", "bad", "a"])
     assert res == {"a": True, "bad": False}
+
+
+def test_unload_lmstudio_models_falls_back_to_cli_when_api_is_down(monkeypatch):
+    import subprocess as real_subprocess
+
+    calls: list[list[str]] = []
+
+    class FakeResult:
+        def __init__(self, code: int):
+            self.returncode = code
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return FakeResult(0 if argv[-1] == "a" else 1)
+
+    monkeypatch.setattr(lms_mod, "v1_models", lambda base_url: {})
+    monkeypatch.setattr(real_subprocess, "run", fake_run)
+
+    res = lms_mod.unload_lmstudio_models("http://x:1234/v1", ["a", "bad"])
+
+    assert res == {"a": True, "bad": False}
+    assert calls == [["lms", "unload", "a"], ["lms", "unload", "bad"]]
+

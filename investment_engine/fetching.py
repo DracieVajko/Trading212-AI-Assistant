@@ -29,7 +29,16 @@ def _symbol(asset: dict[str, Any]) -> str:
 
 
 def _fetch_t212_data(settings_dict: dict) -> T212Snapshot | None:
-    """Fetch Trading212 portfolio data if enabled, with graceful degradation."""
+    """Fetch Trading212 portfolio data if enabled, with graceful degradation.
+
+    ``settings_dict["t212_snapshot_override"]`` short-circuits the fetch. Branch
+    runs use it to push their own environment's snapshot (demo or live) through
+    the same pipeline without re-fetching the live account.
+    """
+    override = settings_dict.get("t212_snapshot_override")
+    if isinstance(override, dict) and override.get("status"):
+        logger.info("T212 snapshot override in use (status=%s)", override.get("status"))
+        return override
     if not settings_dict.get("use_trading212_api", True):
         return None
     try:
@@ -120,7 +129,48 @@ def _fetch_all_news_parallel(settings_dict: dict, assets: list[dict[str, Any]], 
 
     Returns a NewsFetchResult with named fields so callers never unpack a
     positional tuple whose ordering can silently drift.
+
+    Results are cached for the life of the process: the live and demo branches
+    of one run analyse the same asset universe, so the second branch reuses the
+    corpus instead of hammering the news sources again.
     """
+    cache_key = _news_cache_key(settings_dict, assets)
+    cached = _NEWS_CACHE.get(cache_key)
+    if cached is not None:
+        logger.info("News corpus reused from this process (shared across branches)")
+        return cached
+
+    result = _fetch_all_news_uncached(settings_dict, assets, max_workers=max_workers, run_id=run_id)
+    _NEWS_CACHE[cache_key] = result
+    return result
+
+
+_NEWS_CACHE: dict[str, NewsFetchResult] = {}
+
+
+def reset_news_cache() -> None:
+    """Drop the process-level news cache (tests and forced refreshes)."""
+    _NEWS_CACHE.clear()
+
+
+def _news_cache_key(settings_dict: dict, assets: list[dict[str, Any]]) -> str:
+    symbols = sorted(
+        str(a.get("yahoo_symbol") or a.get("name") or "")
+        for a in (assets or [])
+        if isinstance(a, dict)
+    )
+    mr_news = (settings_dict.get("market_regime") or {}).get("news") or {}
+    return "|".join(
+        [
+            f"{datetime.now(timezone.utc).date().isoformat()}",
+            str(mr_news.get("max_age_hours", 48)),
+            str(mr_news.get("min_relevance_score", 30)),
+            ",".join(symbols),
+        ]
+    )
+
+
+def _fetch_all_news_uncached(settings_dict: dict, assets: list[dict[str, Any]], max_workers: int = 8, run_id: str = "") -> NewsFetchResult:
     mr_news = settings_dict.get("market_regime", {}).get("news", {})
     fetcher = StrictNewsFetcher(
         max_age_hours=mr_news.get("max_age_hours", 48),
