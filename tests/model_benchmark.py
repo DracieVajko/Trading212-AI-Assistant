@@ -39,12 +39,20 @@ LM_STUDIO_URL = os.getenv("LM_STUDIO_BASE_URL", "http://127.0.0.1:1234/v1")
 MAX_CONTEXT = 16384
 
 # Candidate models (label -> LM Studio model key).
+#
+# Default set: small or sparse (MoE) models that load quickly on this machine.
+# Large dense models (27B-35B and up) are opt-in via --include-large: they take
+# minutes per stage, pressure RAM and can be evicted mid-run, which makes the
+# numbers meaningless.
 CANDIDATE_MODELS = {
     "qwen3.8-9b-distill": "qwen3.8-9b-distill",
     "nemotron-e4b": "nvidia-nemotron-3.5-bolt-e4b",
     "gpt-oss-20b": "openai-gpt-oss-20b-claude-4.5-opus-heretic-uncensored-i1",
-    "qwen3.6-35b-a3b": "qwen/qwen3.6-35b-a3b",
     "gemma-4-26b": "google/gemma-4-26b-a4b-qat",
+}
+
+LARGE_MODELS = {
+    "qwen3.6-35b-a3b": "qwen/qwen3.6-35b-a3b",
     "qwen3.8-27b-swift": "swift-qwen3.8-27b",
     "qwen3.8-27b-twin-turbo": (
         "qwen3.8-27b-twin-turbo-fable-cold-fusion-709-ultra-heretic-uncensored-nm-dau-neo-mtp"
@@ -494,12 +502,18 @@ def main() -> int:
         help="Cheap stages that get 3 attempts to measure consistency",
     )
     parser.add_argument("--list-models", action="store_true", help="List available models and exit")
-    parser.add_argument("--run-all", action="store_true", help="All candidate models, all stages")
-    parser.add_argument("--include-74b", action="store_true", help="Also test the 74B model (may not fit)")
+    parser.add_argument("--run-all", action="store_true",
+                        help="All default (small/sparse) models, all stages")
+    parser.add_argument("--include-large", action="store_true",
+                        help="Also allow the large dense models (27B-74B); slow and RAM-heavy")
     parser.add_argument("--base-url", type=str, default=LM_STUDIO_URL)
     parser.add_argument("--max-context", type=int, default=MAX_CONTEXT)
     parser.add_argument("--output-dir", type=str, default=None)
     args = parser.parse_args()
+
+    catalog = dict(CANDIDATE_MODELS)
+    if args.include_large:
+        catalog.update(LARGE_MODELS)
 
     base_url = args.base_url
     available = chat_model_ids(base_url)
@@ -511,21 +525,32 @@ def main() -> int:
         print("Available in LM Studio:")
         for model_id in available:
             print(f"  {model_id}")
-        print("\nCandidates:")
+        print("\nDefault candidates (small / sparse):")
         for label, model_id in CANDIDATE_MODELS.items():
+            mark = "yes" if model_id in available else "no"
+            print(f"  {label}: {model_id} (available={mark})")
+        print("\nLarge models (opt-in with --include-large):")
+        for label, model_id in LARGE_MODELS.items():
             mark = "yes" if model_id in available else "no"
             print(f"  {label}: {model_id} (available={mark})")
         return 0
 
     if args.run_all:
-        labels = list(CANDIDATE_MODELS)
-        stages = list(STAGE_PROMPTS)
+        labels = list(catalog)
+        # Thinking is the most expensive stage (minutes per model on this
+        # hardware) and is opt-in: add it explicitly with --stages.
+        stages = ["decision", "finance", "fast", "writer"]
     else:
         labels = [m.strip() for m in (args.models or "qwen3.8-9b-distill").split(",") if m.strip()]
         stages = [s.strip() for s in args.stages.split(",") if s.strip()]
 
-    if not args.include_74b:
-        labels = [label for label in labels if label != "nemotron-74b"]
+    blocked = [label for label in labels if label in LARGE_MODELS and not args.include_large]
+    if blocked:
+        print(
+            f"ERROR: {', '.join(blocked)} is a large model; add --include-large to run it.",
+            file=sys.stderr,
+        )
+        return 2
 
     unknown = [s for s in stages if s not in STAGE_PROMPTS]
     if unknown:
@@ -542,9 +567,26 @@ def main() -> int:
         for stage in stages
     }
 
+    out_dir = Path(args.output_dir) if args.output_dir else default_output_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    json_path = out_dir / f"model_benchmark_{stamp}.json"
+    md_path = out_dir / f"model_benchmark_{stamp}.md"
+
+    def persist(current: list[dict[str, Any]]) -> None:
+        """Write partial results after every model.
+
+        A long benchmark can be interrupted (Ctrl-C, RAM pressure, a model that
+        never loads). Saving as we go means the measurements already taken are
+        never lost.
+        """
+        score_all(current)
+        json_path.write_text(json.dumps(current, indent=2, ensure_ascii=False), encoding="utf-8")
+        md_path.write_text(generate_report(current, stages, base_url), encoding="utf-8")
+
     results: list[dict[str, Any]] = []
     for label in labels:
-        model_id = CANDIDATE_MODELS.get(label, label)
+        model_id = catalog.get(label, label)
         if model_id not in available:
             print(f"SKIP {label}: not installed in LM Studio")
             results.append({"model": label, "model_id": model_id, "status": "not_available", "stages": {}})
@@ -553,6 +595,7 @@ def main() -> int:
         print(f">>> {label}")
         result = benchmark_model(label, model_id, stages, base_url, args.max_context, repeats)
         results.append(result)
+        persist(results)
         if result["status"] != "ok":
             print(f"    {result['status']}: {result.get('note', '')}")
             continue
@@ -565,6 +608,7 @@ def main() -> int:
                 )
             else:
                 print(f"    {stage:9s} FAILED")
+        print(f"    (partial report: {md_path.name})")
         print()
 
     # Leave the machine clean.
@@ -573,15 +617,8 @@ def main() -> int:
     remaining = loaded_models(base_url)
     print(f"Models still loaded after benchmark: {remaining or 'none'}")
 
-    score_all(results)
-    out_dir = Path(args.output_dir) if args.output_dir else default_output_dir()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    json_path = out_dir / f"model_benchmark_{stamp}.json"
-    md_path = out_dir / f"model_benchmark_{stamp}.md"
-    json_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+    persist(results)
     report = generate_report(results, stages, base_url)
-    md_path.write_text(report, encoding="utf-8")
 
     print()
     print(report)
