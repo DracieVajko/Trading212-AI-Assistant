@@ -218,7 +218,11 @@ def test_unload_lmstudio_models_falls_back_to_cli_when_api_is_down(monkeypatch):
         calls.append(argv)
         return FakeResult(0 if argv[-1] == "a" else 1)
 
+    def must_not_call_api(*args, **kwargs):
+        raise AssertionError("the API must not be used when the server is unreachable")
+
     monkeypatch.setattr(lms_mod, "v1_models", lambda base_url: {})
+    monkeypatch.setattr(lms_mod, "_unload_via_api", must_not_call_api)
     monkeypatch.setattr(real_subprocess, "run", fake_run)
 
     res = lms_mod.unload_lmstudio_models("http://x:1234/v1", ["a", "bad"])

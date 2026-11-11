@@ -66,6 +66,30 @@ def _catalyst_for(ticker: str, news_events: list[dict[str, Any]],
     return ""
 
 
+def _catalyst_status(
+    ticker: str,
+    news_events: list[dict[str, Any]],
+    earnings_status: dict[str, Any],
+    earnings_days: int | None,
+    catalyst: str,
+) -> str:
+    """Classify how verifiable the catalyst really is.
+
+    EVENT_DRIVEN  clear and identifiable: a dated event (earnings within 30
+                  days) or a CONFIRMED news event.
+    STRUCTURAL    medium-term theme: news exists but nothing is confirmed yet.
+    NONE          no catalyst evidence at all; only price/technical context.
+    """
+    if earnings_days is not None and 0 <= earnings_days <= 30:
+        return "EVENT_DRIVEN"
+    rows = [e for e in news_events if str(e.get("ticker", "")).upper() == ticker]
+    if any(e.get("state") == "CONFIRMED" for e in rows):
+        return "EVENT_DRIVEN"
+    if rows:
+        return "STRUCTURAL"
+    return "NONE" if not catalyst else "STRUCTURAL"
+
+
 def _confirmation_for(ticker: str, tech: dict[str, Any] | None) -> str:
     tech = tech or {}
     price = _num(tech.get("price"))
@@ -171,13 +195,18 @@ def run(inputs: dict[str, Any], provider=None, settings=None, language: str = "E
         has_confirmation = confirmation != "no technical confirmation available"
         risk = _key_risk(tick, tech, weight, earnings_days, cap_pct)
         stance = _stance(tech, catalyst, earnings_days, has_confirmation)
+        chase = ((tech.get("TREND_QUALITY") or {}).get("chase") or {})
         rows.append({
             "ticker": tick,
             "sector": str((sectors or {}).get(tick, "") or "Unclassified"),
             "catalyst": catalyst or "no verified catalyst",
+            "catalyst_status": _catalyst_status(
+                tick, news_events, earnings_status, earnings_days, catalyst
+            ),
             "confirmation_to_watch": confirmation,
             "key_risk": risk,
             "research_stance": stance,
+            "chase_risk": chase.get("level", "UNKNOWN"),
             "weight_pct": round(weight, 2),
             "earnings_days": earnings_days,
         })
@@ -249,10 +278,13 @@ def render(output: dict[str, Any]) -> str:
     data = output.get("data", {}) or {}
     lines: list[str] = []
     for row in data.get("rows", []) or []:
+        chase = row.get("chase_risk")
+        chase_note = f" | chase: {chase}" if chase and chase != "UNKNOWN" else ""
         lines.append(
             f"- **{row.get('ticker')}** ({row.get('sector')}) — {row.get('research_stance')} | "
-            f"catalyst: {row.get('catalyst')} | confirm: {row.get('confirmation_to_watch')} | "
-            f"risk: {row.get('key_risk')}"
+            f"catalyst: {row.get('catalyst')} [{row.get('catalyst_status')}] | "
+            f"confirm: {row.get('confirmation_to_watch')} | "
+            f"risk: {row.get('key_risk')}{chase_note}"
         )
     calendar = data.get("event_calendar", []) or []
     if calendar:

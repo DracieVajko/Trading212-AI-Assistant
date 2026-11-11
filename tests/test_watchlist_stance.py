@@ -41,7 +41,40 @@ def test_watchlist_rows_have_required_fields():
     assert {r["ticker"] for r in rows} == {"AAPL", "NVDA", "OGC"}
     for row in rows:
         assert {"sector", "catalyst", "confirmation_to_watch", "key_risk",
-                "research_stance"} <= set(row)
+                "research_stance", "catalyst_status", "chase_risk"} <= set(row)
+
+
+def test_catalyst_status_is_event_driven_when_the_event_is_dated():
+    rows = {r["ticker"]: r for r in registry.run_skill("watchlist_stance", _inputs())["data"]["rows"]}
+    # AAPL has a CONFIRMED news event, OGC has earnings in the supplied map.
+    assert rows["AAPL"]["catalyst_status"] == "EVENT_DRIVEN"
+    assert rows["OGC"]["catalyst_status"] == "EVENT_DRIVEN"
+
+
+def test_catalyst_status_is_structural_for_unconfirmed_news():
+    payload = _inputs(news_events=[
+        {"ticker": "NVDA", "type": "SUPPLY", "state": "RUMOUR",
+         "severity": "medium", "what_is_new": "Possible new data-centre contract"},
+    ])
+    rows = {r["ticker"]: r for r in registry.run_skill("watchlist_stance", payload)["data"]["rows"]}
+    assert rows["NVDA"]["catalyst_status"] == "STRUCTURAL"
+
+
+def test_catalyst_status_none_without_evidence():
+    payload = _inputs(news_events=[], earnings_status={})
+    rows = {r["ticker"]: r for r in registry.run_skill("watchlist_stance", payload)["data"]["rows"]}
+    assert rows["AAPL"]["catalyst_status"] == "NONE"
+
+
+def test_chase_risk_is_surfaced_from_trend_quality():
+    tech = dict(_inputs()["technicals"]["AAPL"])
+    tech["TREND_QUALITY"] = {"status": "ok", "chase": {"level": "HIGH", "reason": "+18% above MA20"}}
+    payload = _inputs(technicals={**_inputs()["technicals"], "AAPL": tech})
+    rows = {r["ticker"]: r for r in registry.run_skill("watchlist_stance", payload)["data"]["rows"]}
+    assert rows["AAPL"]["chase_risk"] == "HIGH"
+    module = registry.get_skill("watchlist_stance")
+    rendered = module.render(registry.run_skill("watchlist_stance", payload))
+    assert "chase: HIGH" in rendered
 
 
 def test_no_chasing_when_overbought_or_at_resistance():

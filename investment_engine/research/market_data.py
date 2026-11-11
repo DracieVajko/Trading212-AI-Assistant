@@ -542,6 +542,25 @@ def _fetch_technical_yfinance(symbol: str, period: str = "3mo", interval: str = 
         # yfinance reports London listings as GBp (pence-scale).
         quote_ccy = "GBX"
 
+    # Trend quality: cross validity, compression zone, swing structure and how
+    # extended price already is. Computed here because this is the only place
+    # that still has the full bar history; downstream stages only see summaries.
+    try:
+        from investment_engine.research.trend_quality import assess as _assess_trend
+
+        _bars = hist.rename(
+            columns={
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
+                "Close": "close",
+                "Volume": "volume",
+            }
+        )
+        trend_quality = _assess_trend(_bars)
+    except Exception:
+        trend_quality = {"status": "unavailable"}
+
     return {
         "price": current_price,
         "quote_currency": quote_ccy,
@@ -556,6 +575,7 @@ def _fetch_technical_yfinance(symbol: str, period: str = "3mo", interval: str = 
         "Support": round(current_support, 2) if current_support else None,
         "Resistance": round(current_resistance, 2) if current_resistance else None,
         "ATR": round(current_atr, 2) if current_atr else None,
+        "TREND_QUALITY": trend_quality,
     }
 
 

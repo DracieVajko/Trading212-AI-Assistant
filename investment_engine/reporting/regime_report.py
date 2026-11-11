@@ -351,6 +351,20 @@ def apply_trade_safety(
         )
         if not reason and not tech_valid:
             reason = "missing technical data"
+        # Trend-quality gate: a BUY backed only by an unconfirmed cross, a
+        # distribution pattern, a volume-less breakout or an already-vertical
+        # move is withheld. Only confident negatives block; missing data does not.
+        if not reason and tech_valid:
+            try:
+                from investment_engine.research.trend_quality import (
+                    buy_block_reason as _trend_block,
+                )
+
+                _tq_reason = _trend_block((tech or {}).get("TREND_QUALITY"))
+                if _tq_reason:
+                    reason = _tq_reason
+            except Exception:
+                pass
         if not reason and row is not None:
             try:
                 if float(row.get("weight", 0) or 0) >= concentration_cap_pct:

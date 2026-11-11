@@ -684,14 +684,19 @@ def unload_lmstudio_models(base_url: str, models: list[str]) -> dict[str, bool]:
         entries = {}
     api_available = bool(entries)
 
-    all_models = set(models or [])
+    requested = list(dict.fromkeys(models or []))
+    discovered: set[str] = set()
     for key, entry in entries.items():
         if not isinstance(entry, dict):
             continue
         if str(entry.get("type") or "llm") != "llm":
             continue
         if entry.get("loaded_instances"):
-            all_models.add(key)
+            discovered.add(key)
+    # Deterministic order: configured models first, then discovered ones sorted.
+    # A set's iteration order changes with the hash seed, which would make the
+    # unload sequence (and its logs) differ between runs.
+    all_models = requested + [m for m in sorted(discovered) if m not in requested]
 
     out: dict[str, bool] = {}
     for model in dict.fromkeys(all_models):  # dedupe, keep order
