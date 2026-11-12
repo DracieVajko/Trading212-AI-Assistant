@@ -100,6 +100,10 @@ Zalohy/
 runtime/
 /accounting/
 
+# Repo snapshot zips stay local (they were a one-time archival commit).
+PortfolioAI_Assistant_backup.zip
+*_backup.zip
+
 # Auto-backup snapshots (*_V2415_*) - never commit; canonical files live beside them
 *_V2415_*
 
