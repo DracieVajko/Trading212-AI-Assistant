@@ -1,1 +1,7 @@
+# GitHub Sponsors configuration.
+# The `github` entry enables the Sponsor button on this repository.
+# GitHub Sponsors for DracieVajko was approved on 2026-11-12.
+# Supported tiers and what support funds are documented in the README
+# "Sponsorship" section. Benefits are community/development perks only —
+# never investment recommendations or private financial advice.
 github: DracieVajko

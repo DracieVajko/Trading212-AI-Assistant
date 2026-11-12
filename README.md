@@ -1,6 +1,28 @@
 # Portfolio AI Assistant
 
-Reliable Investment Monitoring System with local AI models (Ollama/LM Studio).
+A local-first portfolio monitoring and AI-assisted investment research tool for
+personal accounts. Deterministic Python does every calculation; a local LLM
+(LM Studio / Ollama, with optional cloud fallback) writes the interpretation.
+Broker data comes from Trading 212 read-only endpoints. **Nothing in this
+project places a live order** — the live branch is recommendations only; the
+demo branch can execute against the demo account.
+
+> **Disclaimer:** educational and personal research tool — no investment
+> advice, no guaranteed returns, AI text can be wrong. Full text in the
+> [Disclaimer](#disclaimer) section.
+
+**What this is**
+
+- a personal portfolio monitor: read-only broker sync, deterministic analysis,
+  permanent history, AI-written briefs
+- a research workbench: technicals, earnings calendar, news, broker statement
+  reconciliation, advisory rotation and a demo execution sandbox
+
+**What this is not**
+
+- not a trading bot for live money (live execution is disabled by design)
+- not a subscription signal service, and not investment advice
+- not affiliated with Trading 212 or any data provider
 
 ## Features
 
@@ -177,6 +199,18 @@ own `api.env` and `portfolio_config.json`; both are gitignored. The tracked
 `api.env.example` uses placeholders only. Do not paste live keys into issues,
 logs or commits.
 
+Key reference (all optional unless noted; placeholders in `api.env.example`):
+
+| Group | Keys |
+|---|---|
+| Broker | `TRADING212_API_KEY`, `TRADING212_API_SECRET`, `TRADING212_ACCOUNT_ID` |
+| Execution safety | `T212_LIVE_ORDER_ENABLED`, `T212_LIVE_ACK` (never set in shipped configs) |
+| Local AI | `LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `LM_STUDIO_CONTEXT_TOKENS`, `LM_STUDIO_MAX_OUTPUT_TOKENS`, `LM_STUDIO_REASONING_EFFORT`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `MAX_CONCURRENT_MODELS` |
+| Cloud fallback | `GEMINI_API_KEY`, `GEMINI_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `MISTRAL_API_KEY`, `MISTRAL_MODEL`, `OPENCODE_ZEN_API_KEY` |
+| Mode | `PROVIDER`, `EXECUTION_MODE`, `LMSTUDIO_ENABLED`, `API_ONLY`, `LOAD_GUARD` |
+| Run limits | `RUN_DEADLINE_SECONDS`, `RUN_WATCHDOG_SECONDS`, `CHAIN_BUDGET_SECONDS`, `PROVIDER_ATTEMPT_MAX_S` |
+| Notifications | `NOTIFY_EMAIL*`, `NOTIFY_NTFY_TOPIC`, `NOTIFY_ON_FAIL`, `NOTIFY_ON_COMPLETE` |
+
 ### `investment_policy.json` and policy profiles
 
 `investment_policy.json` holds caps, cash floor, earnings blackout, sizing and
@@ -204,6 +238,83 @@ Rules that hold for every profile:
   never silently changes a number.
 - A preset only touches fields it defines; everything else stays as written.
 - An unknown profile name marks the policy `INVALID` instead of guessing.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph CONFIG["Configuration (local, gitignored)"]
+        PC["portfolio_config.json"]
+        ENV["api.env"]
+        POL["investment_policy.json"]
+    end
+
+    subgraph FETCH["Fetch phase — shared between branches"]
+        BROKER["Trading 212 API (read-only GET)"]
+        MKT["Market data (yfinance)"]
+        NEWS["News (RSS, finviz, TradingView — sanitized)"]
+        EARN["Earnings calendar"]
+    end
+
+    subgraph BRANCHES["One process, two isolated branches"]
+        LIVE["live branch — real portfolio, recommendations only"]
+        DEMO["demo branch — own snapshot, may place demo orders"]
+    end
+
+    BRAIN["AI stage chain: LM Studio → llama.cpp → Ollama → Gemini → OpenRouter → Mistral → deterministic fallback"]
+
+    subgraph GATES["Deterministic gates"]
+        TQ["Trend quality: false cross, chase, structure, volume"]
+        LEDGER["Order ledger: 1 order per symbol+side per NY day"]
+        POLICY["Policy caps + earnings blackout"]
+    end
+
+    subgraph OUT["Outputs"]
+        REP["reports/current/ + reports/current/demo/"]
+        HIST["history/ — permanent trade and decision memory"]
+        MAN["run_manifest.json — per-stage provider attribution"]
+    end
+
+    CONFIG --> FETCH
+    FETCH --> BRANCHES
+    LIVE --> BRAIN
+    DEMO --> BRAIN
+    BRAIN --> GATES
+    GATES --> DEMO
+    LIVE --> REP
+    DEMO --> REP
+    LIVE --> HIST
+    DEMO --> HIST
+    BRAIN --> MAN
+```
+
+The pipeline itself is a sequence of small phases in
+`investment_engine/run_phases/` (setup → broker → news → earnings →
+enrichment → decisions → reporting); `run_engine.py` orchestrates, and the
+CLI facade (`portfolio_ai_assistant.py`) is the only supported entry point.
+
+### Where each number comes from (data provenance)
+
+| Data class | Source | Where used | Trust level |
+|---|---|---|---|
+| Historical performance | Trading 212 Activity CSV, yfinance bars, `history/` DB | P&L bridge, backtesting, decision context | Broker statements and downloaded bars — verify against your broker |
+| Current portfolio data | Trading 212 read-only API snapshot | Snapshot, weights, PIE exposure, demo sizing | Broker truth at fetch time |
+| Calculated metrics | Deterministic Python (indicators, reconciliation, weights, FX, exposure) | Every brief and report | Reproducible: pinned pandas/numpy/scipy, covered by tests |
+| AI-generated opinions | LLM stage outputs (summary, decision, recommendation text) | Narrative sections of the reports only | Advisory; may be wrong; the winning provider/model per stage is recorded in `run_manifest.json` |
+
+Orders can never originate from an AI sentence: execution flows only through
+the deterministic gates above, and the live branch has no order path at all.
+
+### Supported data sources
+
+| Source | Provides | Required? |
+|---|---|---|
+| Trading 212 REST API (GET only) | account, positions, PIEs, order history | for broker mode |
+| yfinance | prices, fundamentals, FX, historical bars | yes |
+| RSS feeds, finvizfinance, TradingView pages | 48h news, sentiment, scraped pages (sanitized) | optional |
+| Trading 212 Activity CSV | statement reconciliation cross-check | optional |
+| LM Studio / Ollama / cloud LLMs | interpretation text | local-first; cloud optional |
+| `agent_data/` profiles | investor profile, tax facts, base rates | optional |
 
 ## Project Structure
 
@@ -335,20 +446,97 @@ py -3.12 scripts/verify_environment.py   :: preflight incl. matplotlib + pip-che
 - **Mode separation:** logs go to `logs/live/` or `logs/demo/`; day-trader
   reports go to `reports/day_trader/live/` or `reports/day_trader/demo/`.
 
-## AI Models (LM Studio, per-stage routing)
+## LM Studio setup and local model configuration
 
-| Stage | Model (`portfolio_config.json` key) |
-|-------|--------------------------------------|
-| `summary` | `writer_model` (`google/gemma-4-26b-a4b-qat`, writing; alt: `prism-ml/bonsai-27b`, `mistralai/ministral-3-3b`) |
-| `discovery` | `thinking_model` (`openai/gpt-oss-20b`, 32k ctx) |
-| `decision`, `ai_recommendations` | `finance_model` (`openai/gpt-oss-20b`, reasoning + math) |
-| everything else | `decision_model` (chain default) |
+1. Install [LM Studio](https://lmstudio.ai), load one small model, and start
+   the local server (`Developer` tab → `http://127.0.0.1:1234/v1`). No API key
+   is needed locally.
+2. Point the engine at it in `api.env`:
+   `LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1` and
+   `LM_STUDIO_MODEL=<model-id>`.
+3. `MAX_CONCURRENT_MODELS=1` keeps loading exclusive: when the chain moves to
+   another model, the previous one is evicted instead of stacking VRAM.
+4. Prompt sizing is conservative (`chars/2` heuristic) and controlled by
+   `LM_STUDIO_CONTEXT_TOKENS` / `LM_STUDIO_MAX_OUTPUT_TOKENS`;
+   `LM_STUDIO_REASONING_EFFORT=none` disables thinking tokens. A
+   "context size has been exceeded" 400 is parsed for the real token count and
+   retried smaller instead of hanging.
+
+### Per-stage routing (`portfolio_config.json` → `ai_backends`)
+
+| Stage | Config key | Typical pick |
+|-------|------------|--------------|
+| `summary` | `writer_model` | small instruct model (clear prose) |
+| `discovery` | `thinking_model` | reasoning model, wide context |
+| `decision`, `ai_recommendations` | `finance_model` | reasoning + math strength |
+| everything else | `decision_model` | chain default |
+
+Run the benchmark on your own machine before trusting any example name:
+`python tests/model_benchmark.py --run-all` ranks every installed model per
+stage on speed, reliability and JSON/format compliance. Results land on the
+Desktop and stay gitignored — each machine runs its own benchmark. Dense
+models 27B+ are opt-in (`--include-large`), deliberately: they are slow on
+consumer hardware and add nothing the stage needs.
+
+Benchmark result on the author's machine (2026-11): a small sparse MoE
+(`nvidia-nemotron-3.5-bolt-e4b`) reached ~45–51 tok/s with 5/5 format
+compliance and beat a 9B dense model (~5 tok/s, broken JSON) — decisively.
 
 Chain: LM Studio → llama.cpp (Pi) → Ollama (Pi) → Gemini → OpenRouter `:free` →
 Mistral → deterministic fallback. The real winner per stage is recorded in
-`run_manifest.json` (`providers_per_stage`).
+`run_manifest.json` (`providers_per_stage`). Configure in the `ai_backends`
+section of `portfolio_config.json`.
 
-Configure in `ai_backends` section of config.
+## Financial calculations
+
+All numeric outputs are deterministic Python — the same inputs always produce
+the same numbers:
+
+- **Technical indicators** — SMA/EMA/MACD/RSI (Wilder), Bollinger, ATR, ADX,
+  Supertrend, OBV, rolling VWAP; the manual engine is canonical (details in
+  [Technical indicators](#technical-indicators-optional-dependencies)).
+- **Broker statement reconciliation** — deposits/withdrawals bridge to API net
+  deposits, and the P&L bridge: realised P&L + dividends + interest − explicit
+  costs + unrealised P&L (see the [reconciliation section](#trading-212-statement-reconciliation-optional)).
+- **PIE exposure** — standalone holdings = portfolio quantity − PIE quantity,
+  reported per asset.
+- **Allocation and weights** — per-asset weight and group caps from the
+  selected policy profile.
+- **Rotation simulation** — trim/reinvest strategies with simulated APY
+  (advisory only; see [Rotation strategies](#rotation-strategies-advisory-only)).
+
+Pinned stack: `pandas==2.2.3`, `numpy==1.26.4`, `scipy==1.13.1` — see the note
+in Technical indicators for why.
+
+## Risk management
+
+Deterministic, layered, and no single gate decides a trade:
+
+1. **Trade-safety gates** (`investment_engine/research/trend_quality.py`,
+   wired into `apply_trade_safety`) — a BUY is withheld (downgraded to HOLD
+   with a stated reason) when:
+   - **false golden cross** — the 20-day MA crossed above the 50-day MA while
+     the 50-day MA is still declining, or the pair whipsawed repeatedly in the
+     lookback window;
+   - **chase risk** — the price is extended far above its 20-day MA after a
+     near-vertical run (buying tops is not a plan);
+   - **distribution** — lower highs with a broken support level;
+   - **volume-less squeeze breakout** — price closed above a compressed MA
+     range without the volume to confirm it. Missing data never blocks a
+     decision.
+2. **Policy profiles** (`investment_policy.json`) — cap position size, keep a
+   cash floor, and block BUY during the earnings blackout and after a
+   reconciliation FAIL (table above). A profile can block or resize a
+   candidate; it can never create a trade.
+3. **Order ledger** (`investment_engine/order_ledger.py`, demo execution only)
+   — one order per symbol and side per New York trading day, checked against
+   both the trade history and the audit DB; reruns cannot repeat an order even
+   with a different size.
+4. **Live execution kill switch** — the live branch never orders. Code-level
+   guards require `T212_LIVE_ORDER_ENABLED=1` **and** an explicit
+   acknowledgement (`T212_LIVE_ACK`); no shipped configuration sets either.
+5. **Concentration checks** — per-asset weight cap and standalone-vs-PIE
+   exposure in the snapshot.
 
 ## Scheduled operation
 
@@ -408,8 +596,8 @@ py -3.12 -m pytest experimental/tests/ -q       :: isolated backtest suite
 `pandas-ta` is optional and NOT required. When installed, `TechnicalAnalyzer` uses the
 `pandas-ta` engine; otherwise it falls back to deterministic manual indicators
 (SMA/EMA/MACD/RSI/Bollinger/ATR/simplified ADX and Supertrend, OBV, rolling VWAP, …).
-Both paths are covered by tests, but numerics differ — see the local
-(gitignored) `docs/audit/PROJECT_AUDIT.md` (Technical Indicator Audit) and run
+Both paths are covered by tests, but numerics differ — see the tracked
+`docs/archive/audit/PROJECT_AUDIT.md` (Technical Indicator Audit) and run
 `scripts/verify_environment.py` to see which engine would activate on your PC. `tzdata` is a core requirement so `ZoneInfo` works on Windows.
 Pinned stack (reproducible installs): `pandas==2.2.3`, `numpy==1.26.4`,
 `scipy==1.13.1` — pandas 3.x is not supported (breaks frozen manual-v1 numerics).
@@ -473,6 +661,58 @@ Falls back to cloud APIs (Gemini → OpenRouter → Mistral) automatically.
 
 Kill switch: `LOAD_GUARD=0` in `api.env` disables all guard checks.
 
+## Roadmap
+
+Planned, not implemented yet (the flags are documented today, argparse rejects
+them until they exist):
+
+- `--scheduled` Task Scheduler mode with a `runtime/run.lock` single-run lock
+  and exit codes `3` (already running), `4` (partial), `5` (broker sync failed)
+- `--no-ai`, `--asset`, `--validate-only`, `--dry-run` flags
+- an optional, anonymized way to share benchmark results between machines
+  (results themselves stay local and gitignored)
+- continued docs polish as the project grows
+
+No timeline promises — development happens between market hours and life.
+Nothing on this roadmap is an investment feature or a returns claim.
+
+## Limitations
+
+- **AI output is advisory interpretation, not advice.** It can be confidently
+  wrong; the deterministic pipeline and your own judgment are the controls.
+- **No guaranteed returns.** Nothing here predicts markets; every metric
+  describes the past.
+- **No live order execution.** Demo orders only, ledger-gated; the live
+  account is read-only by design.
+- **Single-user, local application.** No accounts, no server, no multi-user.
+- **Python 3.12 only** (developed on Windows; use `py -3.12`). pandas 3.x is
+  unsupported (breaks frozen numerics); `pandas-ta` is optional and its
+  numerics differ from the manual engine.
+- **Free data sources.** News coverage, fundamentals and prices come from free
+  feeds; gaps are reported as `null` with notes, never invented values.
+- **Cloud fallbacks see ticker-level queries only** — never positions, values,
+  account ids or keys. LM Studio keeps everything on your machine.
+- **The Trading 212 statement CSV is a cross-check**, never truth; the API
+  snapshot is broker truth at fetch time.
+- **Benchmark results are machine-specific** — rerun on your hardware before
+  choosing models.
+
+## Disclaimer
+
+- This project is an **educational and personal research tool**. It is **not
+  investment advice**, not a recommendation to buy or sell anything, and not a
+  tax or accounting service.
+- **No guarantee of returns.** Markets involve risk, including loss of
+  principal. The author and contributors are not liable for any decisions or
+  losses made using this software.
+- **AI-generated sections are opinions produced by language models** from the
+  data given to them; they may be incomplete, outdated or simply wrong.
+- **Not affiliated with Trading 212** or any broker or data provider. Broker
+  credentials stay in your local `api.env` and are used only against the
+  official read-only API.
+- Verify every number independently before acting on it, and consider a
+  licensed financial advisor for decisions about your money.
+
 ## Examples
 
 Anonymized example outputs are in `examples/github/`:
@@ -482,14 +722,50 @@ Anonymized example outputs are in `examples/github/`:
 - `PIEs/*.csv` — example PIE CSV exports
 - `README.md` — explanation of example outputs
 
+Illustrative shape of the analysis — **synthetic numbers, not real portfolio
+data**:
+
+```text
+AAPL   weight 12.4%   P&L +8.2%    RSI 56   trend: uptrend    stance: HOLD   (chase risk: LOW)
+MSFT   weight  6.1%   P&L −3.4%    RSI 41   trend: sideways   stance: WATCH  (catalyst: EVENT_DRIVEN)
+```
+
+Every row above is deterministic output; the AI adds only the narrative around
+it — and which provider/model wrote that narrative is recorded per stage in
+`run_manifest.json`.
+
 ## License
 
 MIT
 
 ---
 
-## Support this work
+## Sponsorship
 
-If you find this project useful, consider supporting its ongoing development, maintenance, and improvements.
+The engine, its test suite and its documentation are built and maintained in
+spare time. If the project saves you time or teaches you something, sponsoring
+keeps it moving:
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=github)](https://github.com/sponsors/DracieVajko)
+
+Support contributes to:
+
+- financial data infrastructure (API reliability, feed quality checks)
+- improved calculations and portfolio analytics
+- local AI integration (provider chain, load guard, model benchmarking)
+- testing and documentation
+- general open-source maintenance (issues, reviews, releases)
+
+| Tier | Amount | Benefit |
+|------|--------|---------|
+| Supporter | $2 | supports ongoing development |
+| Backer | $5 | name listed in this README's supporters list |
+| Sponsor | $10 | vote in roadmap priority polls (GitHub Discussions) |
+| Gold Sponsor | $25 | the above + early look at release notes |
+
+Benefits are community and development perks only — never investment
+recommendations, portfolio reviews or private financial advice. The
+[`.github/FUNDING.yml`](.github/FUNDING.yml) file enables the Sponsor button
+on this repository (GitHub Sponsors, approved 2026-11).
+
+Supporters so far: *(none listed yet — your name could be first)*

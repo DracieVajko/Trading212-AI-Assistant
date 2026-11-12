@@ -24,7 +24,7 @@ def _inputs(**over):
             {"ticker": "AAPL", "type": "EARNINGS", "state": "CONFIRMED",
              "severity": "high", "what_is_new": "Q3 beat, FY outlook raised"},
         ],
-        "earnings_status": {"OGC": "2026-11-11"},
+        "earnings_status": {"OGC": "2026-11-20"},
         "sectors": {"AAPL": "Technology", "NVDA": "Semiconductors", "OGC": "Gold"},
         "event_calendar": [],
         "concentration_cap_pct": 20.0,
