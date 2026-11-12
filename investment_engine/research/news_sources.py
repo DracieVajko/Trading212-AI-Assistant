@@ -489,8 +489,39 @@ class EnhancedNewsFetcher:
             if len(out) >= limit_total:
                 break
             try:
-                resp = self._session.get(src["rss_url"], timeout=self.timeout)
-                resp.raise_for_status()
+                resp = None
+                for attempt in range(3):
+                    try:
+                        resp = self._session.get(src["rss_url"], timeout=self.timeout)
+                        status = getattr(resp, "status_code", 200)
+                        if status == 429:
+                            try:
+                                wait = int(resp.headers.get("Retry-After", "") or "")
+                            except (TypeError, ValueError):
+                                wait = 0
+                            if wait <= 0:
+                                wait = min(2 ** attempt * 2, 10)
+                            wait = min(wait, 30)
+                            import time as _t
+                            _t.sleep(wait)
+                            continue
+                        status = getattr(resp, "status_code", 200)
+                        if status >= 500:
+                            import time as _t
+                            _t.sleep(min(2 ** attempt, 10))
+                            continue
+                        resp.raise_for_status()
+                        break
+                    except Exception as exc:
+                        logger.debug("RSS fallback fetch failed for %s (attempt %d/3): %s", src["name"], attempt + 1, exc)
+                        if attempt < 2:
+                            import time as _t
+                            _t.sleep(min(2 ** attempt, 10))
+                            continue
+                        resp = None
+                        break
+                if resp is None:
+                    continue
                 feed = feedparser.parse(resp.content)
             except Exception as exc:
                 logger.debug("RSS fallback fetch failed for %s: %s", src["name"], exc)

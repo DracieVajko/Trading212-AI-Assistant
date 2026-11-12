@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 import re
 import threading
 from dataclasses import dataclass, replace
@@ -28,7 +29,7 @@ DEFAULT_MAX_AGE_HOURS = 48
 DEFAULT_MIN_RELEVANCE = 60
 DEFAULT_MAX_ARTICLES = 5
 
-NEWS_CACHE_TTL_SECONDS = 21600
+NEWS_CACHE_TTL_SECONDS = int(os.getenv("NEWS_CACHE_TTL_SECONDS", "3600"))
 NEWS_CACHE_FILENAME = "news_google_rss.json"
 
 _MACRO_KEYS = ("SPY", "BTC", "TRUMP")
@@ -334,6 +335,7 @@ class StrictNewsFetcher:
             recent = [item for item in unique if item.published_dt >= cutoff]
             scored = self._score_generic_relevance(recent)
             filtered = [item for item in scored if item.relevance_score >= self.min_relevance]
+            filtered = _collapse_near_duplicates(filtered)
             filtered.sort(key=lambda x: (x.relevance_score, x.published_dt), reverse=True)
             results[query] = filtered[:limit_per_query]
         return results
@@ -376,12 +378,40 @@ class StrictNewsFetcher:
                     self._query_cache[nq] = _clone_items(file_items)
                 return _clone_items(file_items)
         url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+        resp = None
+        for attempt in range(3):
+            try:
+                resp = self._session.get(url, timeout=self.timeout)
+                status = getattr(resp, 'status_code', 200)
+                if status == 429:
+                      try:
+                          wait = int(resp.headers.get('Retry-After', '') or '')
+                      except (TypeError, ValueError):
+                          wait = 0
+                      if wait <= 0:
+                          wait = min(2 ** attempt * 2, 10)
+                      wait = min(wait, 30)
+                      logger.warning("Google News 429 (attempt %d/3); sleeping %ds", attempt + 1, wait)
+                      time.sleep(wait)
+                      continue
+                status = getattr(resp, 'status_code', 200)
+                if status >= 500:
+                    time.sleep(min(2 ** attempt, 10))
+                    continue
+                resp.raise_for_status()
+                break
+            except Exception as e:
+                logger.warning("News fetch failed for '%s' (attempt %d/3): %s", query, attempt + 1, e)
+                if attempt < 2:
+                    time.sleep(min(2 ** attempt, 10))
+                    continue
+                return []
+        if resp is None:
+            return []
         try:
-            resp = self._session.get(url, timeout=self.timeout)
-            resp.raise_for_status()
             feed = feedparser.parse(resp.content)
         except Exception as e:
-            logger.warning("News fetch failed for '%s': %s", query, e)
+            logger.warning("News parse failed for '%s': %s", query, e)
             return []
 
         items = []
@@ -530,6 +560,8 @@ class StrictNewsFetcher:
                     score += val
             item.relevance_score = min(score, 100)
         return items
+
+
 
     def reset_run_state(self):
         """Clear per-run dedupe and query caches (call at each report run start)."""
@@ -684,6 +716,34 @@ def reset_news_state(fetcher=None):
             fetcher.reset_run_state()
         except Exception:
             pass
+
+
+def _collapse_near_duplicates(items):
+    """Collapse items sharing a news_dedupe_key, keeping highest tier then recency."""
+    if not items:
+        return items
+    best: dict[str, Any] = {}
+    for it in items:
+        dt = _item_published_dt(it)
+        key = news_dedupe_key(_item_title(it), _item_source(it),
+                              (dt.date().isoformat() if isinstance(dt, datetime) else ""), _item_url(it))
+        prev = best.get(key)
+        if prev is None:
+            best[key] = it
+            continue
+        try:
+            t_prev = source_tier(_item_source(prev), _item_url(prev))
+            t_cur = source_tier(_item_source(it), _item_url(it))
+        except Exception:
+            t_prev = t_cur = 2
+        if t_cur < t_prev:
+            best[key] = it
+        elif t_cur == t_prev:
+            d_prev = _item_published_dt(prev)
+            d_cur = _item_published_dt(it)
+            if isinstance(d_cur, datetime) and (not isinstance(d_prev, datetime) or d_cur > d_prev):
+                best[key] = it
+    return list(best.values())
 
 
 def fetch_macro_news(
@@ -1433,3 +1493,85 @@ def extract_catalysts(items, *, now=None, max_days: int = 120) -> list[dict]:
             continue
     out.sort(key=lambda e: (e["date"], e["ticker"]))
     return out
+
+def score_feed_quality(items, now=None):
+    """Re-score relevance with source tier weight, freshness decay and
+    cross-source corroboration.
+
+    Mutates ``relevance_score`` in place and returns ``items`` sorted by
+    (score desc, published_dt desc). Never raises.
+    """
+    if not items:
+        return items
+    ref = now if isinstance(now, datetime) else datetime.now(timezone.utc)
+    if ref.tzinfo is None:
+        ref = ref.replace(tzinfo=timezone.utc)
+
+    TIER_WEIGHT = {0: 1.25, 1: 1.15, 2: 1.0, 3: 0.85}
+
+    buckets: dict[str, set[str]] = {}
+    for it in items:
+        dt = _item_published_dt(it)
+        if not isinstance(dt, datetime):
+            dt = ref
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        key = news_dedupe_key(_item_title(it), _item_source(it), dt.date().isoformat(), _item_url(it))
+        src = (_item_source(it) or "").strip().lower() or "unknown"
+        buckets.setdefault(key, set()).add(src)
+
+    for it in items:
+        try:
+            if isinstance(it, dict):
+                base = int(it.get("relevance_score", 0) or 0)
+            else:
+                base = int(getattr(it, "relevance_score", 0) or 0)
+        except (TypeError, ValueError):
+            base = 0
+        src = _item_source(it)
+        url = _item_url(it)
+        try:
+            tier = int(source_tier(src, url))
+        except Exception:
+            tier = 3
+        tw = TIER_WEIGHT.get(tier, 1.0)
+        dt = _item_published_dt(it)
+        if isinstance(dt, datetime):
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            age_h = max((ref - dt).total_seconds() / 3600.0, 0.0)
+        else:
+            age_h = 24.0
+            dt = ref
+        freshness = max(0.3, 1.0 - age_h / 48.0)
+        key = news_dedupe_key(_item_title(it), src, (dt.date().isoformat() if isinstance(dt, datetime) else ""), url)
+        n_sources = len(buckets.get(key, {src.strip().lower() or "unknown"}))
+        corroboration = 1.0 + 0.15 * max(0, n_sources - 1)
+        if corroboration > 1.45:
+            corroboration = 1.45
+        new_score = int(round(base * tw * freshness * corroboration))
+        if new_score > 100:
+            new_score = 100
+        if new_score < 0:
+            new_score = 0
+        try:
+            if isinstance(it, dict):
+                it["relevance_score"] = new_score
+            else:
+                it.relevance_score = new_score
+        except Exception:
+            pass
+
+    def _keyfn(x):
+        try:
+            sc = int(x.get("relevance_score", 0) if isinstance(x, dict) else getattr(x, "relevance_score", 0) or 0)
+        except (TypeError, ValueError):
+            sc = 0
+        dt = _item_published_dt(x)
+        ts = 0.0
+        if isinstance(dt, datetime):
+            ts = (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).timestamp()
+        return (sc, ts)
+
+    items.sort(key=_keyfn, reverse=True)
+    return items

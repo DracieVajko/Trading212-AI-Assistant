@@ -130,53 +130,22 @@ def parse_ai_recommendations(json_str: str) -> dict:
     - {"error": "...", "raw_response": "..."} if validation fails
     """
     import json
-    
-    if not json_str or not json_str.strip():
+
+    if not json_str or not str(json_str).strip():
         return {"error": "Empty response from model", "raw_response": ""}
-    
-    # Clean up the response
-    cleaned = json_str.strip()
-    
-    # Remove markdown code fences
-    if cleaned.startswith("```json"):
-        cleaned = cleaned[7:]
-    elif cleaned.startswith("```"):
-        cleaned = cleaned[3:]
-    cleaned = cleaned.removesuffix("```")
-    cleaned = cleaned.strip()
-    
-    # Strip <answer> tags if present
-    if cleaned.startswith("<answer>") and cleaned.endswith("</answer>"):
-        cleaned = cleaned[8:-9].strip()
-    
-    # Strip markdown code fences
-    if cleaned.startswith("```"):
-        lines = cleaned.split('\n')
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        cleaned = "\n".join(lines).strip()
-    
-    # Strip <answer> tags
-    if cleaned.startswith("<answer>") and cleaned.endswith("</answer>"):
-        cleaned = cleaned[8:-9].strip()
-    
-    if not cleaned.strip():
-        return {"error": "Empty response after cleaning", "raw_response": ""}
-    
-    try:
-        data = json.loads(cleaned)
-    except json.JSONDecodeError as e:
-        return {"error": f"Invalid JSON: {e}", "raw_response": cleaned[:500]}
-    
+
+    from investment_engine.providers.output_sanitizer import sanitize_llm_json
+
+    cleaned = sanitize_llm_json(json_str)
+    if cleaned is None:
+        return {"error": "Invalid JSON: could not parse", "raw_response": str(json_str)[:500]}
+
     # Validate against schema
     try:
-        validated = AIRecommendations.model_validate(data)
-        # Convert to dict for compatibility
+        validated = AIRecommendations.model_validate(cleaned)
         return validated.model_dump(mode="json")
     except Exception as e:
-        return {"error": f"Schema validation failed: {e}", "raw_response": json_str[:500] if 'json_str' in locals() else "no response"}
+        return {"error": f"Schema validation failed: {e}", "raw_response": str(json_str)[:500]}
 
 
 def validate_ai_recommendations(ai_recs: dict) -> dict:
