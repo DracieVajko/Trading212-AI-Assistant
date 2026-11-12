@@ -417,9 +417,16 @@ py -3.12 scripts/verify_environment.py   :: preflight incl. matplotlib + pip-che
 
 ## Security model
 
-- **Read-only broker.** The Trading212 client refuses every non-GET call at
-  code level (`trading212/auth.py`); use a read-only API key (the server
-  answers 403 otherwise). No order endpoints are called anywhere.
+- **Broker access has three layers** (see `docs/security.md`):
+  1. Read-only analysis (`trading212/` package): `Trading212Auth.make_request`
+     refuses every non-GET call at code level.
+  2. Demo order execution (`investment_engine/day_trader/broker/t212_orders.py`):
+     POST/DELETE on a demo client, gated by `guard.evaluate`, the order ledger
+     and a kill switch.
+  3. Live-capable low-level client (same module, `environment="live"`):
+     writes blocked unless `T212_LIVE_ORDER_ENABLED=1` and
+     `T212_LIVE_ACK=I_UNDERSTAND_LIVE_TRADING`. Disabled by default; no
+     shipped configuration enables it.
 - **Outbound traffic is GET-only market data** (yfinance, RSS, TradingView
   pages) plus the configured local/cloud LLM endpoints. Queries carry public
   identifiers only (ticker, company, topic) — never positions, values,
@@ -428,21 +435,9 @@ py -3.12 scripts/verify_environment.py   :: preflight incl. matplotlib + pip-che
   (gitignored). Tracked are only `*.example.*` placeholders and `.gitkeep`.
 - **Scraped news is sanitized** before use: prompt-injection shapes are
   quarantined (hash retained, text dropped), query strings stripped.
-- **Agent (opencode) allowlist:** read/write confined to this repository;
-  approve external access only for a dedicated temp folder such as
-  `%TEMP%\opencode` (Windows) or `$TMPDIR/opencode` (macOS/Linux).
-  Scripts default to writing under `agent_data/{scratch,charts,decision_log}/`;
-  reports/logs go to the gitignored `reports/` and `logs/`.
-- **Single output root:** the CLI pins its working directory to the project
-  folder (`portfolio_ai_assistant.py`'s directory), so Task Scheduler entries,
-  shortcuts, or shells started elsewhere always write into this folder.
-- **Excel export:** every full run writes `reports/current/holdings.xlsx` with
-  standalone vs PIE-grouped holdings (ticker, company, quantity, avg/current
-  price, value, P&L, weight).
-- **Permanent memory:** `history/history.db` + `history/live/` + `history/demo/`
-  keep buys, sells and AI decisions with reasons. `cleanup.bat` and
-  `purge_outputs.bat` only touch `reports/` and `logs/`, never `history/`.
-  Query with `py -3.12 portfolio_ai_assistant.py --history`.
+- **Permanent memory:** `history/` keeps buys, sells and AI decisions with
+  reasons. `cleanup.bat` and `purge_outputs.bat` only touch `reports/` and
+  `logs/`, never `history/`.
 - **Mode separation:** logs go to `logs/live/` or `logs/demo/`; day-trader
   reports go to `reports/day_trader/live/` or `reports/day_trader/demo/`.
 

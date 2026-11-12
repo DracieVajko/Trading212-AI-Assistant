@@ -1,17 +1,11 @@
 """
-Trading212 API Authentication Module
+Trading212 API Authentication Module.
 
-Trading212 API v0 uses a SINGLE API key.
-Auth header: Authorization: <api_key>   (no Bearer, no Basic, just the key)
-
-Actual T212 response fields:
-  /equity/account/cash  → { free, invested, pieCash, result, total }
-  /equity/account/info  → { currencyCode, id }
-  /equity/portfolio     → [ { ticker, quantity, averagePrice, currentPrice,
-                               ppl, fxPpl, initialFillDate, maxBuy, maxSell,
-                               pieQuantity } ]
-  /equity/history/orders?limit=N → { items: [...] }
+Trading212 uses HTTP Basic Authentication: the API key is the username and
+the password is left empty, i.e. ``Authorization: Basic base64(api_key:)``.
+An optional api_secret, if supplied, is used as the password (legacy/compat).
 """
+
 
 import requests
 import time
@@ -36,8 +30,9 @@ class Trading212Auth:
 
     def __init__(self, api_key: str, api_secret: str = None, account_id: str = None):
         """
-        T212 API v0 (current) uses HTTP Basic Auth: base64(api_key:api_secret).
-        Both api_key and api_secret are required.
+        T212 HTTP Basic Auth: base64(api_key:api_secret), with api_secret
+        defaulting to an empty string per the official contract (key as
+        username, empty password).
         """
         self.api_key = api_key
         self.api_secret = api_secret or ""
@@ -50,8 +45,8 @@ class Trading212Auth:
 
     def generate_auth_header(self) -> Dict[str, str]:
         """
-        T212 Basic Auth: Authorization: Basic base64(api_key:api_secret)
-        api_key = username, api_secret = password.
+        T212 Basic Auth: Authorization: Basic base64(api_key:api_secret).
+        api_key = username, api_secret = password (empty by default).
         """
         if not self.api_key:
             raise ValueError("API key is required")
@@ -110,10 +105,14 @@ class Trading212Auth:
                     response = self.session.request(method, url, json=data, **kwargs)
 
                 if response.status_code == 429:
-                    # Better 429 handling with exponential backoff + jitter
-                    wait = int(response.headers.get("Retry-After", 2 ** attempt * 10))
-                    wait = min(wait, 120)  # Cap at 2 minutes
-                    print(f"[Trading212Auth] Rate limited (429), waiting {wait}s... (attempt {attempt + 1}/{retry_count})")
+                    try:
+                        wait = int(response.headers.get("Retry-After", "") or "")
+                    except (TypeError, ValueError):
+                        wait = 0
+                    if wait <= 0:
+                        wait = min(2 ** attempt * 2, 60)
+                    wait = min(wait, 120)
+                    logger.warning("Trading212 429 (attempt %d/%d); sleeping %ds", attempt + 1, retry_count, wait)
                     time.sleep(wait)
                     continue
 

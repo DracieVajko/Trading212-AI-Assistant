@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Environment verification (offline, no secrets)
+        run: python scripts/verify_environment.py
+
+      - name: Run test suite
+        run: python -m pytest tests/ -q
+        env:
+          # Keep all providers local/disabled; never put real credentials here.
+          TRADING212_API_KEY: ""
+          TRADING212_API_SECRET: ""
+          T212_LIVE_ORDER_ENABLED: "0"
+          LMSTUDIO_ENABLED: "0"
+          API_ONLY: "1"
+
+      - name: Secret scan (no private data in tracked files)
+        run: |
+          if git grep -nE '100\.88\.219\.120|100\.125\.47\.31|C:/Users/DracieVajko|AIza[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}' -- . ; then
+            echo "Potential secret/private data found"; exit 1
+          else
+            echo "Secret scan clean"
+          fi
