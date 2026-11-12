@@ -20,6 +20,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Runtime diagnostics belong inside the project, never beside it.
+ROOT = Path(__file__).resolve().parents[1]
+
 
 # ===========================================================================
 # TRADING212 AUTHENTICATION
@@ -311,7 +314,7 @@ def dump_raw_t212_diagnostics(client: "Trade212Client", run_id: str = None) -> D
         run_id = str(uuid.uuid4())[:8]
     
     timestamp = datetime.now().isoformat()
-    dump_dir = Path("reports")
+    dump_dir = ROOT / "reports"
     dump_dir.mkdir(parents=True, exist_ok=True)
     dump_path = dump_dir / f"raw_endpoint_dump_{run_id}.json"
     
@@ -419,7 +422,7 @@ def dump_raw_t212_diagnostics(client: "Trade212Client", run_id: str = None) -> D
     
     # Save full dump to file
     try:
-        dump_path = Path("reports") / f"raw_endpoint_dump_{run_id}.json"
+        dump_path = ROOT / "reports" / f"raw_endpoint_dump_{run_id}.json"
         dump_path.parent.mkdir(parents=True, exist_ok=True)
         dump_path.write_text(json.dumps({
             "run_id": run_id,

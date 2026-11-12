@@ -18,10 +18,12 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+ROOT = Path(__file__).resolve().parents[2]
+
 
 # Cache configuration (created lazily on first write — never at import time,
 # so importing this module has no filesystem side effects).
-CACHE_DIR = Path("reports/playwright_cache")
+CACHE_DIR = ROOT / "reports/playwright_cache"
 DEFAULT_CACHE_TTL_HOURS = 6
 MAX_RETRIES = 3
 BASE_RETRY_DELAY = 2.0  # seconds
@@ -117,8 +119,8 @@ class PlaywrightMapper:
     and generating robust selector maps.
     """
     
-    def __init__(self, output_dir: Path = Path("reports/playwright_maps")):
-        self.output_dir = output_dir
+    def __init__(self, output_dir: Path = None):
+        self.output_dir = Path(output_dir) if output_dir is not None else ROOT / "reports/playwright_maps"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.recorded_steps: list[dict] = []
         

@@ -37,7 +37,7 @@ def setup_debug_layer(run_id: str, base_dir: Path | None = None) -> dict[str, Pa
     debug_dir.mkdir(parents=True, exist_ok=True)
 
     # Prune old debug folders
-    _prune_debug_layer(base_dir=Path("reports") / "debug")
+    _prune_debug_layer(base_dir=ROOT / "reports" / "debug")
 
     paths = {
         "debug_dir": debug_dir,
@@ -133,7 +133,7 @@ def save_ai_context_layer(
     Returns (context_file_path, portfolio_analysis_path).
     """
     if base_dir is None:
-        base_dir = Path("reports")
+        base_dir = ROOT / "reports"
     ai_context_dir = base_dir / "ai_context"
     ai_context_dir.mkdir(parents=True, exist_ok=True)
 
