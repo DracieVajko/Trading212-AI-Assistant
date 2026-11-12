@@ -81,3 +81,11 @@ def test_live_order_blocked_no_network(monkeypatch):
     c.session.post = MagicMock(side_effect=AssertionError("no network"))
     res = c.place_market_order("AAPL_US_EQ", 1)
     assert res.get("status") == "blocked"
+
+
+def test_invalid_order_id_is_rejected_without_network():
+    c = _client()
+    c.session.get = MagicMock(side_effect=AssertionError("no network"))
+    c.session.delete = MagicMock(side_effect=AssertionError("no network"))
+    assert c.get_order("1/../../x").get("status") == "forbidden"
+    assert c.cancel_order("abc").get("status") == "forbidden"

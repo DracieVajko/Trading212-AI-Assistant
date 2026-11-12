@@ -33,7 +33,6 @@ def test_live_order_blocked_by_default_env(monkeypatch):
     monkeypatch.delenv("T212_LIVE_ORDER_ENABLED", raising=False)
     monkeypatch.delenv("T212_LIVE_ACK", raising=False)
     c = T212OrderClient("live", "key", "secret")
-    # Patch the session so no network call can happen.
     class _FakeSession:
         def post(self, *a, **k):
             raise AssertionError("no network call may occur for blocked live order")
@@ -68,10 +67,22 @@ def test_mirror_dry_run_places_no_orders():
         def get_positions(self):
             return [{"instrument": {"ticker": "AAPL_US_EQ"}, "quantity": 1.0}]
     live = _C(); demo = _C()
+    demo.environment = "demo"
+    live.environment = "live"
     cfg = DayTraderConfig()
     out = mirror_to_demo(live, demo, cfg, execute=False)
     assert out["mode"] == "dry-run"
     assert out["executed"] == []
+
+
+def test_mirror_blocks_when_demo_client_is_actually_live():
+    from investment_engine.day_trader.mirror import mirror_to_demo
+    class _C:
+        environment = "live"
+        def get_positions(self):
+            return []
+    out = mirror_to_demo(_C(), _C(), DayTraderConfig(), execute=True)
+    assert out["mode"] == "blocked"
 
 
 def test_env_mismatch_blocks_demo(monkeypatch):

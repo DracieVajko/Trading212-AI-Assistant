@@ -63,6 +63,8 @@ def mirror_to_demo(
     actions = compute_mirror_plan(live_client, demo_client)
     if not execute:
         return {"mode": "dry-run", "actions": actions, "executed": [], "blocked": []}
+    if getattr(demo_client, "environment", None) is not None and getattr(demo_client, "environment", "") != "demo":
+        return {"mode": "blocked", "actions": actions, "executed": [], "blocked": [{"reason": "demo client is not demo"}]}
 
     env = {
         "T212_ORDER_ENABLED": "1",

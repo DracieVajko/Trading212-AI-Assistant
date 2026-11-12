@@ -142,10 +142,18 @@ class T212OrderClient:
         return self._request("GET", "/api/v0/equity/orders")
 
     def get_order(self, order_id: int | str) -> dict[str, Any]:
-        return self._request("GET", f"/api/v0/equity/orders/{order_id}")
+        try:
+            oid = int(order_id)
+        except (TypeError, ValueError):
+            return {"error": "invalid order id", "status": "forbidden"}
+        return self._request("GET", f"/api/v0/equity/orders/{oid}")
 
     def cancel_order(self, order_id: int | str) -> dict[str, Any]:
-        return self._request("DELETE", f"/api/v0/equity/orders/{order_id}")
+        try:
+            oid = int(order_id)
+        except (TypeError, ValueError):
+            return {"error": "invalid order id", "status": "forbidden"}
+        return self._request("DELETE", f"/api/v0/equity/orders/{oid}")
 
     def place_market_order(self, ticker: str, quantity: float, extended_hours: bool = False) -> dict[str, Any]:
         body: dict[str, Any] = {"ticker": ticker, "quantity": quantity}
