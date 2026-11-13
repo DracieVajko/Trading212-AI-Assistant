@@ -451,7 +451,12 @@ py -3.12 scripts/verify_environment.py   :: preflight incl. matplotlib + pip-che
    `LM_STUDIO_MODEL=<model-id>`.
 3. `MAX_CONCURRENT_MODELS=1` keeps loading exclusive: when the chain moves to
    another model, the previous one is evicted instead of stacking VRAM.
-4. Prompt sizing is conservative (`chars/2` heuristic) and controlled by
+4. `LM_STUDIO_BANNED_MODELS` (default `27b`) lists name fragments that must
+   never be loaded; `LM_STUDIO_EVICT_TIMEOUT_S` (default 120) is how long the
+   engine keeps retrying when LM Studio reloads a banned or foreign model
+   because a request was still queued. Exclusivity is re-verified before every
+   warmup, not just once at load time.
+5. Prompt sizing is conservative (`chars/2` heuristic) and controlled by
    `LM_STUDIO_CONTEXT_TOKENS` / `LM_STUDIO_MAX_OUTPUT_TOKENS`;
    `LM_STUDIO_REASONING_EFFORT=none` disables thinking tokens. A
    "context size has been exceeded" 400 is parsed for the real token count and

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+import os
 
 import requests
 
@@ -207,6 +208,84 @@ def _other_loaded_instances(entries: dict, keep: str) -> list[str]:
     return out
 
 
+def is_banned_model(model: str, patterns: list[str] | None) -> bool:
+    """True when the model name contains any banned pattern (case-insensitive)."""
+    name = str(model or "").strip().lower()
+    if not name:
+        return False
+    for pattern in patterns or []:
+        token = str(pattern or "").strip().lower()
+        if token and token in name:
+            return True
+    return False
+
+
+def evict_disallowed_models(
+    base_url: str,
+    allowed: set[str] | list[str],
+    *,
+    banned: list[str] | None = None,
+    timeout_s: float = 120.0,
+    poll_s: float = 3.0,
+) -> dict:
+    """Unload every loaded LLM outside ``allowed`` and keep it unloaded.
+
+    LM Studio can reload a model while a request is still queued; a single
+    unload then silently loses the race. This loop re-checks after every
+    unload and retries until the server is clean or ``timeout_s`` expires.
+    Models matching ``banned`` are evicted even when listed in ``allowed``.
+    Never raises.
+    """
+    allowed_norm = {str(a).strip().lower() for a in (allowed or []) if str(a).strip()}
+    banned_norm = [str(b).strip().lower() for b in (banned or []) if str(b).strip()]
+    evicted: list[str] = []
+    started = time.monotonic()
+
+    while True:
+        entries = v1_models(base_url)
+        if entries is None:
+            return {"status": "unavailable", "evicted": evicted, "remaining": []}
+
+        remaining: list[str] = []
+        for key, entry in (entries or {}).items():
+            if not isinstance(entry, dict):
+                continue
+            if str(entry.get("type") or "llm") != "llm":
+                continue
+            instances = entry.get("loaded_instances") or []
+            if not instances:
+                continue
+            key_l = str(key).strip().lower()
+            if key_l in allowed_norm and not is_banned_model(key_l, banned_norm):
+                continue
+            remaining.append(str(key))
+            first = instances[0] if isinstance(instances[0], dict) else {}
+            uid = str(first.get("id") or key)
+            ok = False
+            try:
+                ok = bool(unload_model_v1(base_url, uid))
+            except Exception:
+                ok = False
+            if not ok:
+                try:
+                    ok = bool(_unload_via_api(base_url, key))
+                except Exception:
+                    ok = False
+            if ok:
+                evicted.append(str(key))
+                logger.info("LM Studio evicted disallowed model %s (instance %s)", key, uid)
+            else:
+                logger.warning("LM Studio could not evict disallowed model %s yet", key)
+
+        if not remaining:
+            return {"status": "clean", "evicted": evicted, "remaining": []}
+
+        elapsed = time.monotonic() - started
+        if elapsed >= float(timeout_s):
+            return {"status": "timeout", "evicted": evicted, "remaining": remaining}
+        time.sleep(min(max(float(poll_s), 0.0), max(0.0, float(timeout_s) - elapsed)))
+
+
 def ensure_model_context(
     base_url: str,
     model: str,
@@ -270,6 +349,8 @@ class LMStudioProvider(BaseLLMProvider):
         auto_load: bool = True,
         exclusive_load: bool = True,
         max_concurrent_models: int = 1,
+        banned_models: list[str] | None = None,
+        evict_timeout_s: float | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -288,6 +369,16 @@ class LMStudioProvider(BaseLLMProvider):
         # (same behaviour Ollama gives for free).
         self.exclusive_load = bool(exclusive_load)
         self.max_concurrent_models = max(1, int(max_concurrent_models or 1))
+        if banned_models is None:
+            raw = os.getenv("LM_STUDIO_BANNED_MODELS", "27b")
+            banned_models = [p.strip() for p in raw.split(",") if p.strip()]
+        self.banned_models = list(banned_models)
+        if evict_timeout_s is None:
+            try:
+                evict_timeout_s = float(os.getenv("LM_STUDIO_EVICT_TIMEOUT_S", "120"))
+            except (TypeError, ValueError):
+                evict_timeout_s = 120.0
+        self.evict_timeout_s = max(0.0, float(evict_timeout_s))
         self._connect_timeout = 60  # seconds to establish connection
         self._read_timeout = 7200    # seconds to read response (model generation) - 2 hours
 
@@ -365,6 +456,9 @@ class LMStudioProvider(BaseLLMProvider):
         key = (self.base_url, model)
         if key in _model_failed:
             raise RuntimeError(f"Model '{model}' previously failed to load")
+        if is_banned_model(model, self.banned_models):
+            raise RuntimeError(
+                f"Model '{model}' is on the banned list ({self.banned_models}); refusing to load")
         # Context check runs on every call: a later stage may need more room.
         # v1 model state is cached briefly, so this is one cheap GET per TTL.
         # Hold the global warmup lock for the entire context-check + warmup so
@@ -378,6 +472,18 @@ class LMStudioProvider(BaseLLMProvider):
             # Context check runs inside the lock so exclusive unloading of other
             # models is not racy.
             self._ensure_context(model, prompt_tokens, output_tokens)
+            if self.exclusive_load and self.max_concurrent_models <= 1:
+                eviction = evict_disallowed_models(
+                    self.base_url,
+                    allowed={model},
+                    banned=self.banned_models,
+                    timeout_s=self.evict_timeout_s,
+                )
+                if eviction["status"] == "timeout":
+                    logger.warning(
+                        "LM Studio eviction timed out: still loaded %s (kept retrying for %.0fs)",
+                        eviction.get("remaining"), self.evict_timeout_s,
+                    )
             if key in _model_warmed:
                 return
             # Pre-flight: skip models the server does not serve instead of
