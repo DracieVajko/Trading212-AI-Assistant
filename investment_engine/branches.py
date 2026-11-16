@@ -97,11 +97,10 @@ def demo_snapshot() -> dict[str, Any]:
     invested = float(invest_block.get("currentValue") or 0.0)
     total_equity = float(summary.get("totalValue") or (cash + invested))
 
-    return {
+    snap = {
         "status": "ok",
         "reconciliation_ok": True,
-        "source": "t212_demo",
-        "account_id": summary.get("id"),
+        "source": "t212_demo",        "account_id": summary.get("id"),
         "account_summary": {
             "total_equity": total_equity,
             "cash_free": cash,
@@ -120,6 +119,19 @@ def demo_snapshot() -> dict[str, Any]:
             "detail": "demo snapshot derived from /equity/portfolio and account summary",
         },
     }
+    try:
+        from investment_engine.day_trader.demo_feedback import (
+            collect_and_score_demo_trades,
+            feedback_block,
+        )
+
+        collect_and_score_demo_trades(client)
+        block = feedback_block()
+        if block:
+            snap["demo_feedback"] = block
+    except Exception as exc:  # feedback is an enhancement, never a hard dependency
+        logger.debug("demo feedback unavailable: %s", exc)
+    return snap
 
 
 def run_branch(

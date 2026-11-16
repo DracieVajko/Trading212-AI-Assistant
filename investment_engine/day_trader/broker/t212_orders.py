@@ -18,6 +18,7 @@ ALLOWED_PATHS = {
     "/api/v0/equity/account/summary",
     "/api/v0/equity/positions",
     "/api/v0/equity/orders",
+    "/api/v0/equity/history/orders",
     "/api/v0/equity/orders/market",
     "/api/v0/equity/orders/limit",
     "/api/v0/equity/orders/stop",
@@ -140,6 +141,9 @@ class T212OrderClient:
 
     def get_orders(self) -> dict[str, Any]:
         return self._request("GET", "/api/v0/equity/orders")
+
+    def get_order_history(self, limit: int = 50) -> dict[str, Any]:
+        return self._request("GET", "/api/v0/equity/history/orders", params={"limit": limit})
 
     def get_order(self, order_id: int | str) -> dict[str, Any]:
         try:

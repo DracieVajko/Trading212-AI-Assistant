@@ -83,6 +83,16 @@ def test_live_order_blocked_no_network(monkeypatch):
     assert res.get("status") == "blocked"
 
 
+def test_order_history_uses_history_path():
+    c = _client()
+    c.session.get = MagicMock(return_value=_resp(200, {"items": []}))
+    out = c.get_order_history(limit=25)
+    assert out == {"items": []}
+    _args, kwargs = c.session.get.call_args
+    assert "/api/v0/equity/history/orders" in _args[0]
+    assert kwargs.get("params") == {"limit": 25}
+
+
 def test_invalid_order_id_is_rejected_without_network():
     c = _client()
     c.session.get = MagicMock(side_effect=AssertionError("no network"))

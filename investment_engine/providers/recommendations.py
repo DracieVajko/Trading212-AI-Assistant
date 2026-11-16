@@ -95,6 +95,8 @@ def _build_ai_recommendations(
     
     support_str = f"{key_levels['support']:.2f}" if key_levels['support'] else 'N/A'
     resistance_str = f"{key_levels['resistance']:.2f}" if key_levels['resistance'] else 'N/A'
+    demo_feedback = str((t212_data or {}).get("demo_feedback") or "").strip()
+    demo_block = f"\n{demo_feedback}\n" if demo_feedback else ""
     
     prompt = f"""You are a portfolio manager. Output ONLY valid JSON with specific trade actions.
 
@@ -107,6 +109,7 @@ PORTFOLIO:{recon_note}
 - Support: {support_str} | Resistance: {resistance_str}
 
 POSITIONS: {pos_summary}
+{demo_block}
 
 REGIME GUIDANCE: {regime_summary['action']} - Tech: {regime_summary['tech_allocation']}, Crypto: {regime_summary['crypto_allocation']}
 
