@@ -14,7 +14,7 @@ scipy==1.13.1  # required for scipy.signal.find_peaks in research/peak_valley.py
 # ddgs is intentionally not a dependency: news retrieval uses feedparser,
 # yfinance, and provider APIs instead.
 python-dotenv>=1.0.0,<2
-pydantic>=2.0.0,<3
+pydantic>=2.14.2,<3
 feedparser>=6.0.10,<7
 defusedxml>=0.7.1,<1.0  # hardened XML parsing for RSS/discovery feeds
 finvizfinance>=1.0.0,<2
