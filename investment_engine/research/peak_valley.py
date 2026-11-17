@@ -72,8 +72,8 @@ class PriceStructure:
                 "support": [l.to_dict() for l in self.key_levels.get("support", [])],
                 "resistance": [l.to_dict() for l in self.key_levels.get("resistance", [])],
             },
-            "nearest_support": round(self.nearest_support, 4) if self.nearest_support else None,
-            "nearest_resistance": round(self.nearest_resistance, 4) if self.nearest_resistance else None,
+            "nearest_support": round(self.nearest_support, 4) if self.nearest_support is not None else None,
+            "nearest_resistance": round(self.nearest_resistance, 4) if self.nearest_resistance is not None else None,
             "trend_quality": round(self.trend_quality, 3),
         }
 
@@ -146,23 +146,16 @@ class PeakValleyDetector:
         support_levels = key_levels.get("support", [])
         resistance_levels = key_levels.get("resistance", [])
         
-        # Nearest support: closest support level below current (or closest overall if none below)
+        # Nearest support: closest level strictly below current price. A valley
+        # above the price is resistance, not support — never fall back to it.
         support_below = [l for l in support_levels if l.price < current_price]
-        if support_below:
-            nearest_support = max(support_below, key=lambda l: l.price).price
-        elif support_levels:
-            nearest_support = min(support_levels, key=lambda l: abs(l.price - current_price)).price
-        else:
-            nearest_support = None
-        
-        # Nearest resistance: closest resistance level above current (or closest overall if none above)
+        nearest_support = max(support_below, key=lambda l: l.price).price if support_below else None
+
+        # Nearest resistance: closest level strictly above current price. A peak
+        # below the price is support; falling back to it would block every
+        # new-high entry ("entry at/above nearest resistance").
         resistance_above = [l for l in resistance_levels if l.price > current_price]
-        if resistance_above:
-            nearest_resistance = min(resistance_above, key=lambda l: l.price).price
-        elif resistance_levels:
-            nearest_resistance = min(resistance_levels, key=lambda l: abs(l.price - current_price)).price
-        else:
-            nearest_resistance = None
+        nearest_resistance = min(resistance_above, key=lambda l: l.price).price if resistance_above else None
 
         # Calculate trend quality
         trend_quality = self._calculate_trend_quality(peaks, valleys, close)
@@ -209,8 +202,6 @@ class PeakValleyDetector:
         # Overall range from recent extrema
         recent_peak_max = max(p.price for p in recent_peaks)
         recent_valley_min = min(v.price for v in recent_valleys)
-        min(p.price for p in recent_peaks)
-        max(v.price for v in recent_valleys)
         
         peak_range = (recent_peak_max - recent_valley_min) / recent_valley_min * 100 if recent_valley_min > 0 else 0
         

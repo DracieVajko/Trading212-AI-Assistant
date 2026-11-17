@@ -466,7 +466,24 @@ def fetch_technical_indicators(symbol: str, period: str = "3mo", interval: str =
     return None
 
 
-def _fetch_technical_yfinance(symbol: str, period: str = "3mo", interval: str = "1d") -> dict | None:
+def _support_resistance_levels(high: pd.Series, low: pd.Series, lookback: int = 20):
+    """Prior-bar support/resistance (excludes the current bar).
+
+    Including the current bar makes resistance >= today's high and support <=
+    today's low by construction, so a breakout/breakdown can never be detected
+    and the distance to the level is distorted. Shift by one bar so the levels
+    describe where price *came from*, not where it is now.
+    """
+    prior_high = high.shift(1).rolling(lookback).max()
+    prior_low = low.shift(1).rolling(lookback).min()
+    import pandas as pd
+
+    resistance = float(prior_high.iloc[-1]) if not pd.isna(prior_high.iloc[-1]) else None
+    support = float(prior_low.iloc[-1]) if not pd.isna(prior_low.iloc[-1]) else None
+    return support, resistance
+
+
+def _fetch_technical_yfinance(symbol: str, period: str = "1y", interval: str = "1d") -> dict | None:
     """Fetch technical indicators using yfinance (original implementation)."""
     import pandas as pd
     import yfinance as yf
@@ -506,9 +523,9 @@ def _fetch_technical_yfinance(symbol: str, period: str = "3mo", interval: str = 
     bb_upper = bb_mid + 2 * bb_std
     bb_lower = bb_mid - 2 * bb_std
     
-    # Support/Resistance (simple: recent lows/highs)
-    recent_high = high.rolling(20).max()
-    recent_low = low.rolling(20).min()
+    # Support/Resistance from the preceding 20 bars (the current bar excluded:
+    # otherwise resistance is always >= today's high and nothing can break out).
+    current_support, current_resistance = _support_resistance_levels(high, low, lookback=20)
     
     # ATR
     tr1 = high - low
@@ -526,8 +543,6 @@ def _fetch_technical_yfinance(symbol: str, period: str = "3mo", interval: str = 
     current_signal = float(signal.iloc[-1]) if not pd.isna(signal.iloc[-1]) else None
     current_bb_upper = float(bb_upper.iloc[-1]) if not pd.isna(bb_upper.iloc[-1]) else None
     current_bb_lower = float(bb_lower.iloc[-1]) if not pd.isna(bb_lower.iloc[-1]) else None
-    current_support = float(recent_low.iloc[-1]) if not pd.isna(recent_low.iloc[-1]) else None
-    current_resistance = float(recent_high.iloc[-1]) if not pd.isna(recent_high.iloc[-1]) else None
     current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else None
 
     # Native quote currency for this Yahoo listing (USD/EUR/GBp/DKK/...).

@@ -492,9 +492,13 @@ section of `portfolio_config.json`.
 All numeric outputs are deterministic Python — the same inputs always produce
 the same numbers:
 
-- **Technical indicators** — SMA/EMA/MACD/RSI (Wilder), Bollinger, ATR, ADX,
-  Supertrend, OBV, rolling VWAP; the manual engine is canonical (details in
-  [Technical indicators](#technical-indicators-optional-dependencies)).
+- **Technical indicators** — SMA/EMA/MACD/Bollinger, plus the frozen manual
+  variants of RSI, ATR and ADX (SMA-rolling, **not** Wilder RMA), a static-band
+  Supertrend and a rolling-20 VWAP. Support/resistance comes from the **prior**
+  20 bars (the current bar is excluded, so a breakout can actually be
+  detected), and the yfinance snapshot loads a full year so SMA_200 is
+  populated for long-term trend checks. The manual engine is canonical
+  (details in [Technical indicators](#technical-indicators-optional-dependencies)).
 - **Broker statement reconciliation** — deposits/withdrawals bridge to API net
   deposits, and the P&L bridge: realised P&L + dividends + interest − explicit
   costs + unrealised P&L (see the [reconciliation section](#trading-212-statement-reconciliation-optional)).
