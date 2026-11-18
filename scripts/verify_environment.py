@@ -34,7 +34,6 @@ CORE_MODULES = [
     "requests",
     "yfinance",
     "pandas",
-    "ddgs",
     "dotenv",
     "pydantic",
     "scipy",
@@ -56,7 +55,11 @@ SECRET_GUARDED_PATHS = ["api.env", "reports", "logs", "data/cache"]
 SECRET_GUARD_PROBES = {
     "api.env": "api.env",
     "reports": "reports/portfolio_analysis.json",
-    "logs": "logs",
+    # Probe a file inside the directory: bare "logs" is not reliably matched by
+    # the directory-only pattern "logs/" and is not representative of what a
+    # run writes (logs/*.log). The file probe keeps the guard strict without
+    # exempting the whole path.
+    "logs": "logs/ci.log",
     "data/cache": "data/cache",
 }
 
@@ -126,8 +129,48 @@ def _gitignore_covers(path: str) -> bool | None:
     return proc.returncode == 0
 
 
+def _check_core_modules() -> tuple[bool, list[str]]:
+    """Report required modules; any missing core dependency fails the gate."""
+    report: list[str] = []
+    ok = True
+    for mod in CORE_MODULES:
+        present = _spec_present(mod)
+        report.append(f"{mod}: {'PRESENT' if present else 'MISSING'}")
+        if not present:
+            ok = False
+    return ok, report
+
+
+def _gitignore_pattern_matches(path: str, pattern: str) -> bool:
+    """Match one .gitignore pattern against a repo-relative path.
+
+    Mirrors the git rules the guard depends on: a pattern without a slash
+    matches a name at any depth, a pattern with a slash is anchored to the
+    repository root, and a trailing slash restricts the match to directories.
+    A plain substring check would treat "log" as covering "logs/ci.log", which
+    git does not.
+    """
+    import fnmatch
+
+    target = path.strip("/").lower()
+    raw = pattern.strip().lower()
+    dir_only = raw.endswith("/")
+    pat = raw.strip("/")
+    if not target or not pat:
+        return False
+    if "/" in pat or dir_only:
+        if fnmatch.fnmatchcase(target, pat):
+            return True
+        return target.startswith(pat + "/")
+    return any(fnmatch.fnmatchcase(part, pat) for part in target.split("/"))
+
+
 def _gitignore_fallback_mentions(path: str) -> bool:
-    """Fallback when git is missing: look for a matching pattern line."""
+    """Fallback when git is missing: evaluate .gitignore patterns locally.
+
+    Uses last-match-wins so a later ``!negation`` can re-include a path, the
+    same way git resolves the file.
+    """
     gi = ROOT / ".gitignore"
     if not gi.is_file():
         return False
@@ -135,15 +178,17 @@ def _gitignore_fallback_mentions(path: str) -> bool:
         lines = gi.read_text(encoding="utf-8").splitlines()
     except OSError:
         return False
-    key = path.rstrip("/").lower()
+    ignored = False
     for raw in lines:
         line = raw.strip()
-        if not line or line.startswith("#") or line.startswith("!"):
+        if not line or line.startswith("#"):
             continue
-        norm = line.rstrip("/").lower()
-        if key in norm or norm in key:
-            return True
-    return False
+        negated = line.startswith("!")
+        if negated:
+            line = line[1:].strip()
+        if _gitignore_pattern_matches(path, line):
+            ignored = not negated
+    return ignored
 
 
 def _check_secret_guards() -> tuple[bool, list[str]]:
@@ -246,11 +291,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"python gate: OK ({REQUIRED_PYTHON_MAJOR}.{REQUIRED_PYTHON_MINOR}.x)")
 
     print("\n[core modules]")
-    for mod in CORE_MODULES:
-        present = _spec_present(mod)
-        print(f"  {mod}: {'PRESENT' if present else 'MISSING'}")
-        if not present:
-            failures_core = True
+    core_ok, core_lines = _check_core_modules()
+    for line in core_lines:
+        print(f"  {line}")
+    if not core_ok:
+        failures_core = True
 
     print("\n[optional modules]")
     for mod in OPTIONAL_MODULES:

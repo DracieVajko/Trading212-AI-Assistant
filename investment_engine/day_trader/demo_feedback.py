@@ -160,6 +160,51 @@ def recent_scores(limit: int = 5, path: str | Path | None = None) -> list[dict[s
     return rows[-limit:]
 
 
+def aggregated_stats(path: str | Path | None = None) -> dict[str, Any]:
+    """Aggregate win rate, avg score and best/worst per symbol over all scores."""
+    p = Path(path) if path is not None else SCORES_PATH
+    if not p.exists():
+        return {}
+    rows: list[dict[str, Any]] = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    if not rows:
+        return {}
+    by_symbol: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        sym = str(row.get("symbol", "?"))
+        score = (row.get("demo_score") or {}).get("score", 0)
+        net = (row.get("demo_score") or {}).get("breakdown", {}).get("net_pnl_eur", row.get("pnl_eur", 0))
+        bucket = by_symbol.setdefault(sym, {"count": 0, "wins": 0, "losses": 0,
+                                           "score_sum": 0.0, "pnl_sum": 0.0})
+        bucket["count"] += 1
+        bucket["score_sum"] += float(score or 0)
+        bucket["pnl_sum"] += float(net or 0)
+        if float(net or 0) > 0:
+            bucket["wins"] += 1
+        elif float(net or 0) < 0:
+            bucket["losses"] += 1
+    for sym, b in by_symbol.items():
+        b["win_rate"] = round(b["wins"] / b["count"], 3) if b["count"] else 0.0
+        b["avg_score"] = round(b["score_sum"] / b["count"], 4) if b["count"] else 0.0
+        b["avg_pnl"] = round(b["pnl_sum"] / b["count"], 2) if b["count"] else 0.0
+    total = len(rows)
+    total_wins = sum(1 for r in rows if float(((r.get("demo_score") or {}).get("breakdown", {}).get("net_pnl_eur", r.get("pnl_eur", 0)) or 0)) > 0)
+    return {
+        "total_closed": total,
+        "overall_win_rate": round(total_wins / total, 3) if total else 0.0,
+        "by_symbol": by_symbol,
+    }
+
+
 def feedback_block(limit: int = 5, path: str | Path | None = None) -> str:
     """Compact prompt block: recent closed demo trades and their scores."""
     rows = recent_scores(limit, path)
@@ -167,17 +212,27 @@ def feedback_block(limit: int = 5, path: str | Path | None = None) -> str:
         return ""
     positive = sum(1 for r in rows if _num((r.get("demo_score") or {}).get("score", 0)) > 0)
     negative = len(rows) - positive
+    stats = aggregated_stats(path)
     lines = [
         f"DEMO TRADE FEEDBACK (last {len(rows)} closed): {positive} positive, {negative} negative.",
-        "Treat negative outcomes as a penalty: do not repeat the same setup without fresh confirmation.",
     ]
+    if stats:
+        lines.append(f"Overall win rate: {stats.get('overall_win_rate', 0)} over {stats.get('total_closed', 0)} closed trades.")
+    lines.append("Treat negative outcomes as a penalty: do not repeat the same setup without fresh confirmation.")
     for row in rows:
         score = row.get("demo_score") or {}
         breakdown = score.get("breakdown") or {}
         pnl = breakdown.get("net_pnl_eur", row.get("pnl_eur", 0))
-        lines.append(
-            f"- {row.get('symbol')} {row.get('side')}: net {pnl} EUR, "
-            f"score {score.get('score')}, horizon {score.get('horizon')}, "
-            f"stop adhered {row.get('stop_loss_adhered')}"
-        )
+        lesson = row.get("lesson") or ""
+        line = (f"- {row.get('symbol')} {row.get('side')}: net {pnl} EUR, "
+                f"score {score.get('score')}, horizon {score.get('horizon')}, "
+                f"stop adhered {row.get('stop_loss_adhered')}")
+        if lesson:
+            line += f"\n  LESSON: {lesson}"
+        lines.append(line)
+    if stats and stats.get("by_symbol"):
+        lines.append("Per-symbol stats:")
+        for sym, b in stats["by_symbol"].items():
+            if b["count"] >= 2:
+                lines.append(f"  {sym}: {b['wins']}W/{b['losses']}L win_rate={b['win_rate']} avg_score={b['avg_score']} avg_pnl={b['avg_pnl']}")
     return "\n".join(lines)

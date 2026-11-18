@@ -97,9 +97,13 @@ def score_candidate(ticker: str, daily: pd.DataFrame, regime: dict, info: dict |
     wk = ts.weekly_macd_features(daily)
     tf = ts.trend_features(daily, cfg["max_gain_from_low"])
     pump = ts.pump_risk_flags(daily, info.get("marketCap"), cfg["min_dollar_vol"], cfg["min_cap"], cfg["penny"])
-    out = {"ticker": ticker, "held": held, "status": "REJECT", "score": 0.0, "base": 0.0,
-           "ext": 0.0, "components": {}, "reasons": [], "flags": []}
+    out = {"ticker": ticker, "held": held, "flags": []}
     if not (wk["ok"] and tf["ok"] and pump["ok"]):
+        out["status"] = "REJECT"
+        out["score"] = 0.0
+        out["base"] = 0.0
+        out["ext"] = 0.0
+        out["components"] = {}
         out["reasons"] = ["insufficient_data"]
         return out
 

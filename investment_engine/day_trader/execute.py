@@ -94,6 +94,18 @@ def demo_execution_allowed(allow_orders: bool, environment: str) -> bool:
     return bool(allow_orders) and str(environment).lower() == "demo"
 
 
+def live_execution_allowed(allow_orders: bool, environment: str) -> bool:
+    """Live buys only: allowed when explicitly enabled and environment is live."""
+    import os as _os
+    if not (bool(allow_orders) and str(environment).lower() == "live"):
+        return False
+    if _os.getenv("T212_LIVE_ORDER_ENABLED", "0") != "1":
+        return False
+    if _os.getenv("T212_LIVE_ACK", "") != "I_UNDERSTAND_LIVE_TRADING":
+        return False
+    return True
+
+
 def execute_demo_tickets(
     config: Any,
     payload: dict[str, Any] | None,

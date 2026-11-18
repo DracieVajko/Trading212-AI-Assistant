@@ -253,7 +253,7 @@ def summarize_cashflows(items: list[dict]) -> dict:
     never enter net deposits; fees/interest/tax stay display-only analytics.
     """
     totals = {"deposits": 0.0, "withdrawals": 0.0, "fees": 0.0,
-              "interest": 0.0, "tax": 0.0, "transfers": 0.0, "unknown": 0.0}
+              "interest": 0.0, "transfers": 0.0, "unknown": 0.0}
     unresolved = 0
     for it in items or []:
         if not isinstance(it, dict):

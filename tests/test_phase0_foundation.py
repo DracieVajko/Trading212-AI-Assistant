@@ -104,8 +104,16 @@ def test_api_env_example_has_only_placeholders():
         if not val:
             continue  # empty = provider skipped, safe
         lowered = val.lower()
-        if key in ("LMSTUDIO_ENABLED",) and lowered in ("0", "1", "true", "false"):
-            continue  # boolean policy flag cannot carry a text marker
+        if key in (
+            "LMSTUDIO_ENABLED",
+            "LM_STUDIO_BANNED_MODELS",
+            "LM_STUDIO_EVICT_TIMEOUT_S",
+            "LM_STUDIO_TASK_PRIORITY",
+            "LM_STUDIO_WATCHDOG_TIMEOUT_S",
+            "LM_STUDIO_WATCHDOG_POLL_S",
+            "OLLAMA_ENABLED",
+        ):
+            continue  # policy/limit values cannot carry a text marker
         assert any(
             marker in lowered
             for marker in ("paste-your", "placeholder", "example", "your-", "127.0.0.1", "localhost", "auto")
@@ -120,7 +128,9 @@ def test_api_env_example_no_localhost_secrets_leak(tmp_path):
         "TRADING212_API_KEY", "TRADING212_API_SECRET", "TRADING212_ACCOUNT_ID",
         "PROVIDER", "EXECUTION_MODE", "LMSTUDIO_ENABLED",
         "LM_STUDIO_BASE_URL", "LM_STUDIO_MODEL",
-        "OLLAMA_BASE_URL", "OLLAMA_MODEL", "LLAMACPP_BASE_URL", "LLAMACPP_MODEL",
+        "LM_STUDIO_BANNED_MODELS", "LM_STUDIO_EVICT_TIMEOUT_S",
+        "LM_STUDIO_TASK_PRIORITY", "LM_STUDIO_WATCHDOG_TIMEOUT_S", "LM_STUDIO_WATCHDOG_POLL_S",
+        "OLLAMA_BASE_URL", "OLLAMA_MODEL", "OLLAMA_ENABLED", "LLAMACPP_BASE_URL", "LLAMACPP_MODEL",
         "OPENROUTER_API_KEY", "GEMINI_API_KEY", "MISTRAL_API_KEY", "OPENCODE_ZEN_API_KEY",
         "GEMINI_MODEL", "OPENROUTER_MODEL", "MISTRAL_MODEL",
         "DECISION_MODEL", "WRITER_MODEL", "FINANCE_MODEL", "THINKING_MODEL",

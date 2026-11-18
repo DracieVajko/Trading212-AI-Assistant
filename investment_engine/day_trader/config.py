@@ -35,6 +35,7 @@ class ExecutionConfig:
     allowed_sides: list[str] = field(default_factory=lambda: ["BUY"])
     live_ack: str = ""
     unlimited: bool = False
+    live_buy_auto_approve: bool = False
 
 
 @dataclass
@@ -129,6 +130,7 @@ class DayTraderConfig:
                 broker=str(exec_raw.get("broker", "trading212")),
                 environment=str(exec_raw.get("environment", "demo")),
                 auto_approve=bool(exec_raw.get("auto_approve", False)),
+                live_buy_auto_approve=bool(exec_raw.get("live_buy_auto_approve", False)),
                 max_order_eur=float(exec_raw.get("max_order_eur", 50.0) or 50.0),
                 max_daily_orders=int(exec_raw.get("max_daily_orders", 2) or 2),
                 allowed_sides=list(exec_raw.get("allowed_sides", ["BUY"]) or ["BUY"]),
@@ -159,8 +161,8 @@ class DayTraderConfig:
         if self.execution.environment == "live":
             if not self.execution.live_ack:
                 raise ValueError("live execution requires execution.live_ack")
-            if self.execution.auto_approve:
-                raise ValueError("auto_approve is forbidden in live mode")
+            if self.execution.auto_approve and not self.execution.live_buy_auto_approve:
+                raise ValueError("auto_approve is forbidden in live mode (use live_buy_auto_approve)")
         if self.universe_limit <= 0:
             raise ValueError("universe_limit must be positive")
         if self.watchlist_limit <= 0:

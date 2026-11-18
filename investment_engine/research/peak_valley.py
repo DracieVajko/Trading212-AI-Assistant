@@ -141,21 +141,22 @@ class PeakValleyDetector:
         # Identify key levels (support/resistance)
         key_levels = self._identify_key_levels(peaks, valleys, close)
 
-        # Find nearest support/resistance
+        # Find nearest support/resistance. The nearest level is the closest
+        # individual extremum, not the nearest cluster centroid: the centroid
+        # can sit below the current price while the cluster's top is above it,
+        # which would hide real overhead resistance at a breakout.
         current_price = close.iloc[-1]
-        support_levels = key_levels.get("support", [])
-        resistance_levels = key_levels.get("resistance", [])
-        
-        # Nearest support: closest level strictly below current price. A valley
-        # above the price is resistance, not support — never fall back to it.
-        support_below = [l for l in support_levels if l.price < current_price]
-        nearest_support = max(support_below, key=lambda l: l.price).price if support_below else None
 
-        # Nearest resistance: closest level strictly above current price. A peak
-        # below the price is support; falling back to it would block every
+        # Nearest support: highest valley strictly below the current price. A
+        # valley above the price is resistance, not support.
+        valleys_below = [v.price for v in valleys if v.price < current_price]
+        nearest_support = max(valleys_below) if valleys_below else None
+
+        # Nearest resistance: lowest peak strictly above the current price. A
+        # peak below the price is support; falling back to it would block every
         # new-high entry ("entry at/above nearest resistance").
-        resistance_above = [l for l in resistance_levels if l.price > current_price]
-        nearest_resistance = min(resistance_above, key=lambda l: l.price).price if resistance_above else None
+        peaks_above = [p.price for p in peaks if p.price > current_price]
+        nearest_resistance = min(peaks_above) if peaks_above else None
 
         # Calculate trend quality
         trend_quality = self._calculate_trend_quality(peaks, valleys, close)

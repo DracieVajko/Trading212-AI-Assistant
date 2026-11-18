@@ -217,6 +217,14 @@ class EngineSettings:
     #: Max concurrent local LLM models loaded at once. Default 1 (single-model policy).
     #: Set to 2+ only on hardware that can hold multiple models in VRAM.
     max_concurrent_models: int = _env_int("MAX_CONCURRENT_MODELS", 1)
+    #: Watchdog mode for automated tasks sharing LM Studio with interactive use:
+    #: True (default) = priority: evict foreign models; False = cooperative:
+    #: pause, release ours, wait for the foreign model to finish (timeout below).
+    lm_studio_task_priority: bool = _env_bool("LM_STUDIO_TASK_PRIORITY", True)
+    #: Max wait (seconds) in cooperative mode before falling back to the API.
+    lm_studio_watchdog_timeout_s: int = _env_int("LM_STUDIO_WATCHDOG_TIMEOUT_S", 3600)
+    #: Poll interval (seconds) while waiting for a foreign model to clear.
+    lm_studio_watchdog_poll_s: int = _env_int("LM_STUDIO_WATCHDOG_POLL_S", 15)
 
     # Per-stage LM Studio models (verified served 2026-10-12).
     # reasoning/math/thinking: openai/gpt-oss-20b (fast, 32k ctx).
@@ -267,6 +275,7 @@ class EngineSettings:
     llamacpp_context_tokens: int = _env_int("LLAMACPP_CONTEXT_TOKENS", 4096)
     
     # Ollama (separate from llama.cpp)
+    ollama_enabled: bool = _env_bool("OLLAMA_ENABLED", True)
     ollama_base_url: str = _env("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     ollama_model: str = _env("OLLAMA_MODEL", "qwen3.8-9b-pi")
     ollama_context_tokens: int = _env_int("OLLAMA_CONTEXT_TOKENS", 128000)

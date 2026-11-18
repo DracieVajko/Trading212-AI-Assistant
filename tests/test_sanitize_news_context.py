@@ -94,20 +94,22 @@ def test_fetch_rss_fallbacks_filters_and_never_raises(monkeypatch):
     assert fetcher.fetch_rss_fallbacks(["apple"]) == []
 
 
-def test_ai_context_layer_skips_identical_copy(monkeypatch, tmp_path):
+def test_ai_context_layer_skips_identical_copy(tmp_path):
     import time
 
     from investment_engine.reporting import report_structure as rs
 
-    monkeypatch.chdir(tmp_path)
-    ai_dir = tmp_path / "reports" / "ai_context"
+    # The layer is anchored to the project ROOT, not to the process cwd; the
+    # optional base_dir keeps tests (and callers) out of the real reports tree.
+    base_dir = tmp_path / "reports"
+    ai_dir = base_dir / "ai_context"
     ai_dir.mkdir(parents=True)
     target = ai_dir / "ai_context_r1.md"
     target.write_text("SAME", encoding="utf-8")
     before = target.stat().st_mtime
     time.sleep(0.02)
-    ctx, analysis = rs.save_ai_context_layer("r1", "SAME", {"a": 1})
+    ctx, analysis = rs.save_ai_context_layer("r1", "SAME", {"a": 1}, base_dir=base_dir)
     assert ctx.resolve() == target and analysis.is_file()
     assert target.stat().st_mtime == before  # no redundant rewrite
-    rs.save_ai_context_layer("r1", "DIFFERENT", {"a": 1})
+    rs.save_ai_context_layer("r1", "DIFFERENT", {"a": 1}, base_dir=base_dir)
     assert target.read_text(encoding="utf-8") == "DIFFERENT"

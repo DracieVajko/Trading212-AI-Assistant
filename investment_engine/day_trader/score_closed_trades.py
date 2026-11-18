@@ -7,7 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from .scoring import score_demo_trade
+from .scoring import score_demo_trade, DemoTradeScore
 
 ROOT = Path(__file__).resolve().parents[2]
 SCORES_PATH = ROOT / "history" / "demo" / "scores.jsonl"
@@ -42,6 +42,28 @@ def _load_existing_keys(path: Path) -> set[tuple[Any, ...]]:
     return keys
 
 
+def _lesson(trade: dict[str, Any], score: DemoTradeScore) -> str:
+    """Short, actionable lesson derived from a closed demo trade."""
+    symbol = str(trade.get("symbol", "UNKNOWN"))
+    side = str(trade.get("side", "BUY")).upper()
+    net_pnl = float((score.breakdown or {}).get("net_pnl_eur", 0.0) or 0.0)
+    sl = trade.get("stop_loss_adhered")
+    horizon = score.horizon
+    if net_pnl > 0:
+        base = f"{symbol} {side} closed profitably ({net_pnl:+.2f} EUR) on {horizon} horizon."
+    elif net_pnl < 0:
+        base = f"{symbol} {side} lost {net_pnl:.2f} EUR on {horizon} horizon - penalty."
+    else:
+        base = f"{symbol} {side} broke even on {horizon} horizon."
+    if sl is False or (isinstance(sl, str) and sl.strip().lower() in ("false", "0", "no")):
+        base += " Stop-loss was NOT adhered - tighten execution discipline."
+    elif sl is True or (isinstance(sl, str) and sl.strip().lower() in ("true", "1", "yes")):
+        base += " Stop-loss adhered - good risk management."
+    if score.score < -0.2:
+        base += " Do not repeat this setup without fresh confirmation."
+    return base
+
+
 def score_closed_demo_trades(
     trades: list[dict[str, Any]],
     *,
@@ -59,7 +81,8 @@ def score_closed_demo_trades(
     out: list[dict[str, Any]] = []
     for trade in trades or []:
         score = score_demo_trade(trade)
-        row = {**trade, "demo_score": asdict(score)}
+        row = {**trade, "demo_score": asdict(score),
+               "lesson": _lesson(trade, score)}
         out.append(row)
     if out:
         path = Path(scores_path) if scores_path is not None else SCORES_PATH

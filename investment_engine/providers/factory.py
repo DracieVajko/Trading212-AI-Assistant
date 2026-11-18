@@ -105,21 +105,27 @@ class ProviderFactory:
                     auto_load=getattr(settings, "lm_studio_auto_load", True),
                     exclusive_load=getattr(settings, "lm_studio_exclusive_load", True),
                     max_concurrent_models=getattr(settings, "max_concurrent_models", 1),
+                    watchdog_priority=getattr(settings, "lm_studio_task_priority", True),
+                    watchdog_timeout_s=getattr(settings, "lm_studio_watchdog_timeout_s", 3600),
+                    watchdog_poll_s=getattr(settings, "lm_studio_watchdog_poll_s", 15),
                 ))
             except Exception:
                 pass
         else:
             logger.info("ProviderFactory: LM Studio disabled by policy (LMSTUDIO_ENABLED=0)")
-        try:
-            chain.append(OllamaProvider(
-                base_url=settings.ollama_base_url,
-                model=settings.ollama_model,
-                max_context_tokens=settings.ollama_context_tokens,
-                max_output_tokens=settings.lm_studio_max_output_tokens,
-                **_ollama_kwargs(settings),
-            ))
-        except Exception:
-            pass
+        if bool(getattr(settings, "ollama_enabled", True)):
+            try:
+                chain.append(OllamaProvider(
+                    base_url=settings.ollama_base_url,
+                    model=settings.ollama_model,
+                    max_context_tokens=settings.ollama_context_tokens,
+                    max_output_tokens=settings.lm_studio_max_output_tokens,
+                    **_ollama_kwargs(settings),
+                ))
+            except Exception:
+                pass
+        else:
+            logger.info("ProviderFactory: Ollama disabled by policy (OLLAMA_ENABLED=0)")
         if len(chain) == 1:
             return chain[0]
         if chain:
@@ -206,6 +212,9 @@ class ProviderFactory:
                     auto_load=getattr(settings, "lm_studio_auto_load", True),
                     exclusive_load=getattr(settings, "lm_studio_exclusive_load", True),
                     max_concurrent_models=getattr(settings, "max_concurrent_models", 1),
+                    watchdog_priority=getattr(settings, "lm_studio_task_priority", True),
+                    watchdog_timeout_s=getattr(settings, "lm_studio_watchdog_timeout_s", 3600),
+                    watchdog_poll_s=getattr(settings, "lm_studio_watchdog_poll_s", 15),
                 )
                 chain.append(lm)
             except Exception:
@@ -214,20 +223,20 @@ class ProviderFactory:
             logger.info("ProviderFactory: LM Studio disabled by policy (LMSTUDIO_ENABLED=0)")
 
         # 2. Ollama (Raspberry Pi 5, Tailscale) – small-context last resort.
-        # Models on Pi (probed): ministral-3b-top (3.8B, 16k effective),
-        # moondream (vision, 2k). The full portfolio prompt usually exceeds this
-        # window; LM Studio is the primary link.
-        try:
-            ollama = OllamaProvider(
-                base_url=settings.ollama_base_url,
-                model=settings.ollama_model,
-                max_context_tokens=settings.ollama_context_tokens,
-                max_output_tokens=settings.lm_studio_max_output_tokens,
-                **_ollama_kwargs(settings),
-            )
-            chain.append(ollama)
-        except Exception:
-            pass
+        if bool(getattr(settings, "ollama_enabled", True)):
+            try:
+                ollama = OllamaProvider(
+                    base_url=settings.ollama_base_url,
+                    model=settings.ollama_model,
+                    max_context_tokens=settings.ollama_context_tokens,
+                    max_output_tokens=settings.lm_studio_max_output_tokens,
+                    **_ollama_kwargs(settings),
+                )
+                chain.append(ollama)
+            except Exception:
+                pass
+        else:
+            logger.info("ProviderFactory: Ollama disabled by policy (OLLAMA_ENABLED=0)")
 
         # 4. Gemini – free tier fallback (first cloud link)
         if getattr(settings, "gemini_api_key", ""):
@@ -288,6 +297,9 @@ class ProviderFactory:
             auto_load=getattr(settings, "lm_studio_auto_load", True),
             exclusive_load=getattr(settings, "lm_studio_exclusive_load", True),
             max_concurrent_models=getattr(settings, "max_concurrent_models", 1),
+                    watchdog_priority=getattr(settings, "lm_studio_task_priority", True),
+                    watchdog_timeout_s=getattr(settings, "lm_studio_watchdog_timeout_s", 3600),
+                    watchdog_poll_s=getattr(settings, "lm_studio_watchdog_poll_s", 15),
         )
         # Explicit lmstudio request - still attach full fallback chain for robustness
         # (any cloud fallback key present: Gemini / Mistral / OpenRouter)
@@ -347,6 +359,8 @@ class ProviderFactory:
 
     @staticmethod
     def _ollama(settings: EngineSettings) -> BaseLLMProvider:
+        if not bool(getattr(settings, "ollama_enabled", True)):
+            raise RuntimeError("Ollama disabled by policy (OLLAMA_ENABLED=0)")
         primary = OllamaProvider(
             base_url=settings.ollama_base_url,
             model=settings.ollama_model,

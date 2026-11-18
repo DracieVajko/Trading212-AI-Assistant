@@ -538,6 +538,58 @@ def main() -> int:
                             print(f"Demo execute {_r['symbol']}: {_res['status']} {_res.get('reasons') or _res.get('error') or ''}{_extra}")
                     except Exception as _ex:
                         print(f"Demo execution skipped: {_ex}")
+                # Live buys only: bracket (entry + stop + take profit) on live account.
+                # Sells are never auto-placed on live - only via manual approval
+                # from report recommendations.
+                from investment_engine.day_trader.execute import live_execution_allowed
+                if live_execution_allowed(args.day_trader_allow_orders, "live"):
+                    try:
+                        import copy as _copy
+                        import os as _os
+                        from dotenv import load_dotenv as _ld
+                        _ld(str(ROOT / "api.env"))
+                        from investment_engine.day_trader import DayTraderConfig
+                        from investment_engine.day_trader.broker.t212_orders import T212OrderClient
+                        _live_cfg = _copy.deepcopy(_dt_cfg)
+                        _live_cfg.execution.environment = "live"
+                        _live_cfg.execution.enabled = True
+                        _live_cfg.execution.auto_approve = True
+                        _live_cfg.execution.live_buy_auto_approve = True
+                        _live_cfg.execution.live_ack = _os.getenv("T212_LIVE_ACK", "")
+                        _live_client = T212OrderClient(
+                            "live",
+                            _os.getenv("TRADING212_API_KEY"),
+                            _os.getenv("TRADING212_API_SECRET"),
+                        )
+                        _live_instruments = {}
+                        _src = locals().get("_positions")
+                        if not isinstance(_src, list):
+                            _src = []
+                        for _p in _src:
+                            _full = (_p.get("instrument") or {}).get("ticker") if isinstance(_p, dict) else None
+                            if _full:
+                                _live_instruments[str(_full).split("_")[0].upper()] = str(_full)
+                        if not _live_instruments:
+                            for _full in (locals().get("_portfolio_symbols") or []):
+                                _live_instruments[str(_full).split("_")[0].upper()] = str(_full)
+                        # Only BUY tickets on live; filter out any SELL.
+                        _live_payload = dict(_payload or {})
+                        _live_tickets = {}
+                        for _sym, _t in ((_payload or {}).get("tickets") or {}).items():
+                            _side = str((_t.get("side") if isinstance(_t, dict) else "") or "").upper()
+                            if _side == "BUY":
+                                _live_tickets[_sym] = _t
+                        _live_payload["tickets"] = _live_tickets
+                        _live_results = execute_demo_tickets(
+                            _live_cfg, _live_payload, _live_client, _live_instruments,
+                            db_path=str(ROOT / "data" / "day_trader" / "audit_live.db"),
+                            history_mode="live",
+                        )
+                        for _r in _live_results:
+                            _res = _r["result"]
+                            print(f"Live execute {_r['symbol']}: {_res['status']} {_res.get('reasons') or _res.get('error') or ''}")
+                    except Exception as _lex:
+                        print(f"Live execution skipped: {_lex}")
             except Exception as _dt_exc:
                 print(f"ERROR: day-trader planning failed: {_dt_exc}", file=sys.stderr)
         if args.day_trader_mirror_demo:

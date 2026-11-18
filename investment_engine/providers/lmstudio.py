@@ -21,6 +21,11 @@ from .context_budget import (
 )
 from .concurrency import get_manager as _get_concurrency_manager
 
+try:
+    from .lmstudio_watchdog import LMStudioWatchdog as _LMStudioWatchdog
+except Exception:  # pragma: no cover - optional, never blocks import
+    _LMStudioWatchdog = None
+
 logger = logging.getLogger(__name__)
 
 # Global lock for model warm-up
@@ -351,6 +356,9 @@ class LMStudioProvider(BaseLLMProvider):
         max_concurrent_models: int = 1,
         banned_models: list[str] | None = None,
         evict_timeout_s: float | None = None,
+        watchdog_priority: bool | None = None,
+        watchdog_timeout_s: float | None = None,
+        watchdog_poll_s: float | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -379,6 +387,28 @@ class LMStudioProvider(BaseLLMProvider):
             except (TypeError, ValueError):
                 evict_timeout_s = 120.0
         self.evict_timeout_s = max(0.0, float(evict_timeout_s))
+        # Watchdog: cooperative vs priority handling of foreign models.
+        if watchdog_priority is None:
+            watchdog_priority = str(os.getenv("LM_STUDIO_TASK_PRIORITY", "1")).strip().lower() in ("1", "true", "yes", "on")
+        self.watchdog_priority = bool(watchdog_priority)
+        try:
+            self.watchdog_timeout_s = max(60.0, float(watchdog_timeout_s if watchdog_timeout_s is not None else os.getenv("LM_STUDIO_WATCHDOG_TIMEOUT_S", "3600")))
+        except (TypeError, ValueError):
+            self.watchdog_timeout_s = 3600.0
+        try:
+            self.watchdog_poll_s = max(2.0, float(watchdog_poll_s if watchdog_poll_s is not None else os.getenv("LM_STUDIO_WATCHDOG_POLL_S", "15")))
+        except (TypeError, ValueError):
+            self.watchdog_poll_s = 15.0
+        self._watchdog = None
+        if _LMStudioWatchdog is not None:
+            self._watchdog = _LMStudioWatchdog(
+                self.base_url, self.model,
+                priority=self.watchdog_priority,
+                timeout_s=self.watchdog_timeout_s,
+                poll_s=self.watchdog_poll_s,
+                banned=self.banned_models,
+                evict_timeout_s=self.evict_timeout_s,
+            )
         self._connect_timeout = 60  # seconds to establish connection
         self._read_timeout = 7200    # seconds to read response (model generation) - 2 hours
 
@@ -471,6 +501,25 @@ class LMStudioProvider(BaseLLMProvider):
                 raise RuntimeError(f"Model '{model}' previously failed to load")
             # Context check runs inside the lock so exclusive unloading of other
             # models is not racy.
+            # Watchdog (cooperative mode): if a third party has loaded a model,
+            # pause, release ours, and wait for it to finish. On timeout, raise
+            # so the provider chain falls back to the cloud API.
+            if self._watchdog is not None and not self.watchdog_priority:
+                foreign = self._watchdog.foreign_loaded()
+                if foreign:
+                    logger.info(
+                        "watchdog (non-priority): foreign model(s) %s detected; "
+                        "releasing %s and waiting", foreign, model,
+                    )
+                    try:
+                        self.unload_model(model)
+                    except Exception:
+                        pass
+                    if not self._watchdog.wait_for_foreign_clear():
+                        raise RuntimeError(
+                            "watchdog timeout: foreign model still loaded after "
+                            f"{self.watchdog_timeout_s:.0f}s; falling back to API"
+                        )
             self._ensure_context(model, prompt_tokens, output_tokens)
             if self.exclusive_load and self.max_concurrent_models <= 1:
                 eviction = evict_disallowed_models(
