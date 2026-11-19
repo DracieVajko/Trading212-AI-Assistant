@@ -132,6 +132,7 @@ def test_lmstudio_enabled_by_default(monkeypatch):
     from investment_engine.providers.factory import ProviderFactory
 
     monkeypatch.delenv("LMSTUDIO_ENABLED", raising=False)
+    monkeypatch.setenv("OLLAMA_ENABLED", "1")
     assert EngineSettings().lmstudio_enabled is True
     chain = ProviderFactory._build_chain(EngineSettings())
     assert [p.name for p in chain][:2] == ["LM Studio", "Ollama"]

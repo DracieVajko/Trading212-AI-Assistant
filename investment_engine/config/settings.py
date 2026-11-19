@@ -275,7 +275,7 @@ class EngineSettings:
     llamacpp_context_tokens: int = _env_int("LLAMACPP_CONTEXT_TOKENS", 4096)
     
     # Ollama (separate from llama.cpp)
-    ollama_enabled: bool = _env_bool("OLLAMA_ENABLED", True)
+    ollama_enabled: bool = field(default_factory=lambda: _env_bool("OLLAMA_ENABLED", True))
     ollama_base_url: str = _env("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     ollama_model: str = _env("OLLAMA_MODEL", "qwen3.8-9b-pi")
     ollama_context_tokens: int = _env_int("OLLAMA_CONTEXT_TOKENS", 128000)

@@ -34,6 +34,7 @@ def evaluate(
     if not getattr(exec_cfg, "enabled", False):
         reasons.append("execution disabled in config")
     env_name = getattr(exec_cfg, "environment", "demo")
+    side = str(intent.get("side", "")).upper()
     if env_name == "demo":
         if env.get("T212_DEMO_ORDER_ENABLED") != "1" and env.get("T212_ORDER_ENABLED") != "1":
             reasons.append("T212_DEMO_ORDER_ENABLED not set")
@@ -69,7 +70,6 @@ def evaluate(
     if account_currency.upper() != "EUR":
         reasons.append(f"account currency {account_currency} not supported")
 
-    side = str(intent.get("side", "")).upper()
     if side not in [s.upper() for s in getattr(exec_cfg, "allowed_sides", [])]:
         reasons.append(f"side {side} not allowed")
 
