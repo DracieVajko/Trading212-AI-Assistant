@@ -680,14 +680,46 @@ them until they exist):
 No timeline promises — development happens between market hours and life.
 Nothing on this roadmap is an investment feature or a returns claim.
 
+## Training phase (script tuning, not model fine-tuning)
+
+The project is in a **training/tuning phase**: the goal is to make the
+deterministic script trigger the right trades at the right time, together with
+the connected LLM (LM Studio / Ollama / cloud fallback). The LLM itself is
+**never fine-tuned** — it is used only for interpretation, so every provider
+in the chain (local or cloud) keeps working and fallbacks stay intact.
+
+How the script "learns":
+
+- **Demo trade scoring** (`investment_engine/day_trader/scoring.py`): every
+  closed demo trade is scored on P&L (40 %), hold time (20 %), risk:reward
+  (20 %) and stop-loss adherence (20 %).
+- **Feedback loop** (`investment_engine/day_trader/demo_feedback.py`): scores,
+  per-symbol win rates and short "lessons" are injected into the AI prompt on
+  every run, so the model sees its own mistakes and avoids repeating them.
+- **Market playbook** (`docs/research/market-evaluation-playbook.md`): distilled
+  rules from external briefs; updated only with general, observable, testable
+  rules.
+- **Weekly earnings calendar**: a `stocks_earnings.md` file (date, ticker,
+  company) dropped into the project root each week is read automatically and
+  injected as an earnings-catalyst block into the AI prompt.
+- **Watchdog**: configurable priority/cooperative mode for sharing LM Studio
+  with interactive use; cooperative mode pauses and falls back to the cloud API
+  after 1 hour.
+
+Nothing here retrains model weights; all improvement is in the deterministic
+pipeline, prompts and feedback data.
+
 ## Limitations
 
 - **AI output is advisory interpretation, not advice.** It can be confidently
   wrong; the deterministic pipeline and your own judgment are the controls.
 - **No guaranteed returns.** Nothing here predicts markets; every metric
   describes the past.
-- **No live order execution.** Demo orders only, ledger-gated; the live
-  account is read-only by design.
+- **Live order execution (buys only).** Live BUY orders (with stop-loss /
+  take-profit brackets) are supported when `T212_LIVE_ORDER_ENABLED=1`,
+  `T212_LIVE_ACK=I_UNDERSTAND_LIVE_TRADING` and `T212_LIVE_BUY_AUTO_APPROVE=1`
+  are set. Live SELLs are never auto-placed — they require manual approval via
+  the report's recommendations. Demo orders remain ledger-gated.
 - **Single-user, local application.** No accounts, no server, no multi-user.
 - **Python 3.12 only** (developed on Windows; use `py -3.12`). pandas 3.x is
   unsupported (breaks frozen numerics); `pandas-ta` is optional and its
