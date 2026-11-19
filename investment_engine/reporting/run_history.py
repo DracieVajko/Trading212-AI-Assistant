@@ -19,6 +19,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 ROOT = Path(__file__).resolve().parents[2]
 
 _SECRET_RE = re.compile(
@@ -85,10 +89,10 @@ def record_run_event(event_path: str | Path, event: dict[str, Any]) -> None:
             try:
                 import os as _os
                 _os.fsync(f.fileno())
-            except Exception:
-                pass
-    except Exception:
-        pass
+            except  Exception:
+                logger.debug("best-effort ignore")
+    except  Exception:
+        logger.debug("best-effort ignore")
 
 
 def _parse_ts(value: Any) -> datetime | None:
@@ -142,8 +146,8 @@ def load_previous_run(archive_dir: str | Path, current_run_id: str) -> dict | No
                         disp = str(row.get("display_symbol") or row.get("ticker") or "").strip().upper()
                         if disp:
                             signals[disp] = str(row.get("signal", "")).upper()
-        except (OSError, ValueError):
-            pass
+        except  (OSError, ValueError):
+            logger.debug("best-effort ignore")
         stance = str(manifest.get("stance", "unknown"))
         return {
             "run_id": best["dir"].name,

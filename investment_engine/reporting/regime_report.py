@@ -10,12 +10,15 @@ from investment_engine.portfolio.broker_first import (
     AccountSnapshot,
     ReconciliationResult,
 )
+import logging
 from investment_engine.portfolio.symbols import (
     resolve_company_name,
     to_display_symbol,
 )
 from investment_engine.research.market_regime import RegimeResult
 from investment_engine.research.peak_valley import PriceStructure
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Signal normalization (single source of truth for portfolio vs actions)
@@ -106,8 +109,8 @@ def build_canonical_signals(
                 entry["raw"].append("hold-thesis")
                 entry["sources"].append("hold-thesis")
                 entry["thesis"] = str(note or "")
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     return canon
 
 
@@ -269,20 +272,20 @@ def sell_risk_rule(row: dict | None) -> bool:
     try:
         if float(row.get("weight", 0) or 0) >= 5.0:
             return True
-    except (TypeError, ValueError):
-        pass
+    except  (TypeError, ValueError):
+        logger.debug("best-effort ignore")
     try:
         if float(row.get("pnl_pct", 0) or 0) <= -8.0:
             return True
-    except (TypeError, ValueError):
-        pass
+    except  (TypeError, ValueError):
+        logger.debug("best-effort ignore")
     try:
         px = float(row.get("current_price", 0) or 0)
         sup = row.get("support")
         if sup is not None and px > 0 and px < float(sup):
             return True
-    except (TypeError, ValueError):
-        pass
+    except  (TypeError, ValueError):
+        logger.debug("best-effort ignore")
     return False
 
 
@@ -363,8 +366,8 @@ def apply_trade_safety(
                 _tq_reason = _trend_block((tech or {}).get("TREND_QUALITY"))
                 if _tq_reason:
                     reason = _tq_reason
-            except Exception:
-                pass
+            except  Exception:
+                logger.debug("best-effort ignore")
         if not reason and row is not None:
             try:
                 if float(row.get("weight", 0) or 0) >= concentration_cap_pct:
@@ -372,8 +375,8 @@ def apply_trade_safety(
                         f"weight {float(row.get('weight', 0)):.1f}% at/above "
                         f"concentration cap {concentration_cap_pct:.1f}%"
                     )
-            except (TypeError, ValueError):
-                pass
+            except  (TypeError, ValueError):
+                logger.debug("best-effort ignore")
         if not reason and row is not None:
             try:
                 pnl = float(row.get("pnl_pct", 0) or 0)
@@ -385,8 +388,8 @@ def apply_trade_safety(
                     rsi = float((tech or {}).get("RSI_14")) if tech and (tech or {}).get("RSI_14") is not None else None
                     if rsi is not None and rsi <= 30:
                         catalyst = True
-                except (TypeError, ValueError):
-                    pass
+                except  (TypeError, ValueError):
+                    logger.debug("best-effort ignore")
                 if not catalyst:
                     try:
                         from datetime import date as _d
@@ -396,16 +399,16 @@ def apply_trade_safety(
                             earn = val[0][:10] if isinstance(val, (tuple, list)) and val and isinstance(val[0], str) else None
                         if earn and 0 <= (_d.fromisoformat(earn) - _d.today()).days <= 14:
                             catalyst = True
-                    except (ValueError, TypeError):
-                        pass
+                    except  (ValueError, TypeError):
+                        logger.debug("best-effort ignore")
                 if not catalyst and row is not None:
                     try:
                         px = float(row.get("current_price", 0) or 0)
                         sup = row.get("support")
                         if sup is not None and px > 0 and abs(px - float(sup)) / px <= 0.02:
                             catalyst = True
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except  (TypeError, ValueError, ZeroDivisionError):
+                        logger.debug("best-effort ignore")
                 if not catalyst:
                     reason = "averaging down on negative P&L without oversold/trigger"
         if reason:
@@ -500,8 +503,8 @@ def build_unified_portfolio_rows(
         if not isin:
             try:
                 isin = isin_lookup.get(to_display_symbol(key, known_clean), "")
-            except Exception:
-                pass
+            except  Exception:
+                logger.debug("best-effort ignore")
         if isin:
             lot = _row_lot(p)
             dedupe_id = ("ISIN", isin, lot) if lot else ("ISIN", isin)
@@ -528,8 +531,8 @@ def build_unified_portfolio_rows(
             canon,
             [to_display_symbol((by_sym[k].get("display_symbol") or by_sym[k].get("symbol", k)), known_clean) for k in order],
         )
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     tech_lookup: dict[str, dict] = {}
     for k, v in (technicals or {}).items():
         if isinstance(v, dict):
@@ -655,8 +658,8 @@ def build_unified_portfolio_rows(
                         support = resistance = support_eur = resistance_eur = None
                         sr_fx_status = (
                             f"suspect (tech price {_tp_eur} vs broker {cur_price_eur:.2f})")
-        except Exception:
-            pass
+        except  Exception:
+            logger.debug("best-effort ignore")
 
         # Market-data support state for this row (no yfinance calls here;
         # universe-verified listings are admitted like table-verified ones).

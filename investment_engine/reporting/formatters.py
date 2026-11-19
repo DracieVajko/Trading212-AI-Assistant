@@ -7,6 +7,8 @@ module focused.
 
 from __future__ import annotations
 
+import logging
+
 from datetime import datetime, timezone
 
 from investment_engine.portfolio import t212_view
@@ -14,6 +16,8 @@ from investment_engine.reporting.sections import (
     _derive_top_risks,
     _provider_fallback_note,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _deterministic_summary(
@@ -33,8 +37,8 @@ def _deterministic_summary(
         free_cash = float(cash_map.get("free", 0) or 0)
         total_cash = (free_cash + float(cash_map.get("pie_cash", 0) or 0)
                       + float(cash_map.get("blocked", 0) or 0))
-    except (TypeError, ValueError):
-        pass
+    except  (TypeError, ValueError):
+        logger.debug("best-effort ignore")
     cash_pct = (total_cash / total_equity * 100.0) if total_equity > 0 else 0.0
     regime = str(getattr(regime_result, "regime", "NEUTRAL") or "NEUTRAL").upper()
     target = 10.0
@@ -153,8 +157,8 @@ def _kpi_dashboard(
                     buys += 1
                 elif s == "SELL":
                     sells += 1
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     total = buys + sells
     if total:
         actions_line = f"{total} actions ({buys} BUY / {sells} SELL)"
@@ -215,8 +219,8 @@ def _format_cash_deployment(
                     f"€{_recon2.get('reported_cash', 0):,.2f} reported cash — "
                     f"deployment withheld until account reconciliation passes."
                 )
-        except Exception:
-            pass
+        except  Exception:
+            logger.debug("best-effort ignore")
     free_cash = None
     deploy = None
     reserve = None
@@ -242,13 +246,13 @@ def _format_cash_deployment(
         _raw_target = (regime_result.implications or {}).get("cash_target_pct")
         if _raw_target is not None:
             cash_target_pct = float(_raw_target)
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     total_equity = 0.0
     try:
         total_equity = float(((t212_data or {}).get("account_summary") or {}).get("total_equity", 0) or 0)
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     # Explicit AI targets win — but never from empty cash (live 2026-10-12:
     # model proposed Deploy €450 with broker free €0.00). Zero-cash falls
     # through to the no-deployment branch below.
@@ -267,20 +271,20 @@ def _format_cash_deployment(
                 return _td4(str(a or "?"))
             tstr = ", ".join(f"{_tgt_disp(t.get('asset'))} €{float(t.get('amount', 0)):,.2f}" for t in targets[:3])
             return f"€{fc:,.2f} free — Deploy €{float(deploy):,.2f} to {tstr}; keep €{float(reserve or 0):,.2f} reserve (cash target {cash_target_pct:.0f}%)"
-        except Exception:
-            pass
+        except  Exception:
+            logger.debug("best-effort ignore")
     if deploy and fc > 0.01:
         try:
             return f"€{fc:,.2f} free — Deploy €{float(deploy):,.2f}; keep €{float(reserve if reserve is not None else fc - float(deploy)):,.2f} reserve (cash target {cash_target_pct:.0f}%)"
-        except Exception:
-            pass
+        except  Exception:
+            logger.debug("best-effort ignore")
     # Derive recommendation: BUY signals available?
     n_buy = 0
     try:
         from investment_engine.reporting.regime_report import normalize_signal as _norm2
         n_buy = sum(1 for r in (portfolio_rows or []) if _norm2(r.get("signal")) == "BUY")
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     fc_pct = (fc / total_equity * 100.0) if total_equity > 0 else 0.0
     if fc <= 0.01:
         if sell_plan_count is None:
@@ -332,8 +336,8 @@ def _format_earnings_radar(
         if missing:
             base += "\n\n*Earnings unavailable: " + ", ".join(missing[:12]) + ".*"
         return base.rstrip()
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     # Minimal deterministic fallback (same format, no imports).
     import re as _re2
     from datetime import date as _date

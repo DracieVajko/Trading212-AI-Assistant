@@ -8,6 +8,10 @@ from investment_engine.portfolio import t212_view
 from investment_engine.reporting.sections import _build_monitoring_block
 from investment_engine.schemas.context import T212Snapshot
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def _canonical_decisions(ai_recs: dict | None) -> dict[str, str]:
     """Canonical display-ticker → action map (see regime_report.build_canonical_signals).
@@ -24,8 +28,8 @@ def _canonical_decisions(ai_recs: dict | None) -> dict[str, str]:
             sig = (v.get("signal") if isinstance(v, dict) else v) or "HOLD"
             out.setdefault(str(disp).strip().upper(), str(sig))
         return out
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     canon: dict[str, str] = {}
     if not isinstance(ai_recs, dict):
         return canon
@@ -82,8 +86,8 @@ def _build_portfolio_names(all_active_assets, pie_blocks, t212_data: T212Snapsho
                     continue  # broker ID echoed as name — not a real company name
                 disp = _td2(t)
                 names.setdefault(disp, n)
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     try:
         for b in pie_blocks or []:
             for s in (b or {}).get("sample", []) or []:
@@ -92,8 +96,8 @@ def _build_portfolio_names(all_active_assets, pie_blocks, t212_data: T212Snapsho
                     names.setdefault(disp, str(s.get("name") or disp))
                 if isinstance(s, dict) and s.get("name") and s.get("slice"):
                     names.setdefault(_td2(str(s["slice"])), str(s["name"]))
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     try:
         pools: list[dict] = []
         if isinstance(t212_data, dict):
@@ -105,8 +109,8 @@ def _build_portfolio_names(all_active_assets, pie_blocks, t212_data: T212Snapsho
                 nm = str(p["name"]).strip()
                 if nm and nm.upper() != str(p["symbol"]).strip().upper():
                     names.setdefault(disp, nm)
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     for _k, _v in (COMPANY_OVERRIDES or {}).items():
         names.setdefault(str(_k).strip().upper(), str(_v))
     return names
@@ -149,8 +153,8 @@ def _apply_fail_watchlist_sweep(
                     r"\*\*" + _re7.escape(disp) + r"\s*\(WATCH\)(\*\*)?",
                     f"**{disp}** (HOLD)", summary_md)
         summary_md = _re7.sub(r"\bBUY\b(?=\*{0,2}\s+signals?)", "HOLD", summary_md)
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     summary_md = _re7.sub(r"\*\*Top Opportunities:?\*\*:?", "**Watchlist Candidates — WATCH:**", summary_md)
     summary_md = _re7.sub(r"\*\*BUY\*\*", "**WATCH**", summary_md)
     summary_md = _re7.sub(r"\(BUY(?=[,)])", "(WATCH", summary_md)
@@ -191,8 +195,8 @@ def _sanitized_t212_data(t212_data: T212Snapshot | None) -> T212Snapshot:
         summary = clean.get("account_summary")
         if isinstance(summary, dict):
             summary.pop("account_id", None)
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     return clean
 
 # Public aliases for cross-module use (private names remain the

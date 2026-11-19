@@ -11,6 +11,10 @@ from typing import Any
 from investment_engine.reporting.documents import _eur_level
 from investment_engine.run_state import FALLBACK_EVENTS as _FALLBACK_EVENTS
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def _provider_fallback_note() -> str:
     if not _FALLBACK_EVENTS:
@@ -65,8 +69,8 @@ def _build_monitoring_block(
             d = val[0][:10] if isinstance(val, (tuple, list)) and val and isinstance(val[0], str) else None
             if d:
                 earn_by_ticker[str(disp).strip().upper()] = d
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     items: list[str] = []
     for r in sorted(portfolio_rows or [], key=lambda x: float((x or {}).get("market_value", 0) or 0), reverse=True):
         if not isinstance(r, dict):
@@ -126,24 +130,24 @@ def _hold_trigger_reason(row: dict, earnings_date: str = "", tech: dict | None =
             delta = (_d.fromisoformat(earnings_date[:10]) - _d.today()).days
             if 0 <= delta <= 14:
                 return f"earnings in {delta}d"
-    except (ValueError, TypeError):
-        pass
+    except  (ValueError, TypeError):
+        logger.debug("best-effort ignore")
     try:
         if float(row.get("weight", 0) or 0) >= 5.0:
             return "weight >= 5%"
-    except (TypeError, ValueError):
-        pass
+    except  (TypeError, ValueError):
+        logger.debug("best-effort ignore")
     try:
         if abs(float(row.get("pnl_pct", 0) or 0)) >= 10.0:
             return "P&L move >= 10%"
-    except (TypeError, ValueError):
-        pass
+    except  (TypeError, ValueError):
+        logger.debug("best-effort ignore")
     rsi = (tech or {}).get("RSI_14") if isinstance(tech, dict) else None
     try:
         if rsi is not None and (float(rsi) <= 25 or float(rsi) >= 75):
             return f"RSI {float(rsi):.1f} extreme"
-    except (TypeError, ValueError):
-        pass
+    except  (TypeError, ValueError):
+        logger.debug("best-effort ignore")
     try:
         px = float(row.get("current_price", 0) or 0)
         # EUR-vs-EUR: row prices are EUR, so proximity must use the converted
@@ -152,8 +156,8 @@ def _hold_trigger_reason(row: dict, earnings_date: str = "", tech: dict | None =
                     row.get("resistance_eur", row.get("resistance"))):
             if lvl is not None and px > 0 and abs(px - float(lvl)) / px <= 0.02:
                 return "price near key level"
-    except (TypeError, ValueError, ZeroDivisionError):
-        pass
+    except  (TypeError, ValueError, ZeroDivisionError):
+        logger.debug("best-effort ignore")
     return ""
 
 
@@ -213,8 +217,8 @@ def _build_priority_actions_table(
             d = val[0][:10] if isinstance(val, (tuple, list)) and val and isinstance(val[0], str) else None
             if d:
                 earn_by_ticker[str(disp).strip().upper()] = d
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     holds: list[dict] = []
     for r in sorted([r for r in rows if r["_norm"] == "HOLD"], key=lambda r: float(r.get("market_value", 0) or 0), reverse=True):
         tech = (technicals or {}).get(r["_disp"])
@@ -250,8 +254,8 @@ def _build_priority_actions_table(
         try:
             if isinstance(tech, dict) and tech.get("RSI_14") is not None:
                 rsi_s = f"RSI {float(tech['RSI_14']):.1f}; "
-        except (TypeError, ValueError):
-            pass
+        except  (TypeError, ValueError):
+            logger.debug("best-effort ignore")
         earn = earn_by_ticker.get(ticker.strip().upper(), "")
         earn_s = f"earnings {earn}; " if earn else ""
         trig_s = f"trigger: {r['_trigger']}; " if r.get("_trigger") else ""
@@ -327,8 +331,8 @@ def _derive_top_risks(regime_result, t212_data, portfolio_rows, earnings_status,
             w = float(top.get("weight", 0) or 0)
             if w > 0:
                 items.append(f"Concentration: {top.get('ticker')} {w:.1f}% of equity (€{float(top.get('market_value', 0)):,.2f})")
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     # 2. Drawdown: worst unrealized P&L %.
     try:
         if rows:
@@ -338,8 +342,8 @@ def _derive_top_risks(regime_result, t212_data, portfolio_rows, earnings_status,
                 items.append(f"Drawdown: {worst.get('ticker')} {wp:+.1f}% (€{float(worst.get('unrealized_pnl', 0)):+,.2f})")
             elif worst.get("ticker"):
                 items.append(f"P&L laggard: {worst.get('ticker')} {wp:+.1f}% — limited cushion on pullback")
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     # 3. Earnings proximity: nearest upcoming earnings among holdings.
     try:
         tickers = {str(r.get("ticker", "")).strip().upper() for r in rows}
@@ -356,8 +360,8 @@ def _derive_top_risks(regime_result, t212_data, portfolio_rows, earnings_status,
         if upcoming:
             nxt = "; ".join(f"{t} {d}" for d, t in upcoming[:2])
             items.append(f"Earnings event risk: {nxt}")
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     # 4. Technical extremes (RSI overbought/oversold) from available technicals.
     try:
         extremes: list[str] = []
@@ -377,8 +381,8 @@ def _derive_top_risks(regime_result, t212_data, portfolio_rows, earnings_status,
                 extremes.append(f"{sym} oversold RSI {r:.1f}")
         if extremes:
             items.append("Technicals: " + "; ".join(sorted(set(extremes))[:2]))
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     # 5. Regime fallback (only to fill up to 2 items, still holding-aware).
     if len(items) < 2 and regime_result is not None:
         try:
@@ -388,8 +392,8 @@ def _derive_top_risks(regime_result, t212_data, portfolio_rows, earnings_status,
             else:
                 n = len(rows)
                 items.append(f"Market {reg}: {n} holdings exposed to broad pullback; no cash hedge beyond reserve")
-        except Exception:
-            pass
+        except  Exception:
+            logger.debug("best-effort ignore")
     if not items:
         # Last-resort holding-aware fallback (still never blank/dash).
         n = len(rows)
@@ -420,4 +424,3 @@ def _headlines_block(news: dict[str, list[dict]]) -> str:
     return "\n".join(parts) if parts else "None"
 
 headlines_block = _headlines_block
-

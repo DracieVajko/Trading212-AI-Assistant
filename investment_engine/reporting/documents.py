@@ -7,6 +7,7 @@ deterministically from canonical rows — no LLM prose enters either document.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date as _date
 from typing import Any
@@ -14,6 +15,8 @@ from typing import Any
 from investment_engine.portfolio import t212_view
 from investment_engine.reporting.regime_report import normalize_signal, signal_emoji
 from investment_engine.utils.coerce import coerce_float as _num
+
+logger = logging.getLogger(__name__)
 
 # Urgency weights (higher = more urgent). No hard item cap: every triggered
 # position is listed, sorted by urgency descending.
@@ -210,8 +213,8 @@ def build_monitoring_items(
                             break
                     except (TypeError, ValueError, ZeroDivisionError):
                         continue
-            except (TypeError, ValueError):
-                pass
+            except  (TypeError, ValueError):
+                logger.debug("best-effort ignore")
         else:
             # Technical levels not comparable - add REVIEW_MAPPING flag
             if ext_mapping_status in ("MAPPING_SUSPECT", "UNRESOLVED", "BROKER_ONLY", "NOT_REQUIRED"):
@@ -388,8 +391,8 @@ def build_intelligence_brief(result: dict) -> str:
         for note in (prev_result.get("equity_notes", {}) or {}).get("data", {}).get("notes", []) or []:
             if isinstance(note, dict):
                 prev_theses[str(note.get("ticker", "")).upper()] = str(note.get("thesis", "HOLD"))
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
 
     summary = t212_view.account_summary(result.get("t212_data"))
     cash = t212_view.cash(result.get("t212_data"))
@@ -427,8 +430,8 @@ def build_intelligence_brief(result: dict) -> str:
             _ts = _dt.fromisoformat(t212_ts.replace("Z", "+00:00"))
             _age_min = (_dt.now(_tz.utc) - _ts).total_seconds() / 60.0
             snapshot_age = f"{int(_age_min)} min ago" if _age_min < 90 else f"{_age_min / 60.0:.1f}h ago"
-        except Exception:
-            pass
+        except  Exception:
+            logger.debug("best-effort ignore")
     corpus_info = result.get("research_corpus", {}) or {}
     corpus_counts = corpus_info.get("counts", {}) or {}
     _corpus_total = corpus_counts.get("total", 0)
@@ -777,8 +780,8 @@ def build_intelligence_brief(result: dict) -> str:
         _profile = policy_info.get("profile") if isinstance(policy_info, dict) else None
         if isinstance(_profile, dict) and _profile.get("name"):
             lines.append(f"- {_profile_line(_profile)}")
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     # Concentration snapshot: effective holdings, top weights, small positions,
     # FX exposure by native quote currency. Pure arithmetic over broker rows.
     try:
@@ -817,8 +820,8 @@ def build_intelligence_brief(result: dict) -> str:
                 _fx_txt = ", ".join(f"{c}: {v['weight']:.1f}% ({v['count']})"
                                     for c, v in sorted(_fx.items(), key=lambda kv: -kv[1]["weight"])[:6])
                 lines.append(f"- FX exposure by quote currency: {_fx_txt}")
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     # Changes since previous run (if available)
     prev_run = result.get("previous_run", {}) or {}
     if prev_run:
@@ -955,8 +958,8 @@ def render_brief(
         _profile = (order_plans or {}).get("policy_profile") if isinstance(order_plans, dict) else None
         if isinstance(_profile, dict) and _profile.get("name"):
             lines.append(f"- {_profile_line(_profile)}")
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     if status == "FAIL":
         lines += ["", f"> {FAIL_PERFORMANCE_NOTE}"]
     if summary:
@@ -1449,8 +1452,8 @@ def build_deep_dive(
         _profile = (order_plans or {}).get("policy_profile") if isinstance(order_plans, dict) else None
         if isinstance(_profile, dict) and _profile.get("name"):
             lines += [_profile_line(_profile), ""]
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     if _plans and status != "FAIL":
         lines.append("> Advisory only — not executed. Confirm manually outside this program.")
         lines.append("")

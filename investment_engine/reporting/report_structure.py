@@ -67,8 +67,8 @@ def _prune_debug_layer(base_dir: Path) -> None:
                 # Try to parse as date from name or use mtime
                 mtime = datetime.fromtimestamp(item.stat().st_mtime)
                 run_dirs.append((mtime, item))
-            except Exception:
-                pass
+            except  Exception:
+                logger.debug("best-effort ignore")
 
     run_dirs.sort(key=lambda x: x[0], reverse=True)
 

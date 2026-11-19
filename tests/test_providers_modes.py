@@ -13,6 +13,7 @@ def _settings(**kw):
     base = dict(
         provider="auto", api_only=False, execution_mode="auto",
         lmstudio_enabled=False,
+        ollama_enabled=True,
         lm_studio_base_url="http://127.0.0.1:9/v1",
         lm_studio_model="qwen3.8-9b-distill",
         lm_studio_context_tokens=32000, lm_studio_max_output_tokens=8192,

@@ -191,8 +191,8 @@ def build_report(inputs: ReportInputs) -> RunResult:
                         )
                         pie_warnings[_tdw(s.get("slice", ""), known_clean)] = (
                             f"PIE {b.get('name')} aggregate {avg:+.1f}%")
-                    except Exception:
-                        pass
+                    except  Exception:
+                        logger.debug("best-effort ignore")
     except Exception:
         pie_warnings = {}
 
@@ -219,8 +219,8 @@ def build_report(inputs: ReportInputs) -> RunResult:
                 d = s.get("display")
                 if d:
                     pie_sample_displays.add(str(d).strip().upper())
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     idea_tickers = {str(i.get("ticker", "") or "").strip().upper() for i in ideas}
     earnings_allowed = set(row_displays) | set(pie_sample_displays) | set(idea_tickers)
     earnings_events: list[dict] = []
@@ -266,8 +266,8 @@ def build_report(inputs: ReportInputs) -> RunResult:
             _news_filter_stats.get("input", 0), _news_filter_stats.get("no_title_url", 0),
             _news_filter_stats.get("below_relevance", 0), _news_filter_stats.get("too_old", 0),
             _news_filter_stats.get("unlinked", 0), _news_filter_stats.get("kept", 0))
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
     # Catalyst radar (V1, informational): explicit future dates in linked
     # news titles per ticker. Never breaks the run; no signal changes.
     catalyst_radar: list = []
@@ -293,8 +293,8 @@ def build_report(inputs: ReportInputs) -> RunResult:
                     try:
                         _rel_scores.append((int(_rec.get("relevance_score", 0) or 0),
                                             str(_rec.get("title", ""))[:90]))
-                    except (TypeError, ValueError):
-                        pass
+                    except  (TypeError, ValueError):
+                        logger.debug("best-effort ignore")
         if _rel_scores:
             _rel_scores.sort(key=lambda t: t[0])
             _vals = [s for s, _ in _rel_scores]
@@ -302,8 +302,8 @@ def build_report(inputs: ReportInputs) -> RunResult:
             logger.info("News relevance: n=%d min=%d med=%d max=%d threshold=%s near-miss=%s",
                         len(_vals), _vals[0], _vals[len(_vals) // 2], _vals[-1],
                         news_threshold, _near or [])
-    except Exception:
-        pass
+    except  Exception:
+        logger.debug("best-effort ignore")
 
     # Research coverage + execution-mode context for both briefs.
     _corpus_decision_n = int((corpus_info.get("counts", {}) or {}).get("decision", 0) or 0)
@@ -517,8 +517,8 @@ def build_report(inputs: ReportInputs) -> RunResult:
         _mr_symbol = ""
         try:
             _mr_symbol = str(getattr(getattr(settings, "market_regime", None), "symbol", "") or "")
-        except Exception:
-            pass
+        except  Exception:
+            logger.debug("best-effort ignore")
         _holdings_source = all_active_assets if "all_active_assets" in dir() else assets
         _research_universe = _build_universe(
             _holdings_source,
