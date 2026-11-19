@@ -47,6 +47,9 @@ Rank ideas by **persistence of attention**, not by expected return. Labels
 - **Capex revisions** (AI infrastructure, hyperscalers): a cut to multi-year
   capex forecasts is a leading negative for the supply chain even while
   current revenue is strong.
+- **Gross margin trends** (AI suppliers): a projected margin decline (e.g. NVDA
+  74.9% -> 71-72%) signals pricing pressure or mix shift; watch for sector
+  reassessment even on a revenue beat.
 - **Memory/HBM demand and pricing**; foundry utilisation; networking/ASIC
   orders.
 - **Relative strength**: SOX vs S&P 500, sector index vs STOXX 600, equal-

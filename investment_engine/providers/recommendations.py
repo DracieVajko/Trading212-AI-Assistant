@@ -103,6 +103,13 @@ def _build_ai_recommendations(
         except Exception:
             demo_feedback = ""
     demo_block = f"\n{demo_feedback}\n" if demo_feedback else ""
+    try:
+        from investment_engine.research.earnings_calendar import earnings_block as _eb
+        _eblock = _eb()
+    except Exception:
+        _eblock = ""
+    _blocks = [b for b in (demo_feedback, _eblock) if b]
+    demo_block = ("\n" + "\n\n".join(_blocks) + "\n") if _blocks else ""
     
     prompt = f"""You are a portfolio manager. Output ONLY valid JSON with specific trade actions.
 
