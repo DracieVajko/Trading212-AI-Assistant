@@ -5,6 +5,22 @@ research. It records **how to evaluate** markets, not day-specific calls.
 Dated brief summaries live in `briefs/`; rules here must stay general enough
 to survive the next week.
 
+## 0. Discipline and mindset
+
+- Market volatility is inevitable; decisions are controllable, prices are not.
+- Do not lose confidence because of short-term corrections, nor overlook risks
+  in the eagerness to make a profit.
+- Mature investing: remain rational when the market performs well; stick to
+  discipline when it does not.
+- Investing is not only about seeking gains — it is about managing risk and
+  safeguarding existing capital.
+- For stocks that have already experienced substantial gains, the market
+  increasingly focuses on whether future earnings growth can be sustained and
+  whether current valuations already reflect positive expectations. Outstanding
+  results do not guarantee sustained price appreciation.
+- Passively waiting is not a sound strategy. Entering at high levels after a
+  concentration of positive catalysts is, by nature, poor timing.
+
 ## 1. Catalyst quality screen
 
 A trade idea earns attention only when all four are true:
