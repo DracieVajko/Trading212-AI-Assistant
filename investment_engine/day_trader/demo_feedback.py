@@ -1,15 +1,8 @@
-"""Demo trade feedback: score closed demo trades and feed the outcome back.
+"""Trade feedback (demo or live): score closed trades and feed the outcome back.
 
-The demo branch learns from its own mistakes: every closed trade is scored
-(P&L, hold time, risk/reward, stop adherence) and the latest scores are
-injected into the next AI prompt as a compact feedback block. A losing trade
-therefore becomes a visible "penalty" in the next decision context instead of
-being forgotten.
-
-P&L is computed from fill prices in the instrument's quote currency (usually
-USD); it is a directional approximation, not an FX-adjusted EUR figure. The
-sign and rough magnitude are what the feedback needs; the canonical history
-row remains the source of truth.
+The demo branch learns from its own mistakes; the live branch can also learn
+from its real (manually approved) trades. Feedback is read-only analysis of
+order history — it never places an order.
 """
 
 from __future__ import annotations
@@ -22,7 +15,10 @@ from typing import Any
 from .score_closed_trades import score_closed_demo_trades
 
 ROOT = Path(__file__).resolve().parents[2]
-SCORES_PATH = ROOT / "history" / "demo" / "scores.jsonl"
+
+
+def _scores_path(mode: str) -> Path:
+    return ROOT / "history" / mode / "scores.jsonl"
 
 
 def _num(value: Any, default: float = 0.0) -> float:
@@ -43,7 +39,6 @@ def _dt(value: Any) -> datetime | None:
 
 
 def normalize_orders(raw: Any) -> list[dict[str, Any]]:
-    """Normalize broker order history rows into flat fill records."""
     items = raw.get("items") if isinstance(raw, dict) else raw
     out: list[dict[str, Any]] = []
     for order in items or []:
@@ -80,7 +75,6 @@ def normalize_orders(raw: Any) -> list[dict[str, Any]]:
 
 
 def closed_trades_from_orders(orders: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """FIFO-pair BUY and SELL fills per ticker into closed trades."""
     open_lots: dict[str, list[dict[str, Any]]] = {}
     closed: list[dict[str, Any]] = []
     for order in orders:
@@ -115,17 +109,18 @@ def closed_trades_from_orders(orders: list[dict[str, Any]]) -> list[dict[str, An
     return closed
 
 
-def collect_and_score_demo_trades(
+def collect_and_score_trades(
     client: Any,
     *,
+    mode: str = "demo",
     limit: int = 50,
     scores_path: str | Path | None = None,
 ) -> list[dict[str, Any]]:
-    """Read demo order history, pair closed trades and persist their scores.
+    """Read order history, pair closed trades and persist their scores.
 
-    Never raises: broker/network problems yield an empty list so a demo run
-    still completes (feedback is an enhancement, not a hard dependency).
+    Never raises: broker/network problems yield an empty list.
     """
+    path = Path(scores_path) if scores_path is not None else _scores_path(mode)
     try:
         raw = client.get_order_history(limit=limit)
     except Exception:
@@ -137,13 +132,13 @@ def collect_and_score_demo_trades(
     if not closed:
         return []
     try:
-        return score_closed_demo_trades(closed, scores_path=scores_path)
+        return score_closed_demo_trades(closed, scores_path=path)
     except Exception:
         return []
 
 
-def recent_scores(limit: int = 5, path: str | Path | None = None) -> list[dict[str, Any]]:
-    p = Path(path) if path is not None else SCORES_PATH
+def recent_scores(limit: int = 5, path: str | Path | None = None, mode: str = "demo") -> list[dict[str, Any]]:
+    p = Path(path) if path is not None else _scores_path(mode)
     if not p.exists():
         return []
     rows: list[dict[str, Any]] = []
@@ -160,9 +155,8 @@ def recent_scores(limit: int = 5, path: str | Path | None = None) -> list[dict[s
     return rows[-limit:]
 
 
-def aggregated_stats(path: str | Path | None = None) -> dict[str, Any]:
-    """Aggregate win rate, avg score and best/worst per symbol over all scores."""
-    p = Path(path) if path is not None else SCORES_PATH
+def aggregated_stats(path: str | Path | None = None, mode: str = "demo") -> dict[str, Any]:
+    p = Path(path) if path is not None else _scores_path(mode)
     if not p.exists():
         return {}
     rows: list[dict[str, Any]] = []
@@ -205,16 +199,17 @@ def aggregated_stats(path: str | Path | None = None) -> dict[str, Any]:
     }
 
 
-def feedback_block(limit: int = 5, path: str | Path | None = None) -> str:
-    """Compact prompt block: recent closed demo trades and their scores."""
-    rows = recent_scores(limit, path)
+def feedback_block(limit: int = 5, path: str | Path | None = None, mode: str = "demo") -> str:
+    """Compact prompt block: recent closed trades and their scores."""
+    rows = recent_scores(limit, path, mode=mode)
     if not rows:
         return ""
     positive = sum(1 for r in rows if _num((r.get("demo_score") or {}).get("score", 0)) > 0)
     negative = len(rows) - positive
-    stats = aggregated_stats(path)
+    stats = aggregated_stats(path, mode=mode)
+    label = "LIVE" if mode == "live" else "DEMO"
     lines = [
-        f"DEMO TRADE FEEDBACK (last {len(rows)} closed): {positive} positive, {negative} negative.",
+        f"{label} TRADE FEEDBACK (last {len(rows)} closed): {positive} positive, {negative} negative.",
     ]
     if stats:
         lines.append(f"Overall win rate: {stats.get('overall_win_rate', 0)} over {stats.get('total_closed', 0)} closed trades.")

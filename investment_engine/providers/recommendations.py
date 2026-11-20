@@ -103,6 +103,28 @@ def _build_ai_recommendations(
         except Exception:
             demo_feedback = ""
     demo_block = f"\n{demo_feedback}\n" if demo_feedback else ""
+    # Collect live-account feedback (read-only) so the live branch also learns.
+    try:
+        import os as _os
+        from pathlib import Path as _Path
+        from dotenv import load_dotenv as _ld
+        _ld(str(_Path(__file__).resolve().parents[2] / "api.env"))
+        from investment_engine.day_trader.broker.t212_orders import T212OrderClient
+        from investment_engine.day_trader.demo_feedback import collect_and_score_trades
+        _lk = _os.getenv("TRADING212_API_KEY", "")
+        _ls = _os.getenv("TRADING212_API_SECRET", "")
+        if _lk:
+            _live_client = T212OrderClient("live", _lk, _ls)
+            collect_and_score_trades(_live_client, mode="live")
+    except Exception:
+        pass
+    try:
+        from investment_engine.day_trader.demo_feedback import feedback_block as _dfb
+        _live_fb = _dfb(mode="live")
+        if _live_fb:
+            demo_feedback = (demo_feedback + "\n\n" + _live_fb).strip() if demo_feedback else _live_fb
+    except Exception:
+        pass
     try:
         from investment_engine.research.earnings_calendar import earnings_block as _eb
         _eblock = _eb()
