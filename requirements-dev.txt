@@ -1,3 +1,4 @@
 # Development / test dependencies (not part of the runtime stack).
 # Install in CI and locally with: pip install -r requirements-dev.txt
 pytest>=8,<10
+openpyxl>=3.1  # used by tests/test_path_anchoring.py
