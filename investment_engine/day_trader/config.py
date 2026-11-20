@@ -32,7 +32,7 @@ class ExecutionConfig:
     auto_approve: bool = False
     max_order_eur: float = 50.0
     max_daily_orders: int = 2
-    allowed_sides: list[str] = field(default_factory=lambda: ["BUY"])
+    allowed_sides: list[str] = field(default_factory=lambda: ["BUY", "SELL"])
     live_ack: str = ""
     unlimited: bool = False
     live_buy_auto_approve: bool = False
