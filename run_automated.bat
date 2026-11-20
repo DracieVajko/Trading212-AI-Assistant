@@ -1,6 +1,11 @@
 @echo off
 cd /d "%~dp0"
 
+REM Weekend guard: markets are closed Sat/Sun, no run needed.
+for /f %%D in ('powershell -NoProfile -Command "(Get-Date).DayOfWeek"') do set DOW=%%D
+if /I "%DOW%"=="Saturday" exit /b 0
+if /I "%DOW%"=="Sunday" exit /b 0
+
 REM Task Scheduler variant: no pause, and Python owns logs\latest_run.log.
 REM Usage: run_automated.bat [auto|public|locals]  (default: auto)
 REM   auto   = full chain, locals first (LM Studio -> Pi -> public APIs)
