@@ -498,8 +498,14 @@ def main() -> int:
                 print(f"Plan file: {_state_root / 'planning.json'}")
                 _did_day_trader = True
                 from investment_engine.day_trader.execute import demo_execution_allowed, execute_demo_tickets
-                if demo_execution_allowed(args.day_trader_allow_orders, _dt_cfg.execution.environment):
+                # Demo runs whenever allow-orders is set (independent of config env).
+                if args.day_trader_allow_orders:
                     try:
+                        import copy as _copy
+                        _demo_cfg = _copy.deepcopy(_dt_cfg)
+                        _demo_cfg.execution.environment = "demo"
+                        _demo_cfg.execution.enabled = True
+                        _demo_cfg.execution.auto_approve = True
                         from investment_engine.day_trader.broker.t212_orders import T212OrderClient
                         import os as _os
                         from dotenv import load_dotenv as _ld
@@ -523,7 +529,7 @@ def main() -> int:
                             for _full in (locals().get("_portfolio_symbols") or []):
                                 _known_instruments[str(_full).split("_")[0].upper()] = str(_full)
                         _results = execute_demo_tickets(
-                            _dt_cfg, _payload, _demo_client, _known_instruments,
+                            _demo_cfg, _payload, _demo_client, _known_instruments,
                             db_path=str(ROOT / "data" / "day_trader" / "audit.db"),
                         )
                         for _r in _results:
