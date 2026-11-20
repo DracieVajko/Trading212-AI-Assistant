@@ -75,7 +75,7 @@ def test_execution_mode_lines_only_when_api_only():
         "AI execution mode: API_ONLY",
         "Disabled providers: LM Studio, llama.cpp, Ollama",
     ]
-    assert _execution_mode_lines(_settings()) == []
+    assert _execution_mode_lines(_settings(api_only=False)) == []
 
 
 def test_manifest_lists_disabled_providers(tmp_path):

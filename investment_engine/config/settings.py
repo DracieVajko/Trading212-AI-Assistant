@@ -406,13 +406,16 @@ def resolve_execution_mode(settings) -> str:
     fall back to 'auto'. Never raises.
     """
     try:
-        if bool(getattr(settings, "api_only", False)):
-            return "public"
         mode = str(getattr(settings, "execution_mode", "auto") or "auto").strip().lower()
         if mode in ("public", "api_only"):
             return "public"
         if mode in ("locals", "local", "local_only"):
             return "locals"
+        if mode not in ("auto", ""):
+            # unknown value: fall through to api_only check
+            pass
+        if bool(getattr(settings, "api_only", False)):
+            return "public"
         return "auto"
     except Exception:
         return "auto"
