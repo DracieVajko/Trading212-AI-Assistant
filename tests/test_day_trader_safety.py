@@ -55,6 +55,7 @@ def test_execute_demo_plan_rejects_non_demo_client():
     cfg.execution.enabled = True
     cfg.execution.environment = "demo"
     cfg.execution.auto_approve = True
+    cfg.execution.max_daily_orders = 100
     env = {"T212_DEMO_ORDER_ENABLED": "1", "T212_ORDER_ENV": "demo"}
     res = execute_demo_plan(cfg, {"ticker": "AAPL_US_EQ", "side": "BUY", "quantity": 1, "recon_status": "PASS"}, _LiveClient(), env=env)
     assert res["status"] == "BLOCKED"

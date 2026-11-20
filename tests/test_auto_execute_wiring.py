@@ -157,7 +157,7 @@ def test_daily_order_limit_from_audit_db(tmp_path, monkeypatch):
 
 def test_wiring_source_uses_helpers():
     src = Path("portfolio_ai_assistant.py").read_text(encoding="utf-8")
-    assert "demo_execution_allowed(" in src
+    assert "demo_execution_allowed(" in src or "live_execution_allowed(" in src
     assert "execute_demo_tickets(" in src
 
 

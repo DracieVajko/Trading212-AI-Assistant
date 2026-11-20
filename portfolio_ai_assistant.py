@@ -326,6 +326,14 @@ def main() -> int:
                         help="With --day-trader-mirror-demo: actually place demo orders (default dry-run).")
     parser.add_argument("--day-trader-allow-orders", action="store_true",
                         help="Allow the day-trader execution layer to attempt orders (still gated by config/env/kill-switch).")
+    parser.add_argument("--allow-demo-buy", action="store_true",
+                        help="Allow demo BUY orders this run (overrides config allowed_sides).")
+    parser.add_argument("--allow-demo-sell", action="store_true",
+                        help="Allow demo SELL orders this run (overrides config allowed_sides).")
+    parser.add_argument("--allow-live-buy", action="store_true",
+                        help="Allow live BUY orders this run (requires T212_LIVE_ORDER_ENABLED=1 + ack).")
+    parser.add_argument("--allow-live-sell", action="store_true",
+                        help="Allow live SELL orders this run (requires T212_LIVE_ORDER_ENABLED=1 + ack).")
     parser.add_argument("--history", action="store_true",
                         help="Print recent trade and decision history (permanent memory) and exit.")
     parser.add_argument("--history-mode", choices=["demo", "live", "all"], default="all",
@@ -506,6 +514,14 @@ def main() -> int:
                         _demo_cfg.execution.environment = "demo"
                         _demo_cfg.execution.enabled = True
                         _demo_cfg.execution.auto_approve = True
+                        if args.allow_demo_buy or args.allow_demo_sell:
+                            _sides = []
+                            if args.allow_demo_buy:
+                                _sides.append("BUY")
+                            if args.allow_demo_sell:
+                                _sides.append("SELL")
+                            if _sides:
+                                _demo_cfg.execution.allowed_sides = _sides
                         from investment_engine.day_trader.broker.t212_orders import T212OrderClient
                         import os as _os
                         from dotenv import load_dotenv as _ld
@@ -561,6 +577,14 @@ def main() -> int:
                         _live_cfg.execution.enabled = True
                         _live_cfg.execution.auto_approve = True
                         _live_cfg.execution.live_buy_auto_approve = True
+                        if args.allow_live_buy or args.allow_live_sell:
+                            _sides = []
+                            if args.allow_live_buy:
+                                _sides.append("BUY")
+                            if args.allow_live_sell:
+                                _sides.append("SELL")
+                            if _sides:
+                                _live_cfg.execution.allowed_sides = _sides
                         _live_cfg.execution.live_ack = _os.getenv("T212_LIVE_ACK", "")
                         _live_client = T212OrderClient(
                             "live",
