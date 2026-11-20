@@ -190,7 +190,7 @@ class EngineSettings:
     # LM Studio (local GPU). Enabled by default: LM Studio is the primary
     # provider, Pi (llama.cpp -> Ollama) the secondary, cloud APIs the fallback.
     # Disable explicitly with LMSTUDIO_ENABLED=0 or "lmstudio_enabled": false.
-    lmstudio_enabled: bool = _env_bool("LMSTUDIO_ENABLED", True)
+    lmstudio_enabled: bool = field(default_factory=lambda: _env_bool("LMSTUDIO_ENABLED", True))
     # API-only mode: local providers (LM Studio, llama.cpp, Ollama) are removed
     # from the chain before generation starts — never probed, called, or
     # unloaded. Effective chain: Gemini -> OpenRouter(:free) -> Mistral
