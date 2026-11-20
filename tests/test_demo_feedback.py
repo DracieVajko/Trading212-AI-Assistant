@@ -75,7 +75,7 @@ def test_collect_never_raises_on_broken_client():
         def get_order_history(self, limit=50):
             raise RuntimeError("boom")
 
-    assert fb.collect_and_score_demo_trades(_Broken()) == []
+    assert fb.collect_and_score_trades(_Broken()) == []
 
 
 def test_scores_file_is_deduplicated(tmp_path):

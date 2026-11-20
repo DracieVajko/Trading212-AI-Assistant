@@ -121,11 +121,11 @@ def demo_snapshot() -> dict[str, Any]:
     }
     try:
         from investment_engine.day_trader.demo_feedback import (
-            collect_and_score_demo_trades,
+            collect_and_score_trades,
             feedback_block,
         )
 
-        collect_and_score_demo_trades(client)
+        collect_and_score_trades(client)
         block = feedback_block()
         if block:
             snap["demo_feedback"] = block
