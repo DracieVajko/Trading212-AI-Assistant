@@ -1,16 +1,15 @@
-"""Weekly archive / cleanup for the Portfolio AI Assistant.
+"""Weekly cleanup for the Portfolio AI Assistant.
 
 Run once a week (e.g. Sunday evening) to keep the repo lean without losing
 valuable history:
 
-  * archives reports/ older than --keep-days into reports/archive/cold/
-    (zipped, never deleted outright),
+  * removes report directories older than --keep-days (reports are regenerated
+    every run and carry no long-term value on their own),
   * prunes ephemeral caches (data/cache, debug dumps) older than --cache-days,
-  * leaves history/ (trades, scores, decisions) untouched,
-  * writes a small summary to logs/archive_weekly.log.
+  * leaves history/ (trades, scores, decisions, prices) untouched.
 
-Nothing is ever hard-deleted: old reports are zipped into cold storage and
-the originals removed only after a successful archive. Re-run safely.
+Nothing valuable is ever deleted: trades, scores, decisions and price history
+live in history/ and are never touched here. Old reports are simply removed.
 
 Usage:
   py -3.12 scripts/archive_weekly.py [--keep-days 14] [--cache-days 7] [--dry-run]
@@ -19,9 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
-import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -35,33 +32,27 @@ def _age_days(p: Path, now: datetime) -> float:
         return 0.0
 
 
-def archive_old_reports(keep_days: int, dry_run: bool) -> list[str]:
+def prune_old_reports(keep_days: int, dry_run: bool) -> list[str]:
+    """Delete report directories older than keep_days. Never touches history/."""
     archive_root = ROOT / "reports" / "archive"
-    cold = archive_root / "cold"
-    cold.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc)
-    moved: list[str] = []
+    removed: list[str] = []
     if not archive_root.exists():
-        return moved
+        return removed
     for entry in archive_root.iterdir():
-        if not entry.is_dir() or entry.name == "cold":
+        if not entry.is_dir():
             continue
         if _age_days(entry, now) < keep_days:
             continue
-        zip_path = cold / f"{entry.name}.zip"
         if dry_run:
-            moved.append(f"[dry] would archive {entry} -> {zip_path}")
+            removed.append(f"[dry] would remove {entry}")
             continue
         try:
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                for f in entry.rglob("*"):
-                    if f.is_file():
-                        zf.write(f, f.relative_to(entry.parent))
             shutil.rmtree(entry)
-            moved.append(f"archived {entry.name} -> {zip_path.name}")
+            removed.append(f"removed {entry.name}")
         except Exception as exc:
-            moved.append(f"FAILED {entry.name}: {exc}")
-    return moved
+            removed.append(f"FAILED {entry.name}: {exc}")
+    return removed
 
 
 def prune_cache(cache_days: int, dry_run: bool) -> list[str]:
@@ -88,7 +79,7 @@ def prune_cache(cache_days: int, dry_run: bool) -> list[str]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Weekly archive/cleanup (never deletes history/).")
+    ap = argparse.ArgumentParser(description="Weekly cleanup (never deletes history/).")
     ap.add_argument("--keep-days", type=int, default=14)
     ap.add_argument("--cache-days", type=int, default=7)
     ap.add_argument("--dry-run", action="store_true")
@@ -97,7 +88,7 @@ def main() -> int:
     log_path = ROOT / "logs" / "archive_weekly.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"=== archive_weekly {datetime.now(timezone.utc).isoformat()} dry_run={args.dry_run} ==="]
-    lines += ["-- reports --"] + archive_old_reports(args.keep_days, args.dry_run)
+    lines += ["-- reports --"] + prune_old_reports(args.keep_days, args.dry_run)
     lines += ["-- cache --"] + prune_cache(args.cache_days, args.dry_run)
     text = "\n".join(lines) + "\n"
     print(text)
@@ -111,4 +102,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-"
