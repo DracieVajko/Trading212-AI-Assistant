@@ -173,6 +173,21 @@ def run_branch(
     logger.info("Branch %s: starting", mode)
     result = run_engine(assets, portfolio_context=context, settings=branch_settings)
     logger.info("Branch %s: finished (status=%s)", mode, result.get("status"))
+    # Decision outcome tracking: append a compact record so we can later
+    # evaluate how decisions aged (price at decision vs 1d/1w/1m later).
+    try:
+        from investment_engine.history import record_decision
+        stance = str(result.get("stance") or result.get("status") or "HOLD")
+        record_decision(
+            symbol="PORTFOLIO",
+            action=stance,
+            reason=str(result.get("brief_markdown", "")[:200] or "n/a"),
+            source="portfolio_ai",
+            run_id=str(result.get("run_id") or ""),
+            mode=mode,
+        )
+    except Exception as exc:
+        logger.debug("decision tracking unavailable: %s", exc)
     return result
 
 
