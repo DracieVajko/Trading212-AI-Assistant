@@ -572,14 +572,8 @@ def main() -> int:
                         if not _live_instruments:
                             for _full in (locals().get("_portfolio_symbols") or []):
                                 _live_instruments[str(_full).split("_")[0].upper()] = str(_full)
-                        # Only BUY tickets on live; filter out any SELL.
+                        # Live: buys and sells (brackets for buys, plain sells).
                         _live_payload = dict(_payload or {})
-                        _live_tickets = {}
-                        for _sym, _t in ((_payload or {}).get("tickets") or {}).items():
-                            _side = str((_t.get("side") if isinstance(_t, dict) else "") or "").upper()
-                            if _side == "BUY":
-                                _live_tickets[_sym] = _t
-                        _live_payload["tickets"] = _live_tickets
                         _live_results = execute_demo_tickets(
                             _live_cfg, _live_payload, _live_client, _live_instruments,
                             db_path=str(ROOT / "data" / "day_trader" / "audit_live.db"),

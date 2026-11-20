@@ -49,15 +49,14 @@ def evaluate(
         if env.get("T212_LIVE_ACK") != getattr(exec_cfg, "live_ack", ""):
             reasons.append("live ack mismatch")
         live_buy_auto = bool(getattr(exec_cfg, "live_buy_auto_approve", False))
-        if side == "SELL" and getattr(exec_cfg, "auto_approve", False):
+        if side == "SELL" and getattr(exec_cfg, "auto_approve", False) and not live_buy_auto:
             reasons.append("auto_approve forbidden in live mode")
         if side == "BUY" and getattr(exec_cfg, "auto_approve", False) and not live_buy_auto:
             reasons.append("live buy auto-approve not enabled")
     if getattr(exec_cfg, "auto_approve", False) is False and not bool(intent.get("manual_approval")):
         # Unattended runs must not place orders unless explicitly auto-approved.
-        # Live SELLs always require manual approval; live BUYs may be auto-approved
-        # when live_buy_auto_approve is set.
-        if not (env_name == "live" and side == "BUY" and getattr(exec_cfg, "live_buy_auto_approve", False)):
+        # Live trades may be auto-approved when live_buy_auto_approve is set.
+        if not (env_name == "live" and getattr(exec_cfg, "live_buy_auto_approve", False)):
             reasons.append("auto_approve is false and no manual approval")
 
     ks = Path(kill_switch_path) if kill_switch_path else None
