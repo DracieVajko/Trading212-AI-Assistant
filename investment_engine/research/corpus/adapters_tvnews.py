@@ -175,7 +175,7 @@ def fetch_symbol_news(
             try:
                 time.sleep(1.0)
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
         kept = 0
         try:
             items = data.get("items", []) if isinstance(data, dict) else []

@@ -8,9 +8,13 @@ adapters' data; the ledger records the failure instead of hiding it.
 """
 
 from __future__ import annotations
+import logging
 
 from datetime import datetime, timezone
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 VALID_STATUSES = frozenset({
     "SUCCESS_WITH_ITEMS",
@@ -51,7 +55,7 @@ def record(ledger: list[dict[str, Any]], *, adapter: str, domain: str,
     try:
         ledger.append(entry)
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     return entry
 
 

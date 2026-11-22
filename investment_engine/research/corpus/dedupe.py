@@ -1,10 +1,14 @@
 """Phase 5 deduplication: canonical URLs + fuzzy titles, first-seen wins."""
 
 from __future__ import annotations
+import logging
 
 import hashlib
 import re
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
+
 
 _TRACKER_PARAMS = frozenset({
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
@@ -76,7 +80,7 @@ def dedupe(items: list[dict]) -> list[dict]:
                     sources.append(pub)
                 kept["corroboration"] = len(sources) or 1
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
             continue
         seen_ids.add(uid)
         kept_titles.append(title)
@@ -137,7 +141,7 @@ def assign_events(items: list[dict]) -> list[dict]:
                 except Exception:
                     continue
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     return items
 
 
