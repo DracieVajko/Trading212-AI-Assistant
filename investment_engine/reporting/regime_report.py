@@ -29,6 +29,42 @@ _SELL_TOKENS = {"SELL", "TRIM", "REDUCE", "UNDERWEIGHT", "EXIT", "SHORT"}
 _HOLD_TOKENS = {"HOLD", "WAIT", "WATCH", "NEUTRAL", "NONE", "ROTATE"}
 
 
+def _pie_performance_lines(t212_data: dict) -> list[str]:
+    """Build PIE (Trading 212 basket) performance lines for the report."""
+    positions = t212_view.authoritative_positions(t212_data)
+    pies: dict[str, list[dict]] = {}
+    standalone: list[dict] = []
+    for pos in positions:
+        pie_name = str(pos.get("pie_name") or "").strip()
+        qty_in_pie = pos.get("pie_quantity") or pos.get("quantityInPies") or 0
+        try:
+            qty_in_pie = float(qty_in_pie)
+        except (TypeError, ValueError):
+            qty_in_pie = 0.0
+        if pie_name and qty_in_pie > 0:
+            pies.setdefault(pie_name, []).append(pos)
+        else:
+            standalone.append(pos)
+    if not pies:
+        return []
+    lines: list[str] = []
+    for name, members in pies.items():
+        total_val = sum(float(m.get("value_eur", m.get("value", 0)) or 0) for m in members)
+        total_pnl = sum(float(m.get("pnl_eur", 0) or 0) for m in members)
+        avg_pnl_pct = (total_pnl / total_val * 100.0) if total_val else 0.0
+        top_g = max(members, key=lambda m: float(m.get("pnl_pct", 0) or 0))
+        top_d = min(members, key=lambda m: float(m.get("pnl_pct", 0) or 0))
+        lines.append(f"  {name}: {len(members)} holdings, value €{total_val:,.2f}, P&L €{total_pnl:+,.2f} ({avg_pnl_pct:+.1f}%)")
+        lines.append(f"    best: {top_g.get('symbol')} ({float(top_g.get('pnl_pct', 0) or 0):+.1f}%) | worst: {top_d.get('symbol')} ({float(top_d.get('pnl_pct', 0) or 0):+.1f}%)")
+        if avg_pnl_pct <= -10.0:
+            lines.append(f"    ⚠️ PIE down {avg_pnl_pct:+.1f}% — consider rebalancing or trimming worst performers.")
+    if standalone:
+        sv = sum(float(m.get("value_eur", m.get("value", 0)) or 0) for m in standalone)
+        sp = sum(float(m.get("pnl_eur", 0) or 0) for m in standalone)
+        lines.append(f"  Standalone: {len(standalone)} holdings, value €{sv:,.2f}, P&L €{sp:+,.2f}")
+    return lines
+
+
 def normalize_signal(raw: Any) -> str:
     """Normalize any raw AI/LLM action token to BUY / SELL / HOLD.
 
@@ -1376,6 +1412,14 @@ class AIContextBuilder:
                 pnl_pct = pos.get('pnl_pct', 0)
                 validation_status = pos.get('validation_status', 'UNKNOWN')
                 sections.append(f"  {pos.get('symbol')}: {pos.get('quantity')} @ €{avg_price_eur:.2f} = €{val_eur:,.2f} (P&L: {pnl_pct:+.1f}%) [validation: {validation_status}]")
+
+            # PIE (Trading 212 basket) performance summary.
+            _pie_lines = _pie_performance_lines(t212_data)
+            if _pie_lines:
+                sections.extend(["", "## PIE (Trading 212 basket) performance"])
+                sections.extend(_pie_lines)
+                sections.append("  Note: PIEs are managed baskets; T212 API cannot buy/sell a PIE directly.")
+                sections.append("  Recommend adjusting constituents or buying/selling underlying tickers outside the pie.")
         
         if news_items:
             sections.extend(["", "## Recent News (with URLs)"])
