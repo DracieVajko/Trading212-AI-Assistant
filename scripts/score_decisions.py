@@ -106,11 +106,39 @@ def main() -> int:
             continue
         if (now - when).days < args.min_age_days:
             continue
-        entry = _price_at(args.benchmark, when)
-        current = _current_price(args.benchmark)
+        # Score the symbol's own move for per-symbol decisions; PORTFOLIO uses benchmark.
+        scored_symbol = str(r["symbol"] or "").upper()
+        ticker = args.benchmark if scored_symbol in ("PORTFOLIO", "", "NONE") else scored_symbol
+        # Normalize broker ids like NVDA_US_EQ -> NVDA for yfinance.
+        if ticker.endswith("_US_EQ"):
+            ticker = ticker[: -len("_US_EQ")]
+        entry = _price_at(ticker, when)
+        current = _current_price(ticker)
         ret = None
         if entry and current and entry > 0:
             ret = round((current / entry - 1.0) * 100.0, 2)
+        # Decision correctness (BUY/SELL/HOLD):
+        #  BUY  -> positive return is good.
+        #  SELL -> negative return after the sell is good (avoided loss).
+        #  HOLD -> flat/small move is good; a large rally is a missed opportunity.
+        action = str(r["action"]).upper()
+        correct = None
+        score = 0.0
+        if ret is not None:
+            if action == "BUY":
+                correct = ret > 0
+                score = max(-1.0, min(1.0, ret / 10.0))
+            elif action == "SELL":
+                correct = ret < 0
+                score = max(-1.0, min(1.0, -ret / 10.0))
+            else:  # HOLD / anything else
+                correct = ret <= 2.0
+                if ret > 5.0:
+                    score = -min(1.0, (ret - 5.0) / 10.0)
+                elif ret < -5.0:
+                    score = min(1.0, (abs(ret) - 5.0) / 10.0)
+                else:
+                    score = 0.5
         new_rows.append({
             "decision_id": did,
             "ts": r["ts"],
@@ -119,9 +147,12 @@ def main() -> int:
             "symbol": r["symbol"],
             "action": r["action"],
             "benchmark": args.benchmark,
+            "scored_ticker": ticker,
             "price_at_decision": entry,
             "price_now": current,
             "return_pct": ret,
+            "correct": correct,
+            "score": round(score, 3),
             "scored_at": now.isoformat(),
         })
 
@@ -138,4 +169,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-"

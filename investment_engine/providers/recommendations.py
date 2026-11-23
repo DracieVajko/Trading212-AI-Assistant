@@ -30,44 +30,28 @@ def _pie_summary_block(positions: list[dict[str, Any]]) -> str:
             pies.setdefault(pie_name, []).append(pos)
         else:
             standalone.append(pos)
-
     if not pies:
         return ""
     lines = ["PIE (Trading 212 basket) performance:"]
     for name, members in pies.items():
-        total_val = sum(float(m.get("value_eur") or 0) for m in members)
-        total_pnl = sum(float(m.get("pnl_eur") or 0) for m in members)
+        total_val = sum(float(m.get("value_eur", m.get("value", 0)) or 0) for m in members)
+        total_pnl = sum(float(m.get("pnl_eur", 0) or 0) for m in members)
         avg_pnl_pct = (total_pnl / total_val * 100.0) if total_val else 0.0
-        top_g = max(members, key=lambda m: float(m.get("pnl_pct") or 0))
-        top_d = min(members, key=lambda m: float(m.get("pnl_pct") or 0))
+        top_g = max(members, key=lambda m: float(m.get("pnl_pct", 0) or 0))
+        top_d = min(members, key=lambda m: float(m.get("pnl_pct", 0) or 0))
         lines.append(
             f"- {name}: {len(members)} holdings, value {total_val:.2f} EUR, "
             f"P&L {total_pnl:+.2f} EUR ({avg_pnl_pct:+.1f}%), "
-            f"best {top_g.get('symbol')} ({float(top_g.get('pnl_pct') or 0):+.1f}%), "
-            f"worst {top_d.get('symbol')} ({float(top_d.get('pnl_pct') or 0):+.1f}%)"
+            f"best {top_g.get('symbol')} ({float(top_g.get('pnl_pct', 0) or 0):+.1f}%), "
+            f"worst {top_d.get('symbol')} ({float(top_d.get('pnl_pct', 0) or 0):+.1f}%)"
         )
     if standalone:
-        sv = sum(float(m.get("value_eur") or 0) for m in standalone)
-        sp = sum(float(m.get("pnl_eur") or 0) for m in standalone)
+        sv = sum(float(m.get("value_eur", m.get("value", 0)) or 0) for m in standalone)
+        sp = sum(float(m.get("pnl_eur", 0) or 0) for m in standalone)
         lines.append(f"- Standalone (outside pies): {len(standalone)} holdings, value {sv:.2f} EUR, P&L {sp:+.2f} EUR")
     lines.append("Note: PIEs are managed baskets on Trading 212; the API cannot buy/sell a PIE directly. "
                  "Recommend adjusting constituents or pie settings, or buy/sell the underlying tickers outside the pie.")
     return "\n".join(lines)
-
-
-def _canonical_position(pos: dict) -> dict:
-    """Extract canonical normalized position data for LLM prompts."""
-    return {
-        "symbol": pos.get("symbol"),
-        "qty": pos.get("quantity"),
-        "value_eur": pos.get("value_eur"),
-        "pnl_pct": pos.get("pnl_pct"),
-        "average_price_eur": pos.get("average_price_eur"),
-        "current_price_eur": pos.get("current_price_eur"),
-        "quote_currency": pos.get("quote_currency"),
-        "price_unit": pos.get("price_unit"),
-        "unrealized_pnl_eur": pos.get("pnl_eur"),
-    }
 
 
 def _build_ai_recommendations(
@@ -99,6 +83,20 @@ def _build_ai_recommendations(
     free_cash = cash.get("free", 0)
     total_equity = t212_view.total_equity(t212_data)
 
+    def _canonical_position(pos: dict) -> dict:
+        """Extract canonical normalized position data for LLM prompts."""
+        return {
+            "symbol": pos.get("symbol"),
+            "qty": pos.get("quantity"),
+            "value_eur": pos.get("value_eur"),
+            "pnl_pct": pos.get("pnl_pct"),
+            "average_price_eur": pos.get("average_price_eur"),
+            "current_price_eur": pos.get("current_price_eur"),
+            "quote_currency": pos.get("quote_currency"),
+            "price_unit": pos.get("price_unit"),
+            "unrealized_pnl_eur": pos.get("pnl_eur"),
+        }
+
     pos_summary = []
     for pos in positions:
         canonical = _canonical_position(pos)
@@ -126,8 +124,6 @@ def _build_ai_recommendations(
         "support": regime_result.price_structure.nearest_support,
         "resistance": regime_result.price_structure.nearest_resistance,
     }
-    support_str = f"{key_levels['support']:.2f}" if key_levels['support'] else 'N/A'
-    resistance_str = f"{key_levels['resistance']:.2f}" if key_levels['resistance'] else 'N/A'
 
     def _threshold(key: str, default: float) -> float:
         try:
@@ -135,11 +131,12 @@ def _build_ai_recommendations(
         except (TypeError, ValueError, AttributeError):
             return default
 
-    buy_threshold = _threshold("buy_threshold", 70)
-    sell_threshold = _threshold("sell_threshold", 70)
+    buy_threshold = _threshold("buy_threshold", 60.0)
+    sell_threshold = _threshold("sell_threshold", 65.0)
 
-    # Feed quality + LLM JSON sanitizer wiring happens in caller (main).
-    # Build demo/live trade feedback block + earnings calendar.
+    support_str = f"{key_levels['support']:.2f}" if key_levels['support'] else 'N/A'
+    resistance_str = f"{key_levels['resistance']:.2f}" if key_levels['resistance'] else 'N/A'
+
     demo_feedback = str((t212_data or {}).get("demo_feedback") or "").strip()
     if not demo_feedback:
         try:
@@ -193,16 +190,81 @@ POSITIONS: {pos_summary}
 
 REGIME GUIDANCE: {regime_summary['action']} - Tech: {regime_summary['tech_allocation']}, Crypto: {regime_summary['crypto_allocation']}
 
-KEY LEVELS: support={key_levels['support']}, resistance={key_levels['resistance']}
+OUTPUT ONLY VALID JSON:
+{{
+  "portfolio_actions": [{{"action": "hold", "asset": "SYMBOL", "reason": "reason based on regime/indicators/news"}}],
+  "trades": [{{"side": "BUY", "asset": "SYMBOL", "qty": 0.0, "price": 0.0, "stop_loss": 0.0, "take_profit": 0.0, "risk_pct": 0.0, "reason": "specific reason: regime/indicators/news"}}],
+  "position_updates": [{{"asset": "SYMBOL", "stop_loss": 0.0, "new_stop": 0.0, "take_profit": 0.0, "new_tp": 0.0, "reason": "reason"}}],
+  "cash_deployment": {{"free_cash": 0.0, "deploy_amount": 0.0, "deploy_pct": 0.0, "reserve": 0.0, "targets": [{{"asset": "SYMBOL", "amount": 0.0, "price": 0.0, "max_risk": 0.0}}]}}
+}}
 
-Respond with JSON only."""
+RULES:
+- Max 2% risk per trade, min 1:2 R:R, mandatory stops, 50/50 scale-out
+- Only propose BUY/ADD when conviction >= {buy_threshold:.0f}%; only propose SELL/TRIM when conviction >= {sell_threshold:.0f}%
+- PEAK_HOLD = prioritize SELLs, reduce new BUYs
+- POTENTIAL_ACCUMULATION_ZONE = research accumulation candidates, size any idea per policy
+- DECLINING = prepare watchlist, raise cash, no new positions
+- NEUTRAL = normal DCA
+- Use free cash for deployment, respect cash target
+- Base decisions on: regime signals, technical indicators (RSI, MACD, moving averages), news sentiment, earnings
+- Be concise, specific, actionable. No hedging language.
+- Output ONLY valid JSON, no markdown, no extra text."""
 
-    # NOTE: _model_for_stage and _try_lmstudio_stage are imported for parity with
-    # the original main.py wiring; the actual generation happens in the caller.
-    _ = (_model_for_stage, _try_lmstudio_stage, _STAGE_ATTRIBUTION)
+    logger.info(
+        "AI recommendations prompt: %d chars (~%d tokens), positions=%d",
+        len(prompt), len(prompt) // 4, len(pos_summary),
+    )
+    try:
+        _rec_ctx: dict = {"max_output_tokens": 1024}
+        try:
+            _rec_model = _model_for_stage(settings_dict, "ai_recommendations")
+        except Exception:
+            _rec_model = ((settings_dict or {}).get("decision_model")
+                          if isinstance(settings_dict, dict)
+                          else getattr(settings_dict, "decision_model", None))
+        if _rec_model:
+            _rec_ctx["model"] = _rec_model
+        _rec_served, _rec_direct = (None, None)
+        try:
+            _rec_served, _rec_direct = _try_lmstudio_stage(provider, prompt, settings=settings_dict,
+                                                          stage="ai_recommendations", tokens=1024)
+        except Exception:
+            _rec_served, _rec_direct = (None, None)
+        if _rec_served and _rec_direct:
+            result = _rec_direct
+            try:
+                from investment_engine.providers import attribution as _attr_rec
+                _rec_record = _attr_rec.new_stage_record("ai_recommendations",
+                                                         model_requested=_rec_served)
+                _STAGE_ATTRIBUTION["ai_recommendations"] = _attr_rec.note_chain_winner(
+                    _rec_record, "LM Studio", _rec_served, 0)
+            except Exception:
+                pass
+        else:
+            result = provider.generate(prompt, stage="ai_recommendations", context=_rec_ctx)
+            try:
+                from investment_engine.providers import attribution as _attr_rec
+                _rec_record = _attr_rec.new_stage_record("ai_recommendations",
+                                                         model_requested=_rec_ctx.get("model", ""))
+                _STAGE_ATTRIBUTION["ai_recommendations"] = _attr_rec.apply_chain_hint(_rec_record, provider)
+            except Exception:
+                pass
+        # Clean up response - remove any markdown code fences or extra text
+        cleaned = result.strip()
+        # Remove markdown code fences if present
+        cleaned = cleaned.removeprefix("```json")
+        cleaned = cleaned.removeprefix("```")
+        cleaned = cleaned.removesuffix("```")
+        cleaned = cleaned.strip()
+        # Use the new schema validation
+        from investment_engine.schemas.ai_recommendations import (
+            parse_ai_recommendations,
+        )
+        return parse_ai_recommendations(cleaned)
+    except Exception as e:
+        return {"error": f"AI recommendation failed: {e!s}", "raw_response": result[:500] if 'result' in locals() else "no response"}
 
-    return {"prompt": prompt, "pos_summary": pos_summary, "regime_summary": regime_summary}
 
-
-# Public alias for cross-module use.
+# Public aliases for cross-module use (private names remain the
+# implementation detail and stay available for in-module calls).
 build_ai_recommendations = _build_ai_recommendations

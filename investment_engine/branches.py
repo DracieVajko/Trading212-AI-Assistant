@@ -186,6 +186,30 @@ def run_branch(
             run_id=str(result.get("run_id") or ""),
             mode=mode,
         )
+        ai_recs = result.get("ai_recommendations") or {}
+        if isinstance(ai_recs, dict):
+            for trade in (ai_recs.get("trades") or []):
+                if not isinstance(trade, dict):
+                    continue
+                sym = str(trade.get("asset") or trade.get("symbol") or "").strip()
+                side = str(trade.get("side") or "").strip().upper()
+                if sym and side:
+                    record_decision(symbol=sym, action=side,
+                                    reason=str(trade.get("reason", ""))[:200],
+                                    source="ai_trade",
+                                    run_id=str(result.get("run_id") or ""),
+                                    mode=mode)
+            for act in (ai_recs.get("portfolio_actions") or []):
+                if not isinstance(act, dict):
+                    continue
+                sym = str(act.get("asset") or act.get("symbol") or "").strip()
+                action = str(act.get("action") or "").strip().upper()
+                if sym and action:
+                    record_decision(symbol=sym, action=action,
+                                    reason=str(act.get("reason", ""))[:200],
+                                    source="ai_action",
+                                    run_id=str(result.get("run_id") or ""),
+                                    mode=mode)
     except Exception as exc:
         logger.debug("decision tracking unavailable: %s", exc)
     return result
