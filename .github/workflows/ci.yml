@@ -42,7 +42,7 @@ jobs:
 
       - name: Secret scan (no private data in tracked files)
         run: |
-          if git grep -nE '100\.88\.219\.120|100\.125\.47\.31|C:/Users/DracieVajko|AIza[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}' -- . ; then
+          if git grep -nE '100\.88\.219\.120|100\.125\.47\.31|C:/Users/DracieVajko|AIza[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}' -- . ':!.github/workflows/ci.yml' ; then
             echo "Potential secret/private data found"; exit 1
           else
             echo "Secret scan clean"
