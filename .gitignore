@@ -147,3 +147,6 @@ custom_rules.json
 
 # Permanent trading memory (personal; never deleted by cleanup, not committed)
 history/
+
+# Weekly earnings calendar (generated, not committed)
+stocks_earnings.md
