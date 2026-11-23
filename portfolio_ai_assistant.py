@@ -334,6 +334,8 @@ def main() -> int:
                         help="Allow live BUY orders this run (requires T212_LIVE_ORDER_ENABLED=1 + ack).")
     parser.add_argument("--allow-live-sell", action="store_true",
                         help="Allow live SELL orders this run (requires T212_LIVE_ORDER_ENABLED=1 + ack).")
+    parser.add_argument("--auto-update", action="store_true",
+                        help="Fetch and fast-forward from origin/main before running (default off; or set AUTO_UPDATE=1).")
     parser.add_argument("--history", action="store_true",
                         help="Print recent trade and decision history (permanent memory) and exit.")
     parser.add_argument("--history-mode", choices=["demo", "live", "all"], default="all",
@@ -342,6 +344,16 @@ def main() -> int:
                         help="Which branch(es) to run: both (live recommendations + demo execution), "
                              "live only, or demo only. Defaults to settings.run_branches or 'both'.")
     args = parser.parse_args()
+
+    # Auto-update from GitHub (opt-in via flag or AUTO_UPDATE=1 env).
+    import os as _os
+    if args.auto_update or _os.getenv("AUTO_UPDATE", "0") == "1":
+        try:
+            from investment_engine.auto_update import check_and_update
+            _res = check_and_update()
+            print(f"Auto-update: {_res['status']} ({_res['detail']})")
+        except Exception as _au_exc:
+            print(f"Auto-update skipped: {_au_exc}")
 
     config_path = (ROOT / args.config).resolve() if not Path(args.config).is_absolute() else Path(args.config)
     if not config_path.is_file():
