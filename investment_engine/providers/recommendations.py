@@ -126,6 +126,8 @@ def _build_ai_recommendations(
         "support": regime_result.price_structure.nearest_support,
         "resistance": regime_result.price_structure.nearest_resistance,
     }
+    support_str = f"{key_levels['support']:.2f}" if key_levels['support'] else 'N/A'
+    resistance_str = f"{key_levels['resistance']:.2f}" if key_levels['resistance'] else 'N/A'
 
     def _threshold(key: str, default: float) -> float:
         try:
