@@ -165,16 +165,20 @@ class T212OrderClient:
             body["extendedHours"] = True
         return self._request("POST", "/api/v0/equity/orders/market", json_body=body)
 
-    def place_limit_order(self, ticker: str, quantity: float, limit_price: float, time_in_force: str = "DAY", extended_hours: bool = False) -> dict[str, Any]:
-        body: dict[str, Any] = {"ticker": ticker, "quantity": quantity, "limitPrice": limit_price}
-        # timeInForce/extendedHours are accepted by some environments but rejected
-        # by the current beta for limit orders; omit them to use server defaults.
+    def place_limit_order(self, ticker: str, quantity: float, limit_price: float, time_in_force: str = "GTC", extended_hours: bool = False) -> dict[str, Any]:
+        body: dict[str, Any] = {"ticker": ticker, "quantity": quantity, "limitPrice": limit_price, "timeInForce": time_in_force}
+        if extended_hours:
+            body["extendedHours"] = True
         return self._request("POST", "/api/v0/equity/orders/limit", json_body=body)
 
-    def place_stop_order(self, ticker: str, quantity: float, stop_price: float, time_in_force: str = "DAY", extended_hours: bool = False) -> dict[str, Any]:
-        body: dict[str, Any] = {"ticker": ticker, "quantity": quantity, "stopPrice": stop_price}
+    def place_stop_order(self, ticker: str, quantity: float, stop_price: float, time_in_force: str = "GTC", extended_hours: bool = False) -> dict[str, Any]:
+        body: dict[str, Any] = {"ticker": ticker, "quantity": quantity, "stopPrice": stop_price, "timeInForce": time_in_force}
+        if extended_hours:
+            body["extendedHours"] = True
         return self._request("POST", "/api/v0/equity/orders/stop", json_body=body)
 
-    def place_stop_limit_order(self, ticker: str, quantity: float, stop_price: float, limit_price: float, time_in_force: str = "DAY", extended_hours: bool = False) -> dict[str, Any]:
-        body: dict[str, Any] = {"ticker": ticker, "quantity": quantity, "stopPrice": stop_price, "limitPrice": limit_price}
+    def place_stop_limit_order(self, ticker: str, quantity: float, stop_price: float, limit_price: float, time_in_force: str = "GTC", extended_hours: bool = False) -> dict[str, Any]:
+        body: dict[str, Any] = {"ticker": ticker, "quantity": quantity, "stopPrice": stop_price, "limitPrice": limit_price, "timeInForce": time_in_force}
+        if extended_hours:
+            body["extendedHours"] = True
         return self._request("POST", "/api/v0/equity/orders/stop_limit", json_body=body)
