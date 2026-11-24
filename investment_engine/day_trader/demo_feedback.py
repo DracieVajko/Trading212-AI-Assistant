@@ -18,7 +18,20 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _scores_path(mode: str) -> Path:
-    return ROOT / "history" / mode / "scores.jsonl"
+    # Unified training: one shared pool for demo + live trades.
+    shared = ROOT / "history" / "scores.jsonl"
+    if shared.exists():
+        return shared
+    # Backward compat: migrate from demo scores if present.
+    legacy = ROOT / "history" / "demo" / "scores.jsonl"
+    if legacy.exists():
+        try:
+            shared.parent.mkdir(parents=True, exist_ok=True)
+            shared.write_text(legacy.read_text(encoding="utf-8"), encoding="utf-8")
+        except OSError:
+            return legacy
+        return shared
+    return shared
 
 
 def _num(value: Any, default: float = 0.0) -> float:
