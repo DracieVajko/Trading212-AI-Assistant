@@ -1092,6 +1092,13 @@ def main() -> int:
             print(f"SUCCESS: Snapshot saved to {snapshot_path}")
             print(f"SUCCESS: Intelligence brief saved to {intel_path}")
             print(f"Log file: {run_log}")
+            # Auto-score past decisions (non-blocking).
+            try:
+                import subprocess as _sp
+                _sp.run([sys.executable, str(ROOT / "scripts" / "score_decisions.py")],
+                        cwd=str(ROOT), timeout=300, check=False)
+            except Exception as _sd_exc:
+                logger.debug("score_decisions skipped: %s", _sd_exc)
             return 0
         else:
             # PARTIAL or ABORTED: publish status report via finalize
