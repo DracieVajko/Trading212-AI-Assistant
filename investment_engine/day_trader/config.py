@@ -36,6 +36,7 @@ class ExecutionConfig:
     live_ack: str = ""
     unlimited: bool = False
     live_buy_auto_approve: bool = False
+    max_sell_eur: float = 100.0
 
 
 @dataclass
@@ -132,6 +133,7 @@ class DayTraderConfig:
                 auto_approve=bool(exec_raw.get("auto_approve", False)),
                 live_buy_auto_approve=bool(exec_raw.get("live_buy_auto_approve", False)),
                 max_order_eur=float(exec_raw.get("max_order_eur", 50.0) or 50.0),
+                max_sell_eur=float(exec_raw.get("max_sell_eur", 100.0) or 100.0),
                 max_daily_orders=int(exec_raw.get("max_daily_orders", 2) or 2),
                 allowed_sides=list(exec_raw.get("allowed_sides", ["BUY"]) or ["BUY"]),
                 live_ack=str(exec_raw.get("live_ack", "")),

@@ -80,6 +80,8 @@ def evaluate(
         notional = 0.0
     if not unlimited and notional > float(getattr(exec_cfg, "max_order_eur", 0) or 0):
         reasons.append(f"order notional {notional:.2f} exceeds cap")
+    if side == "SELL" and notional > float(getattr(exec_cfg, "max_sell_eur", 100.0) or 100.0):
+        reasons.append(f"sell notional {notional:.2f} exceeds sell cap {float(getattr(exec_cfg, 'max_sell_eur', 100.0) or 100.0):.2f}")
 
     if not unlimited and daily_orders >= int(getattr(exec_cfg, "max_daily_orders", 0) or 0):
         reasons.append("daily order limit reached")
