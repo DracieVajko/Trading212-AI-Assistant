@@ -37,6 +37,33 @@ class ExecutionConfig:
     unlimited: bool = False
     live_buy_auto_approve: bool = False
     max_sell_eur: float = 100.0
+    # Per-account toggles (independent of environment)
+    demo_enabled: bool = True
+    live_enabled: bool = True
+    demo_allowed_sides: list[str] = field(default_factory=lambda: [])
+    live_allowed_sides: list[str] = field(default_factory=lambda: [])
+    demo_max_order_eur: float = 0.0
+    demo_max_sell_eur: float = 0.0
+    live_max_order_eur: float = 0.0
+    live_max_sell_eur: float = 0.0
+
+    def resolved_demo_sides(self) -> list[str]:
+        return [s.upper() for s in (self.demo_allowed_sides or self.allowed_sides or ["BUY", "SELL"])]
+
+    def resolved_live_sides(self) -> list[str]:
+        return [s.upper() for s in (self.live_allowed_sides or self.allowed_sides or ["BUY", "SELL"])]
+
+    def resolved_demo_max_order(self) -> float:
+        return self.demo_max_order_eur if self.demo_max_order_eur > 0 else self.max_order_eur
+
+    def resolved_demo_max_sell(self) -> float:
+        return self.demo_max_sell_eur if self.demo_max_sell_eur > 0 else self.max_sell_eur
+
+    def resolved_live_max_order(self) -> float:
+        return self.live_max_order_eur if self.live_max_order_eur > 0 else self.max_order_eur
+
+    def resolved_live_max_sell(self) -> float:
+        return self.live_max_sell_eur if self.live_max_sell_eur > 0 else self.max_sell_eur
 
 
 @dataclass
@@ -135,9 +162,17 @@ class DayTraderConfig:
                 max_order_eur=float(exec_raw.get("max_order_eur", 50.0) or 50.0),
                 max_sell_eur=float(exec_raw.get("max_sell_eur", 100.0) or 100.0),
                 max_daily_orders=int(exec_raw.get("max_daily_orders", 2) or 2),
-                allowed_sides=list(exec_raw.get("allowed_sides", ["BUY"]) or ["BUY"]),
+                allowed_sides=list(exec_raw.get("allowed_sides", ["BUY", "SELL"]) or ["BUY", "SELL"]),
                 live_ack=str(exec_raw.get("live_ack", "")),
                 unlimited=bool(exec_raw.get("unlimited", False)),
+                demo_enabled=bool(exec_raw.get("demo_enabled", True)),
+                live_enabled=bool(exec_raw.get("live_enabled", False)),
+                demo_allowed_sides=list(exec_raw.get("demo_allowed_sides", []) or []),
+                live_allowed_sides=list(exec_raw.get("live_allowed_sides", []) or []),
+                demo_max_order_eur=float(exec_raw.get("demo_max_order_eur", 0.0) or 0.0),
+                demo_max_sell_eur=float(exec_raw.get("demo_max_sell_eur", 0.0) or 0.0),
+                live_max_order_eur=float(exec_raw.get("live_max_order_eur", 0.0) or 0.0),
+                live_max_sell_eur=float(exec_raw.get("live_max_sell_eur", 0.0) or 0.0),
             ),
             report=ReportConfig(
                 max_hits=int(report_raw.get("max_hits", 10) or 10),

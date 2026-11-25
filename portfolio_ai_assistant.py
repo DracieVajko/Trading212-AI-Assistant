@@ -519,13 +519,16 @@ def main() -> int:
                 _did_day_trader = True
                 from investment_engine.day_trader.execute import demo_execution_allowed, execute_demo_tickets
                 # Demo runs whenever allow-orders is set (independent of config env).
-                if args.day_trader_allow_orders:
+                if args.day_trader_allow_orders and getattr(_dt_cfg.execution, "demo_enabled", True):
                     try:
                         import copy as _copy
                         _demo_cfg = _copy.deepcopy(_dt_cfg)
                         _demo_cfg.execution.environment = "demo"
                         _demo_cfg.execution.enabled = True
                         _demo_cfg.execution.auto_approve = True
+                        _demo_cfg.execution.allowed_sides = _demo_cfg.execution.resolved_demo_sides()
+                        _demo_cfg.execution.max_order_eur = _demo_cfg.execution.resolved_demo_max_order()
+                        _demo_cfg.execution.max_sell_eur = _demo_cfg.execution.resolved_demo_max_sell()
                         if args.allow_demo_buy or args.allow_demo_sell:
                             _sides = []
                             if args.allow_demo_buy:
@@ -576,7 +579,7 @@ def main() -> int:
                 # Sells are never auto-placed on live - only via manual approval
                 # from report recommendations.
                 from investment_engine.day_trader.execute import live_execution_allowed
-                if live_execution_allowed(args.day_trader_allow_orders, "live"):
+                if live_execution_allowed(args.day_trader_allow_orders, "live") and getattr(_dt_cfg.execution, "live_enabled", False):
                     try:
                         import copy as _copy
                         import os as _os
@@ -589,6 +592,9 @@ def main() -> int:
                         _live_cfg.execution.enabled = True
                         _live_cfg.execution.auto_approve = True
                         _live_cfg.execution.live_buy_auto_approve = True
+                        _live_cfg.execution.allowed_sides = _live_cfg.execution.resolved_live_sides()
+                        _live_cfg.execution.max_order_eur = _live_cfg.execution.resolved_live_max_order()
+                        _live_cfg.execution.max_sell_eur = _live_cfg.execution.resolved_live_max_sell()
                         if args.allow_live_buy or args.allow_live_sell:
                             _sides = []
                             if args.allow_live_buy:

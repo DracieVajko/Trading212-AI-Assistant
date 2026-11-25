@@ -709,6 +709,61 @@ How the script "learns":
 Nothing here retrains model weights; all improvement is in the deterministic
 pipeline, prompts and feedback data.
 
+## Execution control (demo / live)
+
+The day-trader execution layer can be fine-tuned per account. All settings live in
+`portfolio_config.json` under `day_trader.execution` (and can be overridden by
+CLI flags / env vars).
+
+### Per-account toggles
+
+| Key | Default | Meaning |
+|---|---|---|
+| `demo_enabled` | `true` | Run demo (paper) execution |
+| `live_enabled` | `true` | Run live execution (also requires kill switch + ack) |
+| `demo_allowed_sides` | `[]` (-> `allowed_sides`) | Sides allowed on demo (`BUY`, `SELL`) |
+| `live_allowed_sides` | `[]` (-> `allowed_sides`) | Sides allowed on live |
+| `demo_max_order_eur` | `0` (-> `max_order_eur`) | Per-order cap on demo |
+| `demo_max_sell_eur` | `0` (-> `max_sell_eur`) | Per-sell cap on demo |
+| `live_max_order_eur` | `0` (-> `max_order_eur`) | Per-order cap on live |
+| `live_max_sell_eur` | `0` (-> `max_sell_eur`) | Per-sell cap on live |
+| `live_buy_auto_approve` | `false` | Auto-approve live trades (buys + sells) |
+
+### Global caps
+
+| Key | Default | Meaning |
+|---|---|---|
+| `allowed_sides` | `["BUY","SELL"]` | Fallback sides for both accounts |
+| `max_order_eur` | `50` | Per-order cap (both accounts) |
+| `max_sell_eur` | `100` | Per-sell cap (conservative) |
+| `max_daily_orders` | `2` | Daily order limit |
+| `max_daily_loss` | `30` | Daily loss limit (EUR) |
+| `auto_approve` | `false` | Auto-approve (demo only by default) |
+
+### CLI overrides
+
+```
+--allow-demo-buy / --allow-demo-sell     # override demo sides this run
+--allow-live-buy / --allow-live-sell     # override live sides this run
+--branches both|live|demo               # run only one account
+--day-trader-allow-orders               # master switch for execution
+```
+
+### Live kill switch
+
+Live execution requires ALL of:
+- `T212_LIVE_ORDER_ENABLED=1`
+- `T212_LIVE_ACK=I_UNDERSTAND_LIVE_TRADING`
+- `T212_LIVE_BUY_AUTO_APPROVE=1` (for auto-approve)
+
+Set any to `0`/empty to disable live trading instantly.
+
+### Examples
+
+- **Demo only, buys only:** `demo_enabled=true, live_enabled=false, demo_allowed_sides=["BUY"]`
+- **Live only, conservative sells:** `demo_enabled=false, live_enabled=true, live_max_sell_eur=50`
+- **Both, full access:** `demo_enabled=true, live_enabled=true` (default with kill switch on)
+
 ## Limitations
 
 - **AI output is advisory interpretation, not advice.** It can be confidently
