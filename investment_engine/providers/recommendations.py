@@ -173,6 +173,14 @@ def _build_ai_recommendations(
         _eblock = ""
     _blocks = [b for b in (demo_feedback, _eblock) if b]
     demo_block = ("\n" + "\n\n".join(_blocks) + "\n") if _blocks else ""
+    # PIE / position alert thresholds (take-profit +20% / stop-loss -8%).
+    try:
+        from investment_engine.portfolio.pie_alerts import pie_alert_block as _pab
+        _palert = _pab(t212_data)
+        if _palert:
+            demo_block = (demo_block + "\n" + _palert + "\n") if demo_block else (_palert + "\n")
+    except Exception:
+        pass
 
     prompt = f"""You are a portfolio manager. Output ONLY valid JSON with specific trade actions.
 

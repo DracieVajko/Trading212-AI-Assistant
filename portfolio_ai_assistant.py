@@ -1098,6 +1098,15 @@ def main() -> int:
             print(f"SUCCESS: Snapshot saved to {snapshot_path}")
             print(f"SUCCESS: Intelligence brief saved to {intel_path}")
             print(f"Log file: {run_log}")
+            # PIE / position alert thresholds (best-effort).
+            try:
+                from investment_engine.portfolio.pie_alerts import check_alerts, dispatch_alerts
+                _alerts = check_alerts(result.get("t212_data", {}) or {})
+                if not _alerts:
+                    _alerts = check_alerts(result or {})
+                dispatch_alerts(_alerts)
+            except Exception as _ae:
+                logger.debug("pie alerts skipped: %s", _ae)
             # Auto-score past decisions (non-blocking).
             try:
                 import subprocess as _sp
