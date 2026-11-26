@@ -148,7 +148,7 @@ def ensure_instrument_catalog(
             age_days = (datetime.now(timezone.utc)
                         - datetime.fromisoformat(fetched)).total_seconds() / 86400.0
         except (ValueError, TypeError):
-            pass
+            logger.debug("best-effort ignore")
         instruments = payload.get("instruments", payload) if isinstance(payload, dict) else {}
         if isinstance(instruments, dict) and instruments and age_days is not None and age_days <= max_age_days:
             meta.update({"ok": True, "age_days": round(age_days, 2), "count": len(instruments)})
@@ -164,7 +164,7 @@ def ensure_instrument_catalog(
         try:
             save_instrument_catalog(catalog, path)
         except OSError:
-            pass
+            logger.debug("best-effort ignore")
         live_meta["source"] = "live"
         return catalog, live_meta
     # Fall back to the stale cache rather than nothing.
@@ -175,7 +175,7 @@ def ensure_instrument_catalog(
             meta.update({"ok": True, "stale": True, "count": len(instruments)})
             return instruments, meta
     except (OSError, ValueError):
-        pass
+        logger.debug("best-effort ignore")
     meta.update({"ok": False})
     return {}, meta
 
@@ -836,7 +836,7 @@ def _resolve_currency(
                 ccy, unit, _factor = _ov[cand]
                 return ccy, unit, "explicit_override"
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     return CURRENCY_UNRESOLVED, "", "unresolved"
 
 
@@ -1101,7 +1101,7 @@ def build_diagnostic_rows(
                 if rate:
                     computed_ext = round(float(pos.quantity) * float(ext_price) * float(rate), 2)
             except (TypeError, ValueError):
-                pass
+                logger.debug("best-effort ignore")
         rows.append({
             "source": pos.source,
             "account_id": account_id if account_id != "default" else "",

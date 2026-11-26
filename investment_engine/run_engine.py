@@ -399,7 +399,7 @@ DECISIONS:
             if isinstance(_p, dict) and _p.get("isin") and _p.get("symbol"):
                 _isin_map.setdefault(str(_p["symbol"]).strip().upper(), str(_p["isin"]).strip().upper())
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     try:
         from investment_engine.reporting.regime_report import (
             build_unified_portfolio_rows as _build_rows,
@@ -502,7 +502,7 @@ DECISIONS:
                     if disp not in unavailable_earnings:
                         unavailable_earnings.append(disp)
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     format_earnings_radar(earnings_status, portfolio_names, unavailable_earnings)
     # Phase 6 skills run after the canonical snapshot (built before news fetch).
     skill_outputs: dict[str, dict] = {}
@@ -558,7 +558,7 @@ DECISIONS:
                 _STAGE_ATTRIBUTION["news_events"] = _attr_sk.note_deterministic(_sk_record, "deterministic_by_design")
                 _STAGE_ATTRIBUTION["news_events"]["execution_reason"] = "DETERMINISTIC_BY_DESIGN"
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
         skill_outputs["equity_notes"] = annotate_skill_output(
             _skills.run_skill(
                 "equity_research_analyst",

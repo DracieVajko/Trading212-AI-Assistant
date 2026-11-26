@@ -140,7 +140,8 @@ def fetch_symbol_news(
             continue
         try:
             resolved = resolve_tv_symbol(disp, yahoo, t212_id, config_assets)
-        except Exception:
+        except Exception as exc:
+            logger.debug("symbol resolve skipped: %s", type(exc).__name__)
             continue
         if not resolved:
             continue
@@ -156,7 +157,8 @@ def fetch_symbol_news(
                 try:
                     resp = sess.get(TV_NEWS_URL, params=params, timeout=timeout)
                     status = getattr(resp, "status_code", 200)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("TV news fetch skipped: %s", type(exc).__name__)
                     continue
             if status in (403, 429) or (status is not None and status >= 500):
                 if _is_block_error(status):

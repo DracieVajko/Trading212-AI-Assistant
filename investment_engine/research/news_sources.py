@@ -243,7 +243,7 @@ def _as_record(item):
                 if not isinstance(out, dict):
                     out = None
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
         if out is None:
             for attr in ("model_dump", "dict", "to_dict"):
                 try:
@@ -253,7 +253,8 @@ def _as_record(item):
                         if isinstance(cand, dict):
                             out = cand
                             break
-                except Exception:
+                except Exception as exc:
+                    logger.debug("skipped: %s", type(exc).__name__)
                     continue
         if out is None:
             try:
@@ -406,7 +407,8 @@ class EnhancedNewsFetcher:
                     }),
                     "ticker_match": self._find_ticker_matches(text, symbols or []),
                 })
-            except Exception:
+            except Exception as exc:
+                logger.debug("skipped: %s", type(exc).__name__)
                 continue
         return items
 
@@ -453,14 +455,16 @@ class EnhancedNewsFetcher:
             if hasattr(entry, field) and getattr(entry, field):
                 try:
                     return datetime(*getattr(entry, field)[:6], tzinfo=timezone.utc)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("skipped: %s", type(exc).__name__)
                     continue
         for field in ("published", "updated"):
             val = entry.get(field, "")
             if val:
                 try:
                     return datetime.fromisoformat(str(val).replace("Z", "+00:00"))
-                except Exception:
+                except Exception as exc:
+                    logger.debug("skipped: %s", type(exc).__name__)
                     continue
         return None
 
@@ -544,13 +548,15 @@ class EnhancedNewsFetcher:
                             try:
                                 pub_dt = datetime(*val[:6], tzinfo=timezone.utc)
                                 break
-                            except Exception:
+                            except Exception as exc:
+                                logger.debug("skipped: %s", type(exc).__name__)
                                 continue
                     if pub_dt is None:
                         try:
                             pub_dt = _eu.parsedate_to_datetime(
                                 str(entry.get("published", "") or "")).astimezone(timezone.utc)
-                        except Exception:
+                        except Exception as exc:
+                            logger.debug("skipped: %s", type(exc).__name__)
                             continue
                     if pub_dt < cutoff:
                         continue
@@ -576,7 +582,8 @@ class EnhancedNewsFetcher:
                         }),
                         "ticker_match": [],
                     })
-                except Exception:
+                except Exception as exc:
+                    logger.debug("skipped: %s", type(exc).__name__)
                     continue
         return out
 
@@ -654,7 +661,8 @@ class EnhancedNewsFetcher:
                     }),
                     "ticker_match": [],
                 })
-            except Exception:
+            except Exception as exc:
+                logger.debug("skipped: %s", type(exc).__name__)
                 continue
         return items[:limit]
 

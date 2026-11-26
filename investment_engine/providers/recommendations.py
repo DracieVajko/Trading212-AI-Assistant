@@ -4,6 +4,7 @@ Extracted from ``main.py``.
 """
 
 from __future__ import annotations
+from investment_engine.secrets import load_secrets
 
 import logging
 from typing import Any
@@ -149,7 +150,7 @@ def _build_ai_recommendations(
         import os as _os
         from pathlib import Path as _Path
         from dotenv import load_dotenv as _ld
-        _ld(str(_Path(__file__).resolve().parents[2] / "api.env"))
+        load_secrets()
         from investment_engine.day_trader.broker.t212_orders import T212OrderClient
         from investment_engine.day_trader.demo_feedback import collect_and_score_trades
         _lk = _os.getenv("TRADING212_API_KEY", "")

@@ -232,7 +232,7 @@ def _check_supported(symbol: str, purpose: str) -> str | None:
                 logger.debug("Allowing %s via universe-verified listing", s)
                 return s
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
         logger.debug("Skipping %s (%s %s)", s, support_state(s, purpose), purpose)
         return None
     return s
@@ -341,7 +341,7 @@ def earnings_source_for(display: str, calendar_sourced: set[str] | None) -> str:
         if str(display or "") in (calendar_sourced or set()):
             return EARNINGS_SOURCE_CALENDAR
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     return EARNINGS_SOURCE_YAHOO
 
 
@@ -413,7 +413,7 @@ def fetch_technical_indicators(symbol: str, period: str = "3mo", interval: str =
                     if rsi_el:
                         indicators["RSI_14"] = float(rsi_el.inner_text().strip())
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
                 
                 # MACD
                 try:
@@ -421,7 +421,7 @@ def fetch_technical_indicators(symbol: str, period: str = "3mo", interval: str =
                     if macd_el:
                         indicators["MACD"] = float(macd_el.inner_text().strip())
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
                 
                 # SMAs
                 for ma_period in [20, 50, 200]:
@@ -430,7 +430,7 @@ def fetch_technical_indicators(symbol: str, period: str = "3mo", interval: str =
                         if ma_el:
                             indicators[f"SMA_{ma_period}"] = float(ma_el.inner_text().strip().replace(",", ""))
                     except Exception:
-                        pass
+                        logger.debug("best-effort ignore")
                 
                 # Support/Resistance
                 try:
@@ -438,14 +438,14 @@ def fetch_technical_indicators(symbol: str, period: str = "3mo", interval: str =
                     if support_el:
                         indicators["Support"] = float(support_el.inner_text().strip().replace(",", ""))
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
                 
                 try:
                     resistance_el = page.query_selector('[data-name="Resistance"] .value, .technicals-Resistance .value')
                     if resistance_el:
                         indicators["Resistance"] = float(resistance_el.inner_text().strip().replace(",", ""))
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
                 
                 return indicators if indicators else None
             
@@ -630,7 +630,7 @@ def _fetch_technical_playwright(symbol: str) -> dict | None:
                 if rsi_el:
                     indicators["RSI_14"] = float(rsi_el.inner_text().strip())
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
             
             try:
                 # MACD
@@ -638,7 +638,7 @@ def _fetch_technical_playwright(symbol: str) -> dict | None:
                 if macd_el:
                     indicators["MACD"] = float(macd_el.inner_text().strip())
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
             
             # Extract moving averages
             for ma_period in [20, 50, 200]:
@@ -647,7 +647,7 @@ def _fetch_technical_playwright(symbol: str) -> dict | None:
                     if ma_el:
                         indicators[f"SMA_{ma_period}"] = float(ma_el.inner_text().strip().replace(",", ""))
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
             
             # Support/Resistance
             try:
@@ -655,14 +655,14 @@ def _fetch_technical_playwright(symbol: str) -> dict | None:
                 if support_el:
                     indicators["Support"] = float(support_el.inner_text().strip().replace(",", ""))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
             
             try:
                 resistance_el = page.query_selector('[data-name="Resistance"] .value, .technicals-Resistance .value')
                 if resistance_el:
                     indicators["Resistance"] = float(resistance_el.inner_text().strip().replace(",", ""))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
             
             browser.close()
             

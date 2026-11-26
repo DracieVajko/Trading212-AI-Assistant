@@ -63,7 +63,7 @@ class ProviderFactory:
             try:
                 chain.append(ProviderFactory._gemini(settings))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
         # OpenRouter removed from API-only chain (free models unreliable, timeouts)
         # if getattr(settings, "openrouter_api_key", ""):
         #     try:
@@ -74,7 +74,7 @@ class ProviderFactory:
             try:
                 chain.append(ProviderFactory._mistral(settings))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
         if len(chain) == 1:
             return chain[0]
         if chain:
@@ -110,7 +110,7 @@ class ProviderFactory:
                     watchdog_poll_s=getattr(settings, "lm_studio_watchdog_poll_s", 15),
                 ))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
         else:
             logger.info("ProviderFactory: LM Studio disabled by policy (LMSTUDIO_ENABLED=0)")
         if bool(getattr(settings, "ollama_enabled", True)):
@@ -123,7 +123,7 @@ class ProviderFactory:
                     **_ollama_kwargs(settings),
                 ))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
         else:
             logger.info("ProviderFactory: Ollama disabled by policy (OLLAMA_ENABLED=0)")
         if len(chain) == 1:
@@ -218,7 +218,7 @@ class ProviderFactory:
                 )
                 chain.append(lm)
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
         else:
             logger.info("ProviderFactory: LM Studio disabled by policy (LMSTUDIO_ENABLED=0)")
 
@@ -234,7 +234,7 @@ class ProviderFactory:
                 )
                 chain.append(ollama)
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
         else:
             logger.info("ProviderFactory: Ollama disabled by policy (OLLAMA_ENABLED=0)")
 
@@ -243,7 +243,7 @@ class ProviderFactory:
             try:
                 chain.append(ProviderFactory._gemini(settings))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
 
         # 5. OpenRouter – :free models only (FREE_MODELS rotation inside the
         # provider when model is "openrouter/free"; a user-pinned specific
@@ -252,14 +252,14 @@ class ProviderFactory:
             try:
                 chain.append(ProviderFactory._openrouter(settings))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
 
         # 6. Mistral – free tier fallback (last cloud link)
         if getattr(settings, "mistral_api_key", ""):
             try:
                 chain.append(ProviderFactory._mistral(settings))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
 
         # Note: OpenCode Zen NOT in auto chain (empty responses observed).
         # Available only with explicit PROVIDER=opencode_zen.

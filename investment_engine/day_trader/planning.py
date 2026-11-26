@@ -16,6 +16,9 @@ from .runner import ToolResult, run_tool
 from .state import ensure_state_root, read_json, write_json
 
 VENDOR_ROOT = Path(__file__).resolve().parents[2] / "vendor" / "day_trader_skill"
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _vendor(rel: str) -> Path:
@@ -110,7 +113,7 @@ def run_planning(
                         plan=_plan if isinstance(_plan, dict) else {},
                     )
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
                 break
 
         # time machine
@@ -203,7 +206,7 @@ def run_planning(
                 plan=_plan if isinstance(_plan, dict) else {},
             )
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
     return payload
 
 

@@ -100,7 +100,7 @@ class OllamaProvider(BaseLLMProvider):
             )
             _track_local_ai(blocked=False)
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
 
         ctx = context or {}
         try:

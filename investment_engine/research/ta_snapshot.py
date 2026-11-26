@@ -14,6 +14,8 @@ Conventions:
 
 from __future__ import annotations
 
+import logging
+
 import math
 from datetime import date, datetime, timezone
 from typing import Any
@@ -28,6 +30,8 @@ SCHEMA_VERSION = 1
 ANNUALIZATION = {"equity": 252, "fund": 252, "crypto": 365}
 RETURN_WINDOWS = {"equity": (21, 63, 126, 252), "fund": (21, 63, 126, 252),
                   "crypto": (30, 91, 182, 365)}
+
+logger = logging.getLogger(__name__)
 
 
 # --------------------------------------------------------------------------
@@ -565,7 +569,7 @@ def build_snapshot(
         if missing_wd > 0:
             quality_flags.append(f"missing {missing_wd} weekday sessions")
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     run = maxrun = 0
     for v in vo:
         run = run + 1 if v == 0 else 0
@@ -592,7 +596,7 @@ def build_snapshot(
             if abs(float(ref_close) - float(cl[-1])) / abs(float(cl[-1])) > 0.02:
                 quality_flags.append("last close differs >2% from second source")
         except (TypeError, ValueError, ZeroDivisionError):
-            pass
+            logger.debug("best-effort ignore")
     if (hi < lo).any():
         quality_flags.append("high<low bars present")
     # --- refusal: unexplained >50% overnight gaps (T09a) ---
@@ -669,7 +673,7 @@ def build_snapshot(
             base = adj[prev_year_end[-1]]
             ytd = float(adj[-1] / base - 1.0) if base and base > 0 else None
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     mom_12_1 = float(adj[-w1] / adj[-w12] - 1.0) if n > w12 and adj[-w12] > 0 else None
     days_total = (dates[-1] - dates[0]).days
     cagr_full = _cagr(adj[0], adj[-1], days_total)

@@ -47,7 +47,7 @@ def _fetch_earnings_fast(assets: list[dict[str, Any]], timeout_per_symbol: float
             if _is_etf(asset):
                 return _disp_of(asset), "no_data"
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
         explicit_yahoo = (asset or {}).get("yahoo_symbol")
         ref = explicit_yahoo or (asset or {}).get("ticker") or _symbol(asset)
         try:
@@ -103,13 +103,14 @@ def _merge_calendar_earnings(earnings: dict, events, need: list,
         for _ev in (events or [])[:80]:
             try:
                 _d = to_display(str(getattr(_ev, "symbol", "")))
-            except Exception:
+            except Exception as exc:
+                logger.debug("skipped: %s", type(exc).__name__)
                 continue
             if _d in need_set and getattr(_ev, "date", ""):
                 earnings[_d] = str(_ev.date)[:10]
                 filled += 1
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     return filled
 
 
@@ -137,7 +138,7 @@ def _fill_earnings_layer2(earnings: dict, need: list, *, fetch_calendar,
                     try:
                         _sleep(2.0 * (2 ** _attempt))
                     except Exception:
-                        pass
+                        logger.debug("best-effort ignore")
                 else:
                     logger.warning("Earnings layer 2 calendar failed after 3 attempts: %s", exc)
         if _events:
@@ -154,7 +155,8 @@ def _fill_earnings_layer2(earnings: dict, need: list, *, fetch_calendar,
                 _d = fetch_yahoo_date(_y)
                 if _d:
                     _fb.append(_NS(symbol=_disp, date=str(_d)[:10]))
-            except Exception:
+            except Exception as exc:
+                logger.debug("skipped: %s", type(exc).__name__)
                 continue
         if _fb:
             return _merge_calendar_earnings(earnings, _fb, need, to_display)
@@ -251,7 +253,7 @@ def _fetch_technicals_parallel(symbols: list) -> dict[str, dict]:
                 if ind:
                     out[disp] = ind
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
     return out
 
 
@@ -280,7 +282,7 @@ def _fetch_news_for_extra_tickers(settings_dict: dict, items: list[tuple]) -> di
                 if entries:
                     out[key] = entries
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
     return out
 
 
@@ -329,7 +331,7 @@ def _fetch_earnings_for_symbols(yahoo_by_display: dict[str, str | None]) -> dict
                 disp, date = f.result(timeout=20)
                 out[disp] = date
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
     return out
 
 # Public aliases for cross-module use (private names remain the

@@ -44,7 +44,7 @@ def _resolve_account_performance(t212_data: T212Snapshot | None, portfolio_conte
                     if api_result.get("status") == "VERIFIED":
                         _cf.save_history_cache(api_result)
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
                 logger.info("Cash-flow history: status=%s items=%d pages=%d exhausted=%s",
                             api_result.get("status"), api_result.get("item_count", 0),
                             api_result.get("pages", 0), api_result.get("exhausted", False))

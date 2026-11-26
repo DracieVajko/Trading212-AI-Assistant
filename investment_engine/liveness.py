@@ -30,6 +30,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+import logging
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_RUN_DEADLINE_S = 900.0
 DEFAULT_ATTEMPT_MAX_S = 90.0
@@ -51,7 +54,7 @@ def emit_event(event: dict) -> None:
         path = os.getenv("RUN_EVENTS_PATH", str(ROOT / "reports" / "run_events.jsonl"))
         record_run_event(path, dict(event))
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
 
 
 def new_invocation_id() -> str:
@@ -307,7 +310,7 @@ def note_degraded(stage: str, reason: str) -> None:
             _DEGRADED_STAGES[key] = reason_s
             emit_event({"event": "stage_degraded", "stage": key, "reason": reason_s})
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
 
 
 def degraded_stages() -> dict[str, str]:
@@ -348,7 +351,7 @@ def _extract_http_status(text: str) -> int | None:
         try:
             return int(m.group(1))
         except (TypeError, ValueError):
-            pass
+            logger.debug("best-effort ignore")
     tl = (text or "").lower()
     if "429" in tl or "too many requests" in tl:
         return 429
@@ -502,19 +505,19 @@ def disarm_watchdog() -> None:
         faulthandler.cancel_dump_traceback_later()
         faulthandler.disable()
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     try:
         fh = _WATCHDOG.get("file")
         if fh is not None:
             fh.close()
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     try:
         sentinel = _WATCHDOG.get("sentinel")
         if sentinel is not None:
             Path(sentinel).unlink(missing_ok=True)
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     _WATCHDOG.update({"armed": False, "seconds": 0.0, "dump": None,
                       "sentinel": None, "file": None})
     emit_event({"event": "watchdog_disarmed"})
@@ -594,4 +597,4 @@ def close_checkpoint(base_dir: str | Path, run_id: str, status: str, extra: dict
         os.replace(tmp, path)
         emit_event({"event": "checkpoint_closed", "run_id": run_id, "status": str(status)})
     except Exception:
-        pass
+        logger.debug("best-effort ignore")

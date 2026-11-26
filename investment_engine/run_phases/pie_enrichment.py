@@ -231,14 +231,14 @@ def enrich_pies(inputs: PieEnrichmentInputs) -> PieEnrichmentResult:
                                     raw_count=playwright_stats["attempted"],
                                     normalized_count=_got, selected_count=_got)
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
             else:
                 try:
                     _srcstat.record(source_ledger, adapter="tradingview.sweep",
                                     domain="technicals_facts",
                                     status="NOT_ATTEMPTED")
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
     except Exception as exc:
         logger.debug("Playwright sweep skipped: %s", type(exc).__name__)
         try:
@@ -246,7 +246,7 @@ def enrich_pies(inputs: PieEnrichmentInputs) -> PieEnrichmentResult:
                             domain="technicals_facts",
                             status="FAILED", error=type(exc).__name__)
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
 
     # --- TV symbol news ---
     tvnews_stats: dict = {"items": 0, "symbols": 0, "attempted": 0}
@@ -290,7 +290,7 @@ def enrich_pies(inputs: PieEnrichmentInputs) -> PieEnrichmentResult:
                                 normalized_count=tvnews_stats["items"],
                                 selected_count=tvnews_stats["items"])
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
     except Exception as exc:
         logger.debug("TV symbol news skipped: %s", type(exc).__name__)
         try:
@@ -298,7 +298,7 @@ def enrich_pies(inputs: PieEnrichmentInputs) -> PieEnrichmentResult:
                             domain="symbol_news",
                             status="FAILED", error=type(exc).__name__)
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
 
     # --- Research corpus ---
     _corpus_run_id = str((portfolio_context or {}).get("run_id", "") or "")

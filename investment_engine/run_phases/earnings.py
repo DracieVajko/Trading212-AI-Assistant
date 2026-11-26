@@ -60,7 +60,8 @@ def fetch_earnings_phase(
                         try:
                             if ref:
                                 etf_displays.add(to_display_symbol(str(ref)))
-                        except Exception:
+                        except Exception as exc:
+                            logger.debug("skipped: %s", type(exc).__name__)
                             continue
             needed = [
                 display
@@ -91,7 +92,8 @@ def fetch_earnings_phase(
                                 yahoo = ""
                         if display and yahoo:
                             yahoo_by_display.setdefault(display, yahoo)
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug("skipped: %s", type(exc).__name__)
                         continue
                 playwright_earnings += fill_earnings_layer2(
                     earnings,

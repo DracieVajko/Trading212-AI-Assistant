@@ -1,4 +1,5 @@
 from __future__ import annotations
+from investment_engine.secrets import load_secrets
 
 import json
 import os
@@ -11,7 +12,7 @@ from typing import Any
 try:
     from dotenv import load_dotenv
     load_dotenv()  # Load .env
-    load_dotenv("api.env")  # Also load api.env for Trading212 credentials
+    load_secrets()  # Also load api.env for Trading212 credentials
 except ImportError:
     pass
 

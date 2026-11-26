@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def place_entry(client: Any, intent: dict[str, Any]) -> dict[str, Any]:
@@ -54,13 +57,13 @@ def manage_exits(client: Any, stop_id: Any, target_id: Any, timeout_s: int = 300
             try:
                 client.cancel_order(target_id)
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
             return {"filled": "stop", "stop_status": stop_status, "target_status": target_status}
         if target_status in ("FILLED", "CANCELLED", "REJECTED"):
             try:
                 client.cancel_order(stop_id)
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
             return {"filled": "target", "stop_status": stop_status, "target_status": target_status}
         time.sleep(poll_s)
     return {"filled": "none", "stop_status": "TIMEOUT", "target_status": "TIMEOUT"}
@@ -78,7 +81,7 @@ def run_bracket(client: Any, intent: dict[str, Any], guard_decision: Any) -> dic
         try:
             client.cancel_order(entry_id)
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
         return {"status": "ENTRY_NOT_FILLED", "entry": entry, "entry_status": entry_status}
     stop_order, target_order = place_exits(client, intent)
     stop_id = stop_order.get("id")
@@ -102,5 +105,5 @@ def run_bracket(client: Any, intent: dict[str, Any], guard_decision: Any) -> dic
             plan={k: intent.get(k) for k in ("entry", "stop_price", "target_price", "order_type")},
         )
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     return result

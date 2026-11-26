@@ -92,7 +92,7 @@ def build_decision_sections(inputs: DecisionInputs) -> DecisionSections:
                 if indicators:
                     tech_data[symbol] = indicators
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
 
         tech_summary = ""
         for symbol, indicators in tech_data.items():

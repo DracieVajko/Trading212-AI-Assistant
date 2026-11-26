@@ -111,7 +111,8 @@ class DiscoveryEngine:
                     fetcher=fetcher, limit=limit_per_idea,
                     min_relevance=min_relevance, max_age_hours=max_age_hours,
                 )
-            except Exception:
+            except Exception as exc:
+                logger.debug("skipped: %s", type(exc).__name__)
                 continue
             if not isinstance(res, dict) or not res.get("supported"):
                 continue

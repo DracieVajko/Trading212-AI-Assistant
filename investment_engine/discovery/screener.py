@@ -171,7 +171,7 @@ def run_screener(
             # We don't have price data here, so skip (will be computed in report)
             pass
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
 
     # Limit
     if len(candidates) > max_candidates:

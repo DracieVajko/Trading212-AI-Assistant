@@ -128,7 +128,7 @@ def load_cache() -> dict[str, Any]:
         if isinstance(data, dict) and data.get("version") == CACHE_VERSION:
             return data
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     return {"version": CACHE_VERSION, "isins": {}}
 
 

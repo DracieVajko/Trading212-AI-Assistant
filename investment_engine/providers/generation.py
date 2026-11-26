@@ -61,7 +61,7 @@ def _note_deterministic_skill(stage: str, reason: str = "deterministic_by_design
         _rec["reason"] = reason
         _STAGE_ATTRIBUTION[stage] = _rec
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
 
 
 def _record_fallback(stage: str, detail: str) -> None:
@@ -199,7 +199,7 @@ def _model_for_stage(settings, stage: str) -> str:
         if stage in FINANCE_STAGES:
             return get("finance_model", None) or get("decision_model")
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     try:
         return get("decision_model")
     except Exception:
@@ -290,7 +290,7 @@ def _revive_locals_if_due(provider, settings=None) -> None:
             try:
                 _skip(name, "re-probe connect failed", _CD)
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
 
 
 def _try_lmstudio_stage(provider, prompt, *, settings, stage, tokens):
@@ -323,7 +323,7 @@ def _try_lmstudio_stage(provider, prompt, *, settings, stage, tokens):
                 # still serve other models), so skip only this stage's attempt.
                 return None, None
         except Exception:
-            pass
+            logger.debug("best-effort ignore")
         from investment_engine.providers.fallback import ChainedFallbackProvider
         from investment_engine.providers.lmstudio import LMStudioProvider
         link = None
@@ -374,7 +374,7 @@ def _generate_with_fallback(provider, prompt, settings, tokens=800, stage="decis
     try:
         _revive_locals_if_due(provider, settings)
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     # Direct per-stage LM Studio attempt first (designated finance/thinking/
     # writer model). The chain would strip the per-call model, so this is the
     # only path where the routed model is actually served.
@@ -388,10 +388,10 @@ def _generate_with_fallback(provider, prompt, settings, tokens=800, stage="decis
             try:
                 _STAGE_ATTRIBUTION[stage]["duration_s"] = round(duration, 1)
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
             return _direct
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     try:
         logger.debug(
             "LLM stage=%s prompt_chars=%d est_tokens~%d output_tokens=%d",
@@ -409,7 +409,7 @@ def _generate_with_fallback(provider, prompt, settings, tokens=800, stage="decis
             try:
                 _STAGE_ATTRIBUTION[stage]["duration_s"] = round(duration, 1)
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
             return result
         else:
             _log_attempt(stage, model, False, duration, len(result) if result else 0, result)
@@ -427,7 +427,7 @@ def _generate_with_fallback(provider, prompt, settings, tokens=800, stage="decis
     try:
         _STAGE_ATTRIBUTION[stage]["duration_s"] = round(_time.time() - start, 1)
     except Exception:
-        pass
+        logger.debug("best-effort ignore")
     return _deterministic_fallback(stage, language=str((settings.__dict__ if hasattr(settings, '__dict__') else {}).get("language", "English")), aggressiveness=str((settings.__dict__ if hasattr(settings, '__dict__') else {}).get("ai_aggressiveness", "balanced")))
 
 

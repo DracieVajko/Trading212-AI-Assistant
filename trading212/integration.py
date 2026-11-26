@@ -206,7 +206,7 @@ class Trading212Integration:
 
     def __init__(self, api_key: str = None, api_secret: str = None,
                  account_id: str = None,
-                 config_file: str = "api.env",
+                 config_file: str = "~/.portfolio-secrets/api.env",
                  ollama_url: str = "http://127.0.0.1:11434",
                  odysseus_url: str = None,
                  ai_model: str = "dolphin3:latest"):
@@ -374,11 +374,11 @@ class Trading212Integration:
 # CONVENIENCE + CLI
 # ===========================================================================
 
-def create_integration(config_file: str = "api.env",
+def create_integration(config_file: str = "~/.portfolio-secrets/api.env",
                        odysseus_url: str = None) -> Optional[Trading212Integration]:
     t = Trading212Integration(config_file=config_file, odysseus_url=odysseus_url)
     if not t.is_enabled():
-        logger.error("Trading212 integration failed - check the API credentials in api.env")
+        logger.error("Trading212 integration failed - check the secret file at ~/.portfolio-secrets/api.env or PORTFOLIO_SECRETS_FILE")
         return None
     return t
 

@@ -10,6 +10,10 @@ and explicit "what would change my view" section.
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 from typing import Any
 
 from investment_engine.skills import contracts
@@ -99,8 +103,8 @@ def run(inputs: dict[str, Any], provider=None, settings=None, language: str = "E
         for note in (prev_result.get("equity_notes", {}) or {}).get("data", {}).get("notes", []) or []:
             if isinstance(note, dict):
                 prev_theses[str(note.get("ticker", "")).upper()] = str(note.get("thesis", "HOLD"))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("equity notes skipped: %s", type(exc).__name__)
 
     notes = []
     unverified: list[str] = []

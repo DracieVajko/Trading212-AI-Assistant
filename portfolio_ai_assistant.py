@@ -1,6 +1,7 @@
 """Command-line entry point for the portfolio investment report."""
 
 from __future__ import annotations
+from investment_engine.secrets import load_secrets
 
 import argparse
 import json
@@ -363,7 +364,7 @@ def main() -> int:
     raw_settings = config.get("settings", {})
     try:
         from dotenv import load_dotenv
-        load_dotenv(ROOT / "api.env")
+        load_secrets()
     except Exception:
         pass
     from investment_engine.history import runtime_mode
@@ -464,7 +465,7 @@ def main() -> int:
                 try:
                     import os as _os
                     from dotenv import load_dotenv as _ld
-                    _ld(str(ROOT / "api.env"))
+                    load_secrets()
                     from investment_engine.day_trader.broker.t212_orders import T212OrderClient
                     _lc = T212OrderClient("live", _os.getenv("TRADING212_API_KEY"), _os.getenv("TRADING212_API_SECRET"))
                     _positions = _lc.get_positions()
@@ -540,7 +541,7 @@ def main() -> int:
                         from investment_engine.day_trader.broker.t212_orders import T212OrderClient
                         import os as _os
                         from dotenv import load_dotenv as _ld
-                        _ld(str(ROOT / "api.env"))
+                        load_secrets()
                         _demo_client = T212OrderClient(
                             "demo",
                             _os.getenv("T212_DEMO_API_KEY"),
@@ -584,7 +585,7 @@ def main() -> int:
                         import copy as _copy
                         import os as _os
                         from dotenv import load_dotenv as _ld
-                        _ld(str(ROOT / "api.env"))
+                        load_secrets()
                         from investment_engine.day_trader import DayTraderConfig
                         from investment_engine.day_trader.broker.t212_orders import T212OrderClient
                         _live_cfg = _copy.deepcopy(_dt_cfg)
@@ -638,7 +639,7 @@ def main() -> int:
             try:
                 import os as _os
                 from dotenv import load_dotenv as _ld
-                _ld(str(ROOT / "api.env"))
+                load_secrets()
                 from investment_engine.day_trader import DayTraderConfig, mirror_to_demo
                 from investment_engine.day_trader.broker.t212_orders import T212OrderClient
                 _live_key = _os.getenv("TRADING212_API_KEY")

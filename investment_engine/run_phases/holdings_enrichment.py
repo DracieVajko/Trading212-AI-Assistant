@@ -132,7 +132,7 @@ def enrich_holdings(inputs: HoldingsEnrichmentInputs) -> HoldingsEnrichmentResul
                 yahoo_by_display.setdefault(
                     _d, to_yahoo_symbol(str(pos["symbol"]), _d, aliases))
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
 
     # --- Technicals + news + earnings for standalone holdings ---
     yahoo_pairs = [(disp, y) for disp, y in yahoo_by_display.items() if y]
@@ -183,7 +183,7 @@ def enrich_holdings(inputs: HoldingsEnrichmentInputs) -> HoldingsEnrichmentResul
                     if _rec:
                         dividends_12m[_d] = _rec
                 except Exception:
-                    pass
+                    logger.debug("best-effort ignore")
         logger.info("Dividends: %d holdings with TTM payouts (of %d checked)",
                     len(dividends_12m), len(_div_cands))
     except Exception as exc:
@@ -209,7 +209,8 @@ def enrich_holdings(inputs: HoldingsEnrichmentInputs) -> HoldingsEnrichmentResul
                 _cons_snap = analyst_consensus(_yy)
                 if _cons_snap:
                     analyst_consensus_map[_dd] = _cons_snap
-            except Exception:
+            except Exception as exc:
+                logger.debug("skipped: %s", type(exc).__name__)
                 continue
         logger.info("Analyst consensus: %d snapshots (of %d checked)",
                     len(analyst_consensus_map), min(len(_cons_cands), 8))

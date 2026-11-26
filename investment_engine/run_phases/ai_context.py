@@ -168,7 +168,7 @@ def save_ai_context_phase(inputs: AIContextInputs) -> AIContextPhase:
                         "key_level": "",
                     })
             except Exception:
-                pass
+                logger.debug("best-effort ignore")
 
         # uuid here used to fork ai_context onto a different run_id (7e520fb5
         # vs wrapper 524fffa0). "UNKNOWN" only when the caller passed none —
