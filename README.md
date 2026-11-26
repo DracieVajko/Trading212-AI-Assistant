@@ -187,17 +187,32 @@ run_t212_analysis.bat  # T212 analysis only
 - `symbol_aliases` - T212 internal ticker → Yahoo Finance mappings
 - `ai_backends` - LM Studio / Ollama model configuration
 
-### `api.env`
-```env
-TRADING212_API_KEY=your_key
-TRADING212_API_SECRET=your_secret
-TRADING212_ENABLED=true
+### Secret storage (new)
+
+Credentials are **never** stored in the project tree. They live in an external
+file:
+
+```
+~/.portfolio-secrets/api.env   (Windows: %USERPROFILE%\.portfolio-secrets\api.env)
 ```
 
-Real credentials, local endpoint addresses and model choices stay only in your
-own `api.env` and `portfolio_config.json`; both are gitignored. The tracked
-`api.env.example` uses placeholders only. Do not paste live keys into issues,
-logs or commits.
+Override the location with `PORTFOLIO_SECRETS_FILE`.
+
+```cmd
+# One-time migration:
+mkdir %USERPROFILE%\.portfolio-secrets
+copy api.env %USERPROFILE%\.portfolio-secrets\api.env
+del api.env
+```
+
+`investment_engine.secrets.load_secrets()` reads this file into `os.environ` at
+startup. The agent (OpenCode) is blocked by `opencode.json` permission rules
+from reading `*.env` or the secrets directory. See `SECRET_POLICY.md`.
+
+### `api.env` (legacy / example)
+
+The tracked `api.env.example` uses placeholders only. Real credentials go in
+the external file above. Do not paste live keys into issues, logs or commits.
 
 Key reference (all optional unless noted; placeholders in `api.env.example`):
 

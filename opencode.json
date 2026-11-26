@@ -2,22 +2,26 @@
   "$schema": "https://opencode.ai/config.json",
   "instructions": ["AGENTS.md", "SECRET_POLICY.md"],
   "permissions": [
-    { "action": "read", "resource": "*.env.example", "effect": "allow" },
     { "action": "read", "resource": "*.env", "effect": "deny" },
     { "action": "read", "resource": "*.env.*", "effect": "deny" },
     { "action": "read", "resource": "**/.portfolio-secrets/**", "effect": "deny" },
     { "action": "edit", "resource": "*.env", "effect": "deny" },
+    { "action": "edit", "resource": "*.env.*", "effect": "deny" },
     { "action": "edit", "resource": "**/.portfolio-secrets/**", "effect": "deny" },
     { "action": "grep", "resource": "*API_KEY*", "effect": "deny" },
     { "action": "grep", "resource": "*API_SECRET*", "effect": "deny" },
     { "action": "grep", "resource": "*api.env*", "effect": "deny" },
     { "action": "glob", "resource": "*.env", "effect": "deny" },
+    { "action": "glob", "resource": "*.env.*", "effect": "deny" },
     { "action": "glob", "resource": "**/.portfolio-secrets/**", "effect": "deny" },
     { "action": "external_directory", "resource": "~/.portfolio-secrets/*", "effect": "deny" },
     { "action": "shell", "resource": "*api.env*", "effect": "deny" },
     { "action": "shell", "resource": "*API_KEY*", "effect": "deny" },
     { "action": "shell", "resource": "*API_SECRET*", "effect": "deny" },
-    { "action": "shell", "resource": "*TRADING212_API*", "effect": "deny" }
+    { "action": "shell", "resource": "*TRADING212_API*", "effect": "deny" },
+    { "action": "read", "resource": "*.env.example", "effect": "allow" },
+    { "action": "edit", "resource": "*.env.example", "effect": "allow" },
+    { "action": "glob", "resource": "*.env.example", "effect": "allow" }
   ],
   "provider": {
     "ollama": {
