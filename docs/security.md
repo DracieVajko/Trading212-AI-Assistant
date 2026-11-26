@@ -3,12 +3,33 @@
 This document describes the **actual** implementation, not an idealised one.
 Read it before trusting any "read-only" claim.
 
+## Secret storage (outside the workspace)
+
+Credentials are **never** stored in the project tree. They live in an external
+file:
+
+```
+~/.portfolio-secrets/api.env   (Windows: C:\\Users\\<you>\\.portfolio-secrets\\api.env)
+```
+
+Override the location with `PORTFOLIO_SECRETS_FILE`.
+
+- `investment_engine.secrets.load_secrets()` reads this file into `os.environ`
+  at startup. The Python process needs the values; the agent (OpenCode) does
+  not.
+- `opencode.json` denies `read`/`edit`/`glob`/`external_directory`/`shell`
+  access to `*.env`, `*.env.*` and `~/.portfolio-secrets/**`, so the agent
+  cannot open or print the file even if asked. See `SECRET_POLICY.md`.
+- `api.env.example` in the repo contains only placeholders and is safe to
+  commit.
+- `verify_environment.py` still checks that no secret file is tracked by git.
+
 ## Three layers, three different contracts
 
 1. **Read-only portfolio analysis** (`trading212/` package + `Trading212Auth`).
    - `Trading212Auth.make_request` raises `ValueError` for any non-GET method.
    - `Trade212Client` only exposes GET helpers. No order endpoints exist here.
-   - This is the layer the main pipeline uses for the live account.
+   - This is the layer the main pipeline uses for the live account snapshot.
 
 2. **Demo order execution** (`investment_engine/day_trader/broker/t212_orders.py`).
    - `T212OrderClient` supports GET, POST (market/limit/stop/stop-limit) and
@@ -28,17 +49,16 @@ Read it before trusting any "read-only" claim.
    - The client host is bound to the `environment` argument at construction;
      a demo client can never reach the live host by URL confusion.
 
-3. **Live-capable low-level integration** (same `T212OrderClient`, environment
-   `"live"`). Retained intentionally for mirroring live positions into the
-   demo account (`mirror_to_demo`, reads live positions, places demo orders).
-   - POST/DELETE on a live client are blocked unless **both**
-     `T212_LIVE_ORDER_ENABLED=1` **and** `T212_LIVE_ACK=I_UNDERSTAND_LIVE_TRADING`
-     (and the value matches `execution.live_ack` in config).
-   - `auto_approve` is forbidden in live mode; live mode also requires
-     `execution.live_ack` to be set in config (validated by `DayTraderConfig`).
-   - No shipped configuration sets these. Live execution is disabled by default.
-
-## Environment variables
+3. **Live order execution** (same `T212OrderClient`, environment `"live"`).
+   - Enabled only when `T212_LIVE_ORDER_ENABLED=1`,
+     `T212_LIVE_ACK=I_UNDERSTAND_LIVE_TRADING` (matching `execution.live_ack`)
+     and `T212_LIVE_BUY_AUTO_APPROVE=1`.
+   - Both BUY and SELL are allowed when `live_buy_auto_approve` is set;
+     otherwise live SELL requires `manual_approval` (no auto-approve).
+   - Per-order caps: `max_order_eur` (default 50), `max_sell_eur` (default 100).
+   - `auto_approve` is forbidden in live mode unless `live_buy_auto_approve`.
+   - Stop-loss / take-profit orders default to GTC (no 24h expiry).
+   - No shipped configuration enables live execution; it is opt-in via env.
 
 | Variable | Effect |
 |---|---|
@@ -48,6 +68,8 @@ Read it before trusting any "read-only" claim.
 | `T212_ORDER_ENV` | Must equal `demo` or `live` to match config |
 | `T212_LIVE_ORDER_ENABLED` | Enable low-level live writes (default 0) |
 | `T212_LIVE_ACK` | Must equal `I_UNDERSTAND_LIVE_TRADING` |
+| `T212_LIVE_BUY_AUTO_APPROVE` | Auto-approve live trades (buys + sells) when 1 |
+| `T212_MAX_SELL_EUR` | (config) per-sell cap on live/demo (default 100 EUR) |
 | `T212_DEMO_ALLOW_UNVERIFIED_RECON` | Treat missing recon as PASS in demo (opt-in) |
 | `API_ONLY` / `LOAD_GUARD` | Provider execution mode / load guard kill switch |
 
@@ -65,9 +87,13 @@ A file at `data/day_trader/KILL_SWITCH` blocks all execution (checked by
 
 ## Secrets and data
 
-- `api.env`, `portfolio_config.json`, `investment_policy.json`,
-  `custom_rules.json`, `history/`, `data/`, `reports/`, `results/` are
-  gitignored and must never be committed.
+- Secrets live in `~/.portfolio-secrets/api.env` (outside the workspace, outside git).
+  Loaded by `investment_engine.secrets.load_secrets()`. The agent (OpenCode)
+  is blocked by `opencode.json` permission rules from reading `*.env` or the
+  secrets directory. See `SECRET_POLICY.md`.
+- `api.env.example` in the repo contains only placeholders and is safe to commit.
+- `portfolio_config.json`, `investment_policy.json`, `custom_rules.json`,
+  `history/`, `data/`, `reports/`, `results/` are gitignored and must never be committed.
 - Logs redact `Authorization` / `Bearer` / `key=` values.
 - News is sanitized for prompt-injection shapes before use.
 - Outbound traffic is GET-only market data plus configured LLM endpoints;
