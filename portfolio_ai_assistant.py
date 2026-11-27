@@ -492,14 +492,19 @@ def main() -> int:
             except Exception as _dt_exc:
                 print(f"ERROR: day-trader pack failed: {_dt_exc}", file=sys.stderr)
                 return 1
-        # Phase 2: Live recommendations only (zero order execution).
-        # Demo already ran above; live never places orders:
-        # T212_LIVE_ORDER_ENABLED=0, no live_ack, auto_approve forbidden.
+        # Phase 2: live branch context. Order execution is decided in the
+        # planning block below; it is gated by live_enabled + the T212 kill switches.
         if _did_day_trader:
             try:
                 from investment_engine.history import runtime_mode as _rm
+                from investment_engine.day_trader.execute import live_execution_allowed
                 _live_mode = _rm("live")
-                print(f"Live phase: recommendations only (no orders), mode={_live_mode}")
+                _live_orders = (
+                    live_execution_allowed(args.day_trader_allow_orders, "live")
+                    and getattr(_dt_cfg.execution, "live_enabled", False)
+                )
+                _live_label = "enabled" if _live_orders else "disabled (recommendations only)"
+                print(f"Live phase: mode={_live_mode} live_orders={_live_label}")
             except Exception as _live_exc:
                 print(f"Live phase skipped: {_live_exc}")
         if args.day_trader_plan:
@@ -576,9 +581,8 @@ def main() -> int:
                             print(f"Demo execute {_r['symbol']}: {_res['status']} {_res.get('reasons') or _res.get('error') or ''}{_extra}")
                     except Exception as _ex:
                         print(f"Demo execution skipped: {_ex}")
-                # Live buys only: bracket (entry + stop + take profit) on live account.
-                # Sells are never auto-placed on live - only via manual approval
-                # from report recommendations.
+                # Live execution: buys (bracket with stop + take profit) and
+                # plain sells. Gated by live_enabled + the T212 kill switches.
                 from investment_engine.day_trader.execute import live_execution_allowed
                 if live_execution_allowed(args.day_trader_allow_orders, "live") and getattr(_dt_cfg.execution, "live_enabled", False):
                     try:
