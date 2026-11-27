@@ -647,7 +647,7 @@ def main() -> int:
                 _demo_key = _os.getenv("T212_DEMO_API_KEY")
                 _demo_secret = _os.getenv("T212_DEMO_API_SECRET")
                 if not (_live_key and _live_secret and _demo_key and _demo_secret):
-                    print("ERROR: missing live or demo T212 credentials in api.env", file=sys.stderr)
+                    print("ERROR: missing live or demo T212 credentials in secrets file", file=sys.stderr)
                     return 1
                 _live_client = T212OrderClient("live", _live_key, _live_secret)
                 _demo_client = T212OrderClient("demo", _demo_key, _demo_secret)
