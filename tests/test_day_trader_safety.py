@@ -45,7 +45,7 @@ def test_live_order_blocked_by_default_env(monkeypatch):
     assert res.get("status") == "blocked"
 
 
-def test_execute_demo_plan_rejects_non_demo_client():
+def test_execute_demo_plan_rejects_non_demo_client(tmp_path):
     from investment_engine.day_trader.execute import execute_demo_plan
     class _LiveClient:
         environment = "live"
@@ -57,7 +57,13 @@ def test_execute_demo_plan_rejects_non_demo_client():
     cfg.execution.auto_approve = True
     cfg.execution.max_daily_orders = 100
     env = {"T212_DEMO_ORDER_ENABLED": "1", "T212_ORDER_ENV": "demo"}
-    res = execute_demo_plan(cfg, {"ticker": "AAPL_US_EQ", "side": "BUY", "quantity": 1, "recon_status": "PASS"}, _LiveClient(), env=env)
+    res = execute_demo_plan(
+        cfg,
+        {"ticker": "AAPL_US_EQ", "side": "BUY", "quantity": 1, "recon_status": "PASS"},
+        _LiveClient(),
+        env=env,
+        db_path=str(tmp_path / "audit.db"),
+    )
     assert res["status"] == "BLOCKED"
     assert "client is not demo" in (res.get("reasons") or [])
 
